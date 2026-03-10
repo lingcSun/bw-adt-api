@@ -1,5 +1,6 @@
 // BW-specific API exports
 export * from "./adso"
+export * from "./ddic"
 export * from "./infoprovider"
 export * from "./repository"
 export * from "./systemInfo"

@@ -1,16 +1,19 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { getADSO, getADSOTables } from "../api/adso"
+import { getADSODDICTableName } from "../api/ddic"
+import * as dotenv from "dotenv"
 
-// 测试配置 - 请根据实际情况修改
+dotenv.config()
+
 const testConfig = {
-  baseUrl: process.env.BW_BASE_URL || "http://your-bw-server:8000",
-  username: process.env.BW_USERNAME || "your-username",
-  password: process.env.BW_PASSWORD || "your-password",
+  baseUrl: process.env.BW_BASE_URL || "",
+  username: process.env.BW_USERNAME || "",
+  password: process.env.BW_PASSWORD || "",
   client: process.env.BW_CLIENT || "100",
-  language: process.env.BW_LANGUAGE || "EN"
+  language: process.env.BW_LANGUAGE || "ZH"
 }
 
-// 测试用的 ADSO 名称 - 使用实际存在的 ADSO
-const TEST_ADSO = process.env.BW_TEST_ADSO || "YOUR_ADSO_NAME"
+const TEST_ADSO = process.env.BW_TEST_ADSO || "ZDSO_MK1"
 
 describe("BW ADSO Tests", () => {
   let client: BWAdtClient
@@ -25,6 +28,51 @@ describe("BW ADSO Tests", () => {
     )
     await client.login()
     console.log(`\n========== ADSO Tests Starting ==========\n`)
+  }, 30000)
+
+  test("should get raw ADSO data", async () => {
+    const raw = await getADSO(client.httpClient, TEST_ADSO, true)
+
+    expect(raw).toBeDefined()
+    expect(typeof raw).toBe("object")
+
+    console.log(`\n========== Raw ADSO Data: ${TEST_ADSO} ==========`)
+    console.log(`Root keys: ${Object.keys(raw).join(", ")}`)
+    const rootKey = Object.keys(raw)[0]
+    if (rootKey && raw[rootKey]) {
+      console.log(`First level keys: ${Object.keys(raw[rootKey]).slice(0, 10).join(", ")}...`)
+    }
+    console.log(`============================================\n`)
+  }, 30000)
+
+  test("should get ADSO tables (may fail on some SAP versions)", async () => {
+    try {
+      const tables = await getADSOTables(client.httpClient, TEST_ADSO)
+
+      expect(tables).toBeDefined()
+
+      console.log(`\n========== ADSO Tables: ${TEST_ADSO} ==========`)
+      console.log(`Active Table: ${tables.activeTable || "N/A"}`)
+      console.log(`Inbound Table: ${tables.inboundTable || "N/A"}`)
+      console.log(`Changelog Table: ${tables.changelogTable || "N/A"}`)
+      if (tables.activeDataTables && tables.activeDataTables.length > 0) {
+        console.log(`Active Data Tables (${tables.activeDataTables.length}):`)
+        tables.activeDataTables.forEach((t, idx) => {
+          console.log(`  [${idx + 1}] ${t}`)
+        })
+      }
+      console.log(`=============================================\n`)
+    } catch (error: any) {
+      console.log(`\nNote: getADSOTables not supported on this SAP system: ${error.message}`)
+      console.log(`Trying getADSODDICTableName as alternative...\n`)
+
+      try {
+        const tableName = await getADSODDICTableName(client.httpClient, TEST_ADSO)
+        console.log(`Alternative - DDIC Table Name: ${tableName || "N/A"}`)
+      } catch (err2: any) {
+        console.log(`Alternative also failed: ${err2.message}`)
+      }
+    }
   }, 30000)
 
   test("should get ADSO details", async () => {

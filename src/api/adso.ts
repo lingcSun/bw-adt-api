@@ -84,6 +84,18 @@ export const ADSOVersion = t.type({
 export type ADSOVersion = t.OutputOf<typeof ADSOVersion>
 
 /**
+ * ADSO Tables - ADSO 关联的表信息
+ */
+export const ADSOTables = t.type({
+  activeTable: orUndefined(t.string),       // 激活表
+  inboundTable: orUndefined(t.string),      // 写入表
+  activeDataTables: orUndefined(t.array(t.string)), // 活动数据表列表
+  changelogTable: orUndefined(t.string),    // 变更日志表
+})
+
+export type ADSOTables = t.OutputOf<typeof ADSOTables>
+
+/**
  * ADSO Configuration - ADSO 配置信息
  * 对应端点: /sap/bw/modeling/adso/{adsonm}/configuration
  */
@@ -200,6 +212,33 @@ export async function getADSOConfiguration(
 }
 
 /**
+ * Get ADSO Tables - 获取 ADSO 关联的表名
+ *
+ * 对应请求: GET /sap/bw/modeling/adso/{adso_id}/sql
+ *
+ * @param client - ADT HTTP 客户端
+ * @param adsoId - ADSO ID
+ * @returns ADSO 表信息
+ */
+export async function getADSOTables(
+  client: AdtHTTP,
+  adsoId: string
+): Promise<ADSOTables> {
+  const response = await client.request(
+    `/sap/bw/modeling/adso/${adsoId.toLowerCase()}/sql`,
+    {
+      method: "GET",
+      headers: {
+        "Accept": "application/vnd.sap.bw.modeling.adso-v1_5_0+xml"
+      }
+    }
+  )
+
+  const raw = fullParse(response.body)
+  return parseADSOTables(raw)
+}
+
+/**
  * Lock ADSO - 锁定 ADSO
  *
  * 对应请求: POST /sap/bw/modeling/adso/{adso_id}?action=lock
@@ -302,19 +341,21 @@ export async function checkADSO(
  * Parse ADSO Details Response - 解析 ADSO 详细信息响应
  */
 function parseADSODetails(raw: any): ADSODetails {
-  const root = raw["adso:adso"] || raw
+  const root = raw["adso:adso"] || raw["adso:dataStore"] || raw
+  const tlogoProps = root["tlogoProperties"] || {}
 
   return {
-    name: root["adso:name"] || root["name"] || "",
-    technicalName: root["adso:technicalName"] || root["technicalName"] || "",
-    description: root["adso:description"] || root["description"],
-    objVers: root["adso:objVers"] || root["objVers"] || "M",
+    name: root["@_name"] || tlogoProps["@_name"] || root["adso:name"] || root["name"] || "",
+    technicalName: root["@_name"] || tlogoProps["@_name"] || root["adso:technicalName"] || root["technicalName"] || "",
+    description: root["adso:description"] || root["description"] || 
+                (root["endUserTexts"]?.["@_label"]),
+    objVers: tlogoProps["objectVersion"] || root["adso:objVers"] || root["objVers"] || "M",
     adsoType: root["adso:adsoType"] || root["adsoType"],
-    status: root["adso:status"] || root["status"],
-    infoArea: root["adso:infoArea"],
-    isRealTime: root["adso:isRealTime"] === "true",
+    status: tlogoProps["objectStatus"] || root["adso:status"] || root["status"],
+    infoArea: tlogoProps["infoArea"] || root["adso:infoArea"],
+    isRealTime: root["@_planningMode"] === "true" || root["adso:isRealTime"] === "true",
     partitioning: root["adso:partitioning"],
-    activationStatus: root["adso:activationStatus"]
+    activationStatus: tlogoProps["contentState"]
   }
 }
 
@@ -399,5 +440,48 @@ function parseADSOLockResponse(body: string): ADSOLockResult {
     corrNr: data["CORRNR"],
     corrUser: data["CORRUSER"],
     corrText: data["CORRTEXT"]
+  }
+}
+
+/**
+ * Parse ADSO Tables Response - 解析 ADSO 表信息响应
+ */
+function parseADSOTables(raw: any): ADSOTables {
+  const root = raw["adso:adso"] || raw["adso:dataStore"] || raw["adso:sql"] || raw
+
+  const tablesArray = xmlArray(root, "tables")
+  
+  let activeTable: string | undefined
+  let inboundTable: string | undefined
+  let changelogTable: string | undefined
+  const activeDataTables: string[] = []
+
+  tablesArray.forEach((table: any) => {
+    const tableName = table["@_tableName"] || table["tableName"] || ""
+    const tableType = table["@_tableType"] || table["tableType"] || ""
+    
+    switch (tableType) {
+      case "AT":
+        activeTable = tableName
+        activeDataTables.push(tableName)
+        break
+      case "AQ":
+        inboundTable = tableName
+        break
+      case "CL":
+        changelogTable = tableName
+        break
+      default:
+        if (tableName) {
+          activeDataTables.push(tableName)
+        }
+    }
+  })
+
+  return {
+    activeTable,
+    inboundTable,
+    activeDataTables: activeDataTables.length > 0 ? activeDataTables : undefined,
+    changelogTable
   }
 }

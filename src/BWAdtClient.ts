@@ -690,4 +690,125 @@ export class BWAdtClient {
     const { executeDTP } = await import("./api/dtp")
     return executeDTP(this.h, dtpId)
   }
+
+  // ========================================
+  // DDIC Table Operations
+  // ========================================
+
+  /**
+   * Get ADSO DDIC Links - 从 ADSO 响应头获取 DDIC 表链接
+   * 对应请求: GET /sap/bw/modeling/adso/{adso_id}/m
+   *
+   * @param adsoId - ADSO ID
+   * @returns DDIC 表链接信息
+   */
+  public async getADSODDICLinks(adsoId: string) {
+    const { getADSODDICLinks } = await import("./api/ddic")
+    return getADSODDICLinks(this.h, adsoId)
+  }
+
+  /**
+   * Get ADSO DDIC Table Name - 获取 ADSO 对应的 DDIC 表名
+   *
+   * @param adsoId - ADSO ID
+   * @returns DDIC 表名或 undefined
+   */
+  public async getADSODDICTableName(adsoId: string) {
+    const { getADSODDICTableName } = await import("./api/ddic")
+    return getADSODDICTableName(this.h, adsoId)
+  }
+
+  /**
+   * Get ADSO Tables - 获取 ADSO 关联的表名
+   * 对应请求: GET /sap/bw/modeling/adso/{adso_id}/sql
+   *
+   * @param adsoId - ADSO ID
+   * @returns ADSO 表信息
+   */
+  public async getADSOTables(adsoId: string) {
+    const { getADSOTables } = await import("./api/adso")
+    return getADSOTables(this.h, adsoId)
+  }
+
+  /**
+   * Get DDIC Table Info - 获取 DDIC 表信息
+   * 对应请求: GET /sap/bc/adt/ddic/tables/{table_name}/source/main
+   *
+   * @param tableName - 表名
+   * @returns DDIC 表信息
+   */
+  public async getDDICTableInfo(tableName: string) {
+    const { getDDICTableInfo } = await import("./api/ddic")
+    return getDDICTableInfo(this.h, tableName)
+  }
+
+  /**
+   * Get DDIC Table Fields - 获取 DDIC 表字段列表
+   *
+   * @param tableName - 表名
+   * @returns DDIC 表字段列表
+   */
+  public async getDDICTableFields(tableName: string) {
+    const { getDDICTableFields } = await import("./api/ddic")
+    return getDDICTableFields(this.h, tableName)
+  }
+
+  /**
+   * Get DDIC Table Data Metadata - 获取 DDIC 表数据预览元数据
+   * 对应请求: GET /sap/bc/adt/datapreview/ddic/{table_name}/metadata
+   *
+   * @param tableName - 表名
+   * @returns 元数据
+   */
+  public async getDDICTableDataMetadata(tableName: string) {
+    const { getDDICTableDataMetadata } = await import("./api/ddic")
+    return getDDICTableDataMetadata(this.h, tableName)
+  }
+
+  /**
+   * Get DDIC Table Data - 获取 DDIC 表数据
+   * 对应请求: POST /sap/bc/adt/datapreview/ddic?rowNumber={maxRows}&ddicEntityName={table_name}
+   *
+   * @param tableName - 表名
+   * @param options - 查询选项
+   * @returns DDIC 表数据
+   */
+  public async getDDICTableData(
+    tableName: string,
+    options?: {
+      maxRows?: number
+      columns?: string[]
+      whereClause?: string
+      orderBy?: string
+    }
+  ) {
+    const { getDDICTableData } = await import("./api/ddic")
+    return getDDICTableData(this.h, tableName, options)
+  }
+
+  /**
+   * Get ADSO Data Preview - 获取 ADSO 数据预览
+   * 对应请求: GET /sap/bw/modeling/adso/{adso_name}/data
+   *
+   * @param adsoName - ADSO 名称
+   * @param maxRows - 最大行数
+   * @returns ADSO 表数据
+   */
+  public async getADSODataPreview(adsoName: string, maxRows?: number) {
+    const { getADSODataPreview } = await import("./api/ddic")
+    return getADSODataPreview(this.h, adsoName, maxRows)
+  }
+
+  /**
+   * Get Table Data via SQL - 通过 SQL 查询表数据
+   * 对应请求: POST /sap/bc/adt/ddic/tables/{table_name}/sqlview
+   *
+   * @param tableName - 表名
+   * @param sqlStatement - SQL 语句
+   * @returns 查询结果
+   */
+  public async getTableDataViaSQL(tableName: string, sqlStatement: string) {
+    const { getTableDataViaSQL } = await import("./api/ddic")
+    return getTableDataViaSQL(this.h, tableName, sqlStatement)
+  }
 }
