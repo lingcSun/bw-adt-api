@@ -1,0 +1,10 @@
+src
+test
+*.ts
+!build/*.d.ts
+tsconfig.json
+jest.config.js
+.eslintrc.*
+.vscode
+.DS_Store
+*.log

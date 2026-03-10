@@ -1,0 +1,17 @@
+node_modules
+build
+*.log
+.DS_Store
+*.swp
+*.swo
+.env
+.local
+dist
+coverage
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+
+.claude/
+communation logs/
+
