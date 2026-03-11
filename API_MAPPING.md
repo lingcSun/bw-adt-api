@@ -6,7 +6,14 @@
 
 ## 已实现的 API 模块
 
-### 1. InfoProvider 结构查询 (`infoprovider.ts`)
+### 1. InfoObject 操作 (`infoobject.ts`) ✅ 新增
+
+| 功能 | HTTP 方法 | 端点 | 描述 |
+|------|-----------|------|------|
+| 获取 InfoObject | GET | `/sap/bw/modeling/iobj/{name}/a` | 获取 InfoObject 详细信息 (v2_1_0) |
+| 获取 InfoObject 元数据 | GET | `/sap/bw/modeling/iobj/{name}/m` | 获取 InfoObject 元数据 |
+
+### 2. InfoProvider 结构查询 (`infoprovider.ts`)
 
 | 功能 | HTTP 方法 | 端点 | 描述 |
 |------|-----------|------|------|
@@ -38,8 +45,10 @@
 | 获取 ADSO | GET | `/sap/bw/modeling/adso/{id}` | 获取 ADSO 详细信息 (v1_5_0) |
 | 获取 ADSO 版本 | GET | `/sap/bw/modeling/adso/{id}/versions` | 获取 ADSO 版本历史 |
 | 获取 ADSO 配置 | GET | `/sap/bw/modeling/adso/{id}/configuration` | 获取 ADSO 配置信息 |
+| 获取 ADSO 表名 | GET | `/sap/bw/modeling/adso/{id}/sql` | 获取关联的表名 |
 | 锁定 ADSO | POST | `/sap/bw/modeling/adso/{id}?action=lock` | 锁定 ADSO 以便编辑 |
 | 解锁 ADSO | POST | `/sap/bw/modeling/adso/{id}?action=unlock` | 解锁 ADSO |
+| **更新 ADSO** | **PUT** | **`/sap/bw/modeling/adso/{id}/m`** | **更新 ADSO 元数据 (完整 XML)** |
 | 激活 ADSO | POST | `/sap/bw/modeling/activation` | 激活 ADSO |
 | 检查 ADSO | POST | `/sap/bw/modeling/activation` | 检查 ADSO 一致性 |
 
@@ -50,7 +59,10 @@
 | 锁定转换 | POST | `/sap/bw/modeling/trfn/{id}?action=lock` | 锁定 Transformation 以便编辑 |
 | 解锁转换 | POST | `/sap/bw/modeling/trfn/{id}?action=unlock` | 解锁 Transformation |
 | 获取转换 | GET | `/sap/bw/modeling/trfn/{id}/{version}` | 获取转换元数据 |
-| 激活对象 | POST | `/sap/bw/modeling/activation` | 激活 BW 对象 |
+| 获取版本历史 | GET | `/sap/bw/modeling/trfn/{id}/versions` | 获取版本历史 |
+| **更新转换** | **PUT** | **`/sap/bw/modeling/trfn/{id}/{version}`** | **更新转换元数据 (完整 XML)** |
+| 检查转换 | POST | `/sap/bw/modeling/activation` | 检查转换一致性 |
+| 激活转换 | POST | `/sap/bw/modeling/activation` | 激活转换 |
 
 ### 6. DTP (Data Transfer Process) 操作 (`dtp.ts`)
 
@@ -77,6 +89,21 @@ const client = new BWAdtClient(
 
 await client.login()
 
+// ========== InfoObject 操作 ==========
+// 获取 InfoObject 详细信息
+const iobjDetails = await client.getInfoObject("0CUSTOMER")
+console.log(`InfoObject: ${iobjDetails.name}`)
+console.log(`Type: ${iobjDetails.infoObjectType}`)
+console.log(`Data Type: ${iobjDetails.dataType}`)
+if (iobjDetails.texts) {
+  iobjDetails.texts.forEach(text => {
+    console.log(`  [${text.language}] ${text.shortText}`)
+  })
+}
+
+// 获取 InfoObject 元数据
+const iobjMetadata = await client.getInfoObjectMetadata("0CUSTOMER")
+
 // 查询 InfoArea 列表
 const areas = await client.infoProviderStructure()
 
@@ -102,17 +129,47 @@ const hasPlanning = await client.hasCapability("bw.planning_supported")
 const adsoDetails = await client.getADSODetails("ZL_FID01")
 const adsoConfig = await client.getADSOConfiguration("ZL_FID01")
 const adsoVersions = await client.getADSOVersions("ZL_FID01")
+const adsoTables = await client.getADSOTables("ZL_FID01")
+console.log(`Active Table: ${adsoTables.activeTable}`)
+console.log(`Inbound Table: ${adsoTables.inboundTable}`)
+
+// 锁定并更新 ADSO
 const adsoLock = await client.lockADSO("ZL_FID01")
+console.log(`Lock Handle: ${adsoLock.lockHandle}`)
+
+// 获取当前 XML（可选）
+const currentAdso = await client.getADSO("ZL_FID01", "m")
+
+// 修改后更新（需要完整的 ADSO XML 定义）
+const updateResult = await client.updateADSO(
+  "ZL_FID01",
+  modifiedAdsoXmlContent,  // 完整的 XML 内容
+  { lockHandle: adsoLock.lockHandle }
+)
+console.log(`Update Success: ${updateResult.success}`)
+
+// 激活 ADSO
 const adsoActivateResult = await client.activateADSO("ZL_FID01", adsoLock.lockHandle)
 await client.unlockADSO("ZL_FID01")
 
-// 锁定并激活 Transformation
-const lockResult = await client.lockTransformation("0F30KPOAZK07TIY86JBGVAO9XHWIVIBT")
-const activateResult = await client.activateObject(
-  "/sap/bw/modeling/trfn/0f30kpoazk07tiy86jbgvao9xhwivibt/m",
-  lockResult.lockHandle
+// 锁定并更新 Transformation
+const trfnLock = await client.lockTransformation("0GFA4DZN1C853MBWOUHEKC014661O472")
+console.log(`Lock Handle: ${trfnLock.lockHandle}`)
+
+// 获取当前 Transformation XML
+const currentTrfn = await client.getTransformation("0GFA4DZN1C853MBWOUHEKC014661O472", "m")
+
+// 修改后更新（需要完整的 transformation XML 定义）
+const trfnUpdateResult = await client.updateTransformation(
+  "0GFA4DZN1C853MBWOUHEKC014661O472",
+  modifiedTrfnXmlContent,  // 完整的 XML 内容
+  { lockHandle: trfnLock.lockHandle }
 )
-await client.unlockTransformation("0F30KPOAZK07TIY86JBGVAO9XHWIVIBT")
+console.log(`Update Success: ${trfnUpdateResult.success}`)
+
+// 激活 Transformation
+const trfnActivateResult = await client.activateTransformation("0GFA4DZN1C853MBWOUHEKC014661O472")
+await client.unlockTransformation("0GFA4DZN1C853MBWOUHEKC014661O472")
 
 // DTP 操作
 const dtpDetails = await client.getDTPDetails("DTP_XXX")
@@ -136,8 +193,13 @@ await client.unlockDTP("DTP_XXX")
 | `sapbwmodelingrepoinfoproviderstructureadso*dtpa.txt` | DTP 列表 | `/sap/bw/modeling/repo/infoproviderstructure/adso/*/dtpa` |
 | `sapbwmodelingtrfn*action=lock.txt` | 锁定转换 | `/sap/bw/modeling/trfn/*?action=lock` |
 | `sapbwmodelingtrfn*action=unlock.txt` | 解锁转换 | `/sap/bw/modeling/trfn/*?action=unlock` |
+| `sapbwmodelingtrfn*m?lockHandle=*` | 更新转换 | `PUT /sap/bw/modeling/trfn/*/{version}` |
 | `sapbwmodelingactivation.txt` | 激活对象 | `/sap/bw/modeling/activation` |
 | `sapbwmodelingadso*` | ADSO 操作 | `/sap/bw/modeling/adso/*` |
+| `sapbwmodelingadso*?action=lock` | 锁定 ADSO | `/sap/bw/modeling/adso/*?action=lock` |
+| `sapbwmodelingadso*?action=unlock` | 解锁 ADSO | `/sap/bw/modeling/adso/*?action=unlock` |
+| `sapbwmodelingadso*m?lockHandle=*` | 更新 ADSO | `PUT /sap/bw/modeling/adso/*/m` |
+| `sapbwmodelingiobj*` | InfoObject 操作 | `/sap/bw/modeling/iobj/*` |
 | `sapbwmodelingdtpadtp*.txt` | DTP 操作 | `/sap/bw/modeling/dtpa/*` |
 
 ## API 端点模式总结
@@ -200,8 +262,10 @@ await client.unlockDTP("DTP_XXX")
 
 根据新增的 Communication Log，可以继续实现：
 - Process Chain 操作 ✅ (已实现)
-- InfoObject 详细操作
+- InfoObject 操作 ✅ (已实现 - 读取功能)
+- InfoObject 创建/更新/删除 (需要更多 logs)
 - Query 管理
+- DataSource 操作
 
 ---
 

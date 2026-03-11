@@ -6,24 +6,30 @@
 
 | 模块 | 端点 | 文件 | 状态 |
 |------|------|------|------|
-| ADSO | `/sap/bw/modeling/adso` | `adso.ts` | ✅ |
+| ADSO | `/sap/bw/modeling/adso` | `adso.ts` | ✅ 完整 CRUD + 激活 |
 | DTP | `/sap/bw/modeling/dtpa` | `dtp.ts` | ✅ |
-| Transformation | `/sap/bw/modeling/trfn` | `transformation.ts` | ✅ |
+| Transformation | `/sap/bw/modeling/trfn` | `transformation.ts` | ✅ 完整 CRUD + 激活 |
+| InfoObject | `/sap/bw/modeling/iobj` | `infoobject.ts` | ✅ 读取 + 元数据 |
 | Process Chain | `/sap/bw/modeling/rspc` | `processchain.ts` | ✅ |
 | InfoProvider | `/sap/bw/modeling/repo/infoproviderstructure` | `infoprovider.ts` | ✅ |
 | System Info | `/sap/bw/modeling/repo/is/systeminfo` | `systemInfo.ts` | ✅ |
 | Search | `/sap/bw/modeling/repo/is/bwsearch` | `search.ts` | ✅ |
 | DDIC Tables | `/sap/bc/adt/ddic/tables/*` | `ddic.ts` | ✅ |
 
+### 最新更新 (2025-03-11)
+- **InfoObject API**: 新增 getInfoObject() 和 getInfoObjectMetadata()
+- **ADSO 更新**: updateADSO() 支持完整 XML 更新
+- **Transformation 更新**: updateTransformation() 支持完整 XML 更新和 timestamp header
+
 ## 🔜 高优先级（核心 BW 对象）
 
 | 模块 | 端点 | 描述 | 优先级 |
 |------|------|------|--------|
 | **Query** | `/sap/bw/modeling/query` | BW 查询设计器、查询执行、变量管理 | P0 |
-| **InfoObject** | `/sap/bw/modeling/iobj` | InfoObject（特征、关键 figure）的 CRUD 操作 | P0 |
 | **DataSource** | `/sap/bw/modeling/repo/datasourcestructure` | 数据源结构查询、源系统数据源 | P0 |
 | **InfoArea** | `/sap/bw/modeling/area` | InfoArea 管理 | P1 |
 | **Open Hub** | `/sap/bw/modeling/dest` | Open Hub Destination（数据分发） | P1 |
+| **InfoObject CRUD** | `/sap/bw/modeling/iobj` | InfoObject 创建/更新/删除（当前仅读取） | P1 |
 
 ## 📋 中优先级（高级功能）
 
@@ -55,7 +61,7 @@
 
 ### 数据查询与分析
 - 🔜 Query (查询)
-- 🔜 InfoObject (信息对象)
+- ✅ InfoObject (信息对象 - 读取功能)
 - ✅ InfoProvider (提供者结构)
 - 🔜 Variable (变量)
 
