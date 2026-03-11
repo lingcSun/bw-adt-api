@@ -6,30 +6,62 @@
 
 | 模块 | 端点 | 文件 | 状态 |
 |------|------|------|------|
-| ADSO | `/sap/bw/modeling/adso` | `adso.ts` | ✅ 完整 CRUD + 激活 |
-| DTP | `/sap/bw/modeling/dtpa` | `dtp.ts` | ✅ |
-| Transformation | `/sap/bw/modeling/trfn` | `transformation.ts` | ✅ 完整 CRUD + 激活 |
-| InfoObject | `/sap/bw/modeling/iobj` | `infoobject.ts` | ✅ 读取 + 元数据 |
-| Process Chain | `/sap/bw/modeling/rspc` | `processchain.ts` | ✅ |
+| **通用 BW 对象基类** | - | `bwObject.ts`, `common.ts`, `types.ts` | ✅ 泛型基类 + Validation |
+| ADSO | `/sap/bw/modeling/adso` | `adso.ts` | ✅ 完整 CRUD + 激活 + Validation |
+| DTP | `/sap/bw/modeling/dtpa` | `dtp.ts` | ✅ + Validation |
+| Transformation | `/sap/bw/modeling/trfn` | `transformation.ts` | ✅ 完整 CRUD + 激活 + Validation |
+| InfoObject | `/sap/bw/modeling/iobj` | `infoobject.ts` | ✅ 读取 + 元数据 + Validation |
+| Process Chain | `/sap/bw/modeling/pc` | `processchain.ts` | ✅ + Validation |
 | InfoProvider | `/sap/bw/modeling/repo/infoproviderstructure` | `infoprovider.ts` | ✅ |
 | System Info | `/sap/bw/modeling/repo/is/systeminfo` | `systemInfo.ts` | ✅ |
 | Search | `/sap/bw/modeling/repo/is/bwsearch` | `search.ts` | ✅ |
 | DDIC Tables | `/sap/bc/adt/ddic/tables/*` | `ddic.ts` | ✅ |
+| ABAP Class | `/sap/bc/adt/programs/programs/*` | `abapClass.ts` | ✅ |
 
-### 最新更新 (2025-03-11)
-- **InfoObject API**: 新增 getInfoObject() 和 getInfoObjectMetadata()
-- **ADSO 更新**: updateADSO() 支持完整 XML 更新
-- **Transformation 更新**: updateTransformation() 支持完整 XML 更新和 timestamp header
+### 最新更新 (2026-03-11)
+- **BW 对象操作抽象重构**:
+  - 新增泛型基类 `BWObject<T>` 统一所有 BW 对象操作
+  - 统一类型定义在 `types.ts`
+  - 通用 Validation 功能 (exists, newName, delete, activate)
+  - 所有对象类型支持相同的操作接口
+- **Validation API**: 所有对象类型 (ADSO, Transformation, DTP, ProcessChain, InfoObject) 现在支持验证操作
+- **代码复用**: Lock/Unlock/Activate/Check/GetVersions 只需实现一次
+- **向后兼容**: 现有 API 函数保持不变
+
+### 架构说明
+
+#### 三层架构
+1. **通用层** (`common.ts`, `bwObject.ts`, `types.ts`)
+   - 通用类型定义 (LockResult, ActivationResult, ValidationResult, etc.)
+   - 泛型基类 BWObject<T> 提供统一操作接口
+   - 通用 API 函数 (activateObject, validateObject, etc.)
+
+2. **API 层** (`src/api/*.ts`)
+   - 按功能模块分文件：adso, transformation, dtp, processchain, infoobject, etc.
+   - 每个模块使用泛型基类实现通用操作
+   - 保留模块特有的功能
+
+3. **客户端层** (`BWAdtClient.ts`)
+   - 提供便捷方法访问所有 API
+   - 支持 `bwObject()` 方法获取泛型对象实例
+
+#### 支持的通用操作
+所有 BW 对象类型 (ADSO, Transformation, DTP, ProcessChain, InfoObject) 都支持：
+- `lock()` / `unlock()`
+- `activate()` / `check()`
+- `getVersions()`
+- `exists()` / `isNewNameAvailable()` / `canDelete()` / `canActivate()`
 
 ## 🔜 高优先级（核心 BW 对象）
 
 | 模块 | 端点 | 描述 | 优先级 |
 |------|------|------|--------|
-| **Query** | `/sap/bw/modeling/query` | BW 查询设计器、查询执行、变量管理 | P0 |
-| **DataSource** | `/sap/bw/modeling/repo/datasourcestructure` | 数据源结构查询、源系统数据源 | P0 |
+| **核心对象验证** | - | ADSO/InfoArea/DTP/Transformation 全流程验证 | **P0** 🔥 |
+| **Query** | `/sap/bw/modeling/query` | BW 查询设计器、查询执行、变量管理 | P1 |
+| **DataSource** | `/sap/bw/modeling/repo/datasourcestructure` | 数据源结构查询、源系统数据源 | P1 |
 | **InfoArea** | `/sap/bw/modeling/area` | InfoArea 管理 | P1 |
-| **Open Hub** | `/sap/bw/modeling/dest` | Open Hub Destination（数据分发） | P1 |
-| **InfoObject CRUD** | `/sap/bw/modeling/iobj` | InfoObject 创建/更新/删除（当前仅读取） | P1 |
+| **Open Hub** | `/sap/bw/modeling/dest` | Open Hub Destination（数据分发） | P2 |
+| **InfoObject CRUD** | `/sap/bw/modeling/iobj` | InfoObject 创建/更新/删除（当前仅读取） | P2 |
 
 ## 📋 中优先级（高级功能）
 
@@ -90,3 +122,11 @@
 - `sapbwmodelingrepodatasourcestructure*` - DataSource 结构
 - `sapbwmodelinghcpr*` - CompositeProvider
 - 等等...
+
+---
+
+## 📋 任务跟踪
+
+详细的验证任务请参阅：**[tasks/CORE_OBJECTS_VERIFICATION.md](tasks/CORE_OBJECTS_VERIFICATION.md)**
+
+当前重点：核心对象 (ADSO、InfoArea、DTP、Transformation) 的全流程验证

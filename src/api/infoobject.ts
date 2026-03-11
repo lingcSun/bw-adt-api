@@ -2,11 +2,16 @@ import * as t from "io-ts"
 import { orUndefined } from "../utilities"
 import { AdtHTTP } from "../AdtHTTP"
 import { fullParse, xmlNodeAttr, xmlArray, xmlNode } from "../utilities"
+import { ValidationAction, ValidationResult, validateObject } from "./common"
+import { BWObject, BWObjectType } from "./bwObject"
 
 // ============================================================================
 // Types and Codecs for InfoObject (BW InfoObject)
 // Based on: /sap/bw/modeling/iobj (v2_1_0)
 // ============================================================================
+
+// Re-export Validation types for convenience
+export { ValidationAction, ValidationResult } from "./common"
 
 /**
  * InfoObject Text - InfoObject 文本描述
@@ -240,4 +245,68 @@ function parseInfoObjectDetails(raw: any): InfoObjectDetails {
     masterDataTable: masterDataProps?.masterDataTable?.["@_name"] || masterDataProps?.masterDataTable?.name,
     attributeSIDTable: masterDataProps?.attributeSIDTable?.["@_name"] || masterDataProps?.attributeSIDTable?.name
   }
+}
+
+// ============================================================================
+// Validation Functions (using BWObject base class)
+// ============================================================================
+
+/**
+ * Validate InfoObject Exists - 验证 InfoObject 是否存在
+ *
+ * @param client - ADT HTTP 客户端
+ * @param iobjName - InfoObject 名称
+ * @returns 验证结果
+ */
+export async function validateInfoObjectExists(
+  client: AdtHTTP,
+  iobjName: string
+): Promise<ValidationResult> {
+  const obj = new BWObject(client, BWObjectType.INFO_OBJECT, iobjName)
+  return obj.exists()
+}
+
+/**
+ * Validate New InfoObject Name - 验证新 InfoObject 名称是否可用
+ *
+ * @param client - ADT HTTP 客户端
+ * @param iobjName - InfoObject 名称
+ * @returns 验证结果
+ */
+export async function validateInfoObjectNewName(
+  client: AdtHTTP,
+  iobjName: string
+): Promise<ValidationResult> {
+  const obj = new BWObject(client, BWObjectType.INFO_OBJECT, iobjName)
+  return obj.isNewNameAvailable()
+}
+
+/**
+ * Validate InfoObject Can Delete - 验证 InfoObject 是否可删除
+ *
+ * @param client - ADT HTTP 客户端
+ * @param iobjName - InfoObject 名称
+ * @returns 验证结果
+ */
+export async function validateInfoObjectCanDelete(
+  client: AdtHTTP,
+  iobjName: string
+): Promise<ValidationResult> {
+  const obj = new BWObject(client, BWObjectType.INFO_OBJECT, iobjName)
+  return obj.canDelete()
+}
+
+/**
+ * Validate InfoObject Can Activate - 验证 InfoObject 是否可激活
+ *
+ * @param client - ADT HTTP 客户端
+ * @param iobjName - InfoObject 名称
+ * @returns 验证结果
+ */
+export async function validateInfoObjectCanActivate(
+  client: AdtHTTP,
+  iobjName: string
+): Promise<ValidationResult> {
+  const obj = new BWObject(client, BWObjectType.INFO_OBJECT, iobjName)
+  return obj.canActivate()
 }

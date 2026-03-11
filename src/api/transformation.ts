@@ -1,7 +1,9 @@
 import * as t from "io-ts"
 import { fullParse, xmlNodeAttr, xmlArray, xmlNode, orUndefined } from "../utilities"
 import { AdtHTTP } from "../AdtHTTP"
-import { ActivationResult, ActivationMessage, LockResult, activateObject, parseActivationResponse, parseLockResponse, parseObjectVersions } from "./common"
+import { ActivationResult, ActivationMessage, LockResult, activateObject, parseActivationResponse, parseLockResponse, parseObjectVersions, ValidationAction, ValidationResult } from "./common"
+import { BWObject, BWObjectType } from "./bwObject"
+import { TransformationDetails } from "./types"
 
 // ============================================================================
 // Types and Codecs for Transformation
@@ -9,6 +11,9 @@ import { ActivationResult, ActivationMessage, LockResult, activateObject, parseA
 
 // Re-export common types as Transformation-specific types for compatibility
 export type TransformationLockResult = LockResult
+
+// Re-export Validation types for convenience
+export { ValidationAction, ValidationResult } from "./common"
 
 /**
  * Transformation Metadata
@@ -36,22 +41,7 @@ export const TransformationVersion = t.type({
 
 export type TransformationVersion = t.OutputOf<typeof TransformationVersion>
 
-/**
- * Transformation Details - 转换详细信息
- */
-export const TransformationDetails = t.type({
-  name: t.string,
-  source: t.string,           // 源对象名称
-  target: t.string,           // 目标对象名称
-  description: orUndefined(t.string),
-  objVers: orUndefined(t.string),  // M=Active, A=Modified, D=Revised
-  sourceType: orUndefined(t.string),
-  targetType: orUndefined(t.string),
-  ruleCount: orUndefined(t.number),     // 规则数量
-  status: orUndefined(t.string)        // 状态
-})
-
-export type TransformationDetails = t.OutputOf<typeof TransformationDetails>
+// TransformationDetails is now imported from types.ts to avoid duplication
 
 // ============================================================================
 // API Functions
@@ -70,17 +60,8 @@ export async function lockTransformation(
   client: AdtHTTP,
   trfnId: string
 ): Promise<TransformationLockResult> {
-  const response = await client.request(
-    `/sap/bw/modeling/trfn/${trfnId}?action=lock`,
-    {
-      method: "POST",
-      headers: {
-        "Accept": "application/vnd.sap.bw.modeling.trfn-v1_0_0+xml"
-      }
-    }
-  )
-
-  return parseLockResponse(response.body)
+  const obj = new BWObject(client, BWObjectType.TRANSFORMATION, trfnId)
+  return obj.lock()
 }
 
 /**
@@ -95,15 +76,8 @@ export async function unlockTransformation(
   client: AdtHTTP,
   trfnId: string
 ): Promise<void> {
-  await client.request(
-    `/sap/bw/modeling/trfn/${trfnId}?action=unlock`,
-    {
-      method: "POST",
-      headers: {
-        "Accept": "application/vnd.sap.bw.modeling.trfn-v1_0_0+xml"
-      }
-    }
-  )
+  const obj = new BWObject(client, BWObjectType.TRANSFORMATION, trfnId)
+  return obj.unlock()
 }
 
 /**
@@ -178,14 +152,72 @@ export async function getTransformationVersions(
   client: AdtHTTP,
   trfnId: string
 ): Promise<TransformationVersion[]> {
-  const response = await client.request(`/sap/bw/modeling/trfn/${trfnId}/versions`, {
-    method: "GET",
-    headers: {
-      "Accept": "application/atom+xml;type=feed"
-    }
-  })
+  const obj = new BWObject(client, BWObjectType.TRANSFORMATION, trfnId)
+  return obj.getVersions()
+}
 
-  return parseTransformationVersions(response.body)
+// ============================================================================
+// Validation Functions (using BWObject base class)
+// ============================================================================
+
+/**
+ * Validate Transformation Exists - 验证转换是否存在
+ *
+ * @param client - ADT HTTP 客户端
+ * @param trfnId - Transformation ID
+ * @returns 验证结果
+ */
+export async function validateTransformationExists(
+  client: AdtHTTP,
+  trfnId: string
+): Promise<ValidationResult> {
+  const obj = new BWObject(client, BWObjectType.TRANSFORMATION, trfnId)
+  return obj.exists()
+}
+
+/**
+ * Validate New Transformation Name - 验证新转换名称是否可用
+ *
+ * @param client - ADT HTTP 客户端
+ * @param trfnId - Transformation ID
+ * @returns 验证结果
+ */
+export async function validateTransformationNewName(
+  client: AdtHTTP,
+  trfnId: string
+): Promise<ValidationResult> {
+  const obj = new BWObject(client, BWObjectType.TRANSFORMATION, trfnId)
+  return obj.isNewNameAvailable()
+}
+
+/**
+ * Validate Transformation Can Delete - 验证转换是否可删除
+ *
+ * @param client - ADT HTTP 客户端
+ * @param trfnId - Transformation ID
+ * @returns 验证结果
+ */
+export async function validateTransformationCanDelete(
+  client: AdtHTTP,
+  trfnId: string
+): Promise<ValidationResult> {
+  const obj = new BWObject(client, BWObjectType.TRANSFORMATION, trfnId)
+  return obj.canDelete()
+}
+
+/**
+ * Validate Transformation Can Activate - 验证转换是否可激活
+ *
+ * @param client - ADT HTTP 客户端
+ * @param trfnId - Transformation ID
+ * @returns 验证结果
+ */
+export async function validateTransformationCanActivate(
+  client: AdtHTTP,
+  trfnId: string
+): Promise<ValidationResult> {
+  const obj = new BWObject(client, BWObjectType.TRANSFORMATION, trfnId)
+  return obj.canActivate()
 }
 
 /**
@@ -201,13 +233,8 @@ export async function checkTransformation(
   client: AdtHTTP,
   trfnId: string
 ): Promise<ActivationResult> {
-  return activateObject(
-    client,
-    `/sap/bw/modeling/trfn/${trfnId}/m`,
-    "",
-    "inactive",
-    "application/vnd.sap.bw.modeling.trfn-v1_0_0+xml"
-  )
+  const obj = new BWObject(client, BWObjectType.TRANSFORMATION, trfnId)
+  return obj.check()
 }
 
 /**
@@ -276,13 +303,8 @@ export async function activateTransformation(
   client: AdtHTTP,
   trfnId: string
 ): Promise<ActivationResult> {
-  return activateObject(
-    client,
-    `/sap/bw/modeling/trfn/${trfnId}/m`,
-    "",  // lockHandle 为空表示只检查不修改
-    "inactive",
-    "application/vnd.sap.bw.modeling.trfn-v1_0_0+xml"
-  )
+  const obj = new BWObject(client, BWObjectType.TRANSFORMATION, trfnId)
+  return obj.activate()
 }
 
 /**
@@ -343,9 +365,11 @@ function parseTransformationDetails(raw: any): TransformationDetails {
   // This is a simplified parser - adjust based on actual response format
 
   const root = raw["trfn:transformation"] || raw
+  const name = root["trfn:name"] || root["name"] || ""
 
   return {
-    name: root["trfn:name"] || root["name"] || "",
+    name,
+    technicalName: name,  // Use same value for technicalName
     source: root["trfn:source"] || root["source"] || "",
     target: root["trfn:target"] || root["target"] || "",
     description: root["trfn:description"] || root["description"],

@@ -488,6 +488,160 @@ export class BWAdtClient {
     return getADSOConfiguration(this.h, adsoId)
   }
 
+  /**
+   * Validate InfoArea - 验证 InfoArea 是否存在
+   * 对应请求: POST /sap/bw/modeling/validation?objectType=AREA&objectName={name}&action=exists
+   *
+   * @param infoAreaName - InfoArea 名称
+   * @returns 验证结果
+   */
+  public async validateInfoArea(infoAreaName: string) {
+    const { validateInfoArea } = await import("./api/adso")
+    return validateInfoArea(this.h, infoAreaName)
+  }
+
+  /**
+   * Validate Template ADSO - 验证模板 ADSO 是否存在
+   * 对应请求: POST /sap/bw/modeling/validation?objectType=ADSO&objectName={name}&action=exists
+   *
+   * @param templateName - 模板 ADSO 名称
+   * @returns 验证结果
+   */
+  public async validateTemplateADSO(templateName: string) {
+    const { validateTemplateADSO } = await import("./api/adso")
+    return validateTemplateADSO(this.h, templateName)
+  }
+
+  /**
+   * Validate New ADSO Name - 验证新 ADSO 名称是否可用
+   * 对应请求: POST /sap/bw/modeling/validation?objectType=ADSO&objectName={name}&action=new
+   *
+   * @param adsoName - ADSO 名称
+   * @returns 验证结果
+   */
+  public async validateNewADSOName(adsoName: string) {
+    const { validateNewADSOName } = await import("./api/adso")
+    return validateNewADSOName(this.h, adsoName)
+  }
+
+  /**
+   * Create ADSO - 创建 ADSO
+   * 对应请求: POST /sap/bw/modeling/adso/{name}?lockHandle={lockHandle}
+   *
+   * 创建 ADSO 的完整流程:
+   * 1. 验证 InfoArea 存在
+   * 2. 验证模板存在 (如果提供)
+   * 3. 验证新名称可用
+   * 4. 锁定对象
+   * 5. 创建 ADSO
+   * 6. 解锁对象
+   *
+   * @param options - 创建选项
+   * @returns 创建结果 (包含 lockHandle)
+   */
+  public async createADSO(options: {
+    name: string                          // ADSO 技术名称
+    description: string                   // 描述
+    infoArea: string                      // InfoArea
+    masterLanguage?: string               // 主语言 (默认: EN)
+    responsible?: string                  // 负责人用户名 (默认: 当前用户)
+    masterSystem?: string                 // 主系统 (默认: BPD)
+    // 模板选项 (5种创建方式)
+    template?: {
+      objectName: string                  // 模板对象名称
+      type: "ADSO" | "DSO" | "IOBJ" | "ISRC" | ""  // 模板类型
+    }
+    // ADSO 属性
+    activateData?: boolean                // 激活数据 (默认: true)
+    writeChangelog?: boolean              // 写入变更日志 (默认: true)
+    readOnly?: boolean                    // 只读 (默认: false)
+    autoActivate?: boolean                // 创建后自动激活 (默认: false)
+  }) {
+    const {
+      validateInfoArea,
+      validateTemplateADSO,
+      validateNewADSOName,
+      lockADSO,
+      createADSO: createADSOFn,
+      unlockADSO,
+      activateADSO
+    } = await import("./api/adso")
+
+    const {
+      name,
+      infoArea,
+      template,
+      masterLanguage = "EN",
+      responsible = this.username,
+      masterSystem = "BPD",
+      activateData = true,
+      writeChangelog = true,
+      readOnly = false,
+      autoActivate = false
+    } = options
+
+    // 1. 验证 InfoArea 存在
+    const areaValid = await validateInfoArea(this.h, infoArea)
+    if (!areaValid.valid) {
+      throw new Error(`InfoArea ${infoArea} does not exist`)
+    }
+
+    // 2. 验证模板存在 (如果提供)
+    if (template) {
+      const templateValid = await validateTemplateADSO(this.h, template.objectName)
+      if (!templateValid.valid) {
+        throw new Error(`Template ${template.objectName} does not exist`)
+      }
+    }
+
+    // 3. 验证新名称可用
+    const nameValid = await validateNewADSOName(this.h, name)
+    if (!nameValid.valid) {
+      throw new Error(`ADSO name ${name} is not available`)
+    }
+
+    // 4. 锁定对象
+    const lockResult = await lockADSO(this.h, name)
+
+    try {
+      // 5. 创建 ADSO
+      await createADSOFn(this.h, {
+        ...options,
+        masterLanguage,
+        responsible,
+        masterSystem,
+        activateData,
+        writeChangelog,
+        readOnly,
+        parentName: infoArea,
+        parentType: "AREA"
+      }, lockResult.lockHandle)
+
+      // 6. 可选：自动激活
+      if (autoActivate) {
+        await activateADSO(this.h, name, lockResult.lockHandle)
+      }
+
+      return lockResult
+    } finally {
+      // 7. 解锁对象
+      await unlockADSO(this.h, name)
+    }
+  }
+
+  /**
+   * Get ADSO Node Path - 获取 ADSO 节点路径
+   * 对应请求: GET /sap/bw/modeling/repo/nodepath?objectUri={uri}
+   *
+   * @param adsoName - ADSO 名称
+   * @param version - 版本 (m=active, a=modified, d=revised, 默认: m)
+   * @returns 节点路径列表
+   */
+  public async getADSONodePath(adsoName: string, version?: "m" | "a" | "d") {
+    const { getADSONodePath } = await import("./api/adso")
+    return getADSONodePath(this.h, adsoName, version)
+  }
+
   // ========================================
   // Transformation Operations
   // ========================================
@@ -1197,5 +1351,181 @@ export class BWAdtClient {
   public async getProcessChainStatus(chainId: string) {
     const { getProcessChainStatus } = await import("./api/processchain")
     return getProcessChainStatus(this.h, chainId)
+  }
+
+  // ========================================
+  // Generic BW Object Operations
+  // ========================================
+
+  /**
+   * Get BW Object - 获取泛型 BW 对象实例
+   *
+   * 提供统一的接口来操作任何 BW 对象类型：
+   * - lock/unlock
+   * - activate/check
+   * - getVersions
+   * - validate
+   *
+   * @param objectType - 对象类型 (ADSO, TRFN, DTPA, PC, IOBJ, DSO, ISRC, AREA)
+   * @param objectName - 对象名称
+   * @returns BWObject 实例
+   *
+   * @example
+   * ```typescript
+   * const adso = client.bwObject(BWObjectType.ADSO, "ZSD001")
+   * await adso.lock()
+   * await adso.check()
+   * await adso.activate(lockHandle)
+   * await adso.unlock()
+   *
+   * // Validation
+   * const exists = await adso.exists()
+   * const isNew = await adso.isNewNameAvailable()
+   *
+   * // Versions
+   * const versions = await adso.getVersions()
+   * ```
+   */
+  public async bwObject<T extends string>(
+    objectType: T,
+    objectName: string
+  ) {
+    const { BWObject, BWObjectType } = await import("./api/bwObject")
+    // Map string to enum if needed
+    const enumType: typeof BWObjectType[keyof typeof BWObjectType] =
+      BWObjectType[objectType as keyof typeof BWObjectType] || objectType as any
+    return new BWObject(this.h, enumType, objectName)
+  }
+
+  /**
+   * Validate Object Exists - 验证对象是否存在
+   *
+   * 通用验证方法，适用于所有 BW 对象类型
+   *
+   * @param objectType - 对象类型 (ADSO, TRFN, DTPA, PC, IOBJ, DSO, ISRC, AREA)
+   * @param objectName - 对象名称
+   * @returns 验证结果
+   */
+  public async validateObjectExists(
+    objectType: string,
+    objectName: string
+  ) {
+    const { validateObject, ValidationAction } = require("./api/common")
+    return validateObject(this.h, objectType, objectName, ValidationAction.EXISTS)
+  }
+
+  /**
+   * Validate New Object Name - 验证新名称是否可用
+   *
+   * @param objectType - 对象类型
+   * @param objectName - 对象名称
+   * @returns 验证结果
+   */
+  public async validateNewObjectName(
+    objectType: string,
+    objectName: string
+  ) {
+    const { validateObject, ValidationAction } = require("./api/common")
+    return validateObject(this.h, objectType, objectName, ValidationAction.NEW)
+  }
+
+  // ========================================
+  // ADSO Validation (using generic base class)
+  // ========================================
+
+  /**
+   * Validate ADSO Exists - 验证 ADSO 是否存在
+   */
+  public async validateADSOExists(adsoId: string) {
+    const { validateADSOExists } = await import("./api/adso")
+    return validateADSOExists(this.h, adsoId)
+  }
+
+  /**
+   * Validate New ADSO Name - 验证新 ADSO 名称是否可用
+   */
+  public async validateADSONewName(adsoId: string) {
+    const { validateADSONewName } = await import("./api/adso")
+    return validateADSONewName(this.h, adsoId)
+  }
+
+  // ========================================
+  // Transformation Validation (using generic base class)
+  // ========================================
+
+  /**
+   * Validate Transformation Exists - 验证转换是否存在
+   */
+  public async validateTransformationExists(trfnId: string) {
+    const { validateTransformationExists } = await import("./api/transformation")
+    return validateTransformationExists(this.h, trfnId)
+  }
+
+  /**
+   * Validate New Transformation Name - 验证新转换名称是否可用
+   */
+  public async validateTransformationNewName(trfnId: string) {
+    const { validateTransformationNewName } = await import("./api/transformation")
+    return validateTransformationNewName(this.h, trfnId)
+  }
+
+  // ========================================
+  // DTP Validation (using generic base class)
+  // ========================================
+
+  /**
+   * Validate DTP Exists - 验证 DTP 是否存在
+   */
+  public async validateDTPExists(dtpId: string) {
+    const { validateDTPExists } = await import("./api/dtp")
+    return validateDTPExists(this.h, dtpId)
+  }
+
+  /**
+   * Validate New DTP Name - 验证新 DTP 名称是否可用
+   */
+  public async validateDTPNewName(dtpId: string) {
+    const { validateDTPNewName } = await import("./api/dtp")
+    return validateDTPNewName(this.h, dtpId)
+  }
+
+  // ========================================
+  // ProcessChain Validation (using generic base class)
+  // ========================================
+
+  /**
+   * Validate Process Chain Exists - 验证流程链是否存在
+   */
+  public async validateProcessChainExists(chainId: string) {
+    const { validateProcessChainExists } = await import("./api/processchain")
+    return validateProcessChainExists(this.h, chainId)
+  }
+
+  /**
+   * Validate New Process Chain Name - 验证新流程链名称是否可用
+   */
+  public async validateProcessChainNewName(chainId: string) {
+    const { validateProcessChainNewName } = await import("./api/processchain")
+    return validateProcessChainNewName(this.h, chainId)
+  }
+
+  // ========================================
+  // InfoObject Validation (using generic base class)
+  // ========================================
+
+  /**
+   * Validate InfoObject Exists - 验证 InfoObject 是否存在
+   */
+  public async validateInfoObjectExists(iobjName: string) {
+    const { validateInfoObjectExists } = await import("./api/infoobject")
+    return validateInfoObjectExists(this.h, iobjName)
+  }
+
+  /**
+   * Validate New InfoObject Name - 验证新 InfoObject 名称是否可用
+   */
+  public async validateInfoObjectNewName(iobjName: string) {
+    const { validateInfoObjectNewName } = await import("./api/infoobject")
+    return validateInfoObjectNewName(this.h, iobjName)
   }
 }
