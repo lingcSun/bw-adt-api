@@ -453,6 +453,30 @@ export class BWAdtClient {
   }
 
   /**
+   * Update ADSO - 更新 ADSO 元数据
+   * 对应请求: PUT /sap/bw/modeling/adso/{adso_id}/m?lockHandle=xxx
+   *
+   * @param adsoId - ADSO ID
+   * @param xmlContent - ADSO XML 内容（完整的 dataStore 定义）
+   * @param lockHandle - 锁定句柄
+   * @param options - 其他选项（corrNr, timestamp）
+   * @returns 更新结果
+   */
+  public async updateADSO(
+    adsoId: string,
+    xmlContent: string,
+    lockHandle: string,
+    options?: { corrNr?: string; timestamp?: string }
+  ) {
+    const { updateADSO } = await import("./api/adso")
+    return updateADSO(this.h, adsoId, xmlContent, {
+      lockHandle,
+      corrNr: options?.corrNr,
+      timestamp: options?.timestamp
+    })
+  }
+
+  /**
    * Get ADSO Configuration - 获取 ADSO 配置信息
    * 对应请求: GET /sap/bw/modeling/adso/{adso_id}/configuration
    *
@@ -582,12 +606,44 @@ export class BWAdtClient {
    */
   public async updateTransformation(
     trfnId: string,
-    content: string,
-    lockHandle: string,
-    version?: "m" | "a" | "d"
+    xmlContent: string,
+    options: { lockHandle: string; corrNr?: string; timestamp?: string },
+    version: "m" | "a" | "d" = "m"
   ) {
     const { updateTransformation } = await import("./api/transformation")
-    return updateTransformation(this.h, trfnId, content, lockHandle, version)
+    return updateTransformation(this.h, trfnId, xmlContent, options, version)
+  }
+
+  // ========================================
+  // InfoObject Operations
+  // ========================================
+
+  /**
+   * Get InfoObject Details - 获取 InfoObject 详细信息
+   * 对应请求: GET /sap/bw/modeling/iobj/{iobj_name}/a
+   *
+   * @param iobjName - InfoObject 名称 (如 0NAME, 0CUSTOMER)
+   * @param options - 查询选项
+   * @returns InfoObject 详细信息
+   */
+  public async getInfoObject(
+    iobjName: string,
+    options?: { notransientinfoobject?: boolean; lastChangedTimestampDb?: boolean }
+  ) {
+    const { getInfoObject } = await import("./api/infoobject")
+    return getInfoObject(this.h, iobjName, options)
+  }
+
+  /**
+   * Get InfoObject Metadata - 获取 InfoObject 元数据
+   * 对应请求: GET /sap/bw/modeling/iobj/{iobj_name}/m
+   *
+   * @param iobjName - InfoObject 名称
+   * @returns InfoObject 元数据
+   */
+  public async getInfoObjectMetadata(iobjName: string) {
+    const { getInfoObjectMetadata } = await import("./api/infoobject")
+    return getInfoObjectMetadata(this.h, iobjName)
   }
 
   // ========================================
@@ -716,6 +772,18 @@ export class BWAdtClient {
   public async getADSODDICTableName(adsoId: string) {
     const { getADSODDICTableName } = await import("./api/ddic")
     return getADSODDICTableName(this.h, adsoId)
+  }
+
+  /**
+   * Get DDIC Table Metadata - 获取 DDIC 表元数据（blueSource 格式）
+   * 对应请求: GET /sap/bc/adt/ddic/tables/{table_name}
+   *
+   * @param tableName - 表名
+   * @returns DDIC 表元数据
+   */
+  public async getDDICTableMetadata(tableName: string) {
+    const { getDDICTableMetadata } = await import("./api/ddic")
+    return getDDICTableMetadata(this.h, tableName)
   }
 
   /**

@@ -20,7 +20,8 @@ export const DDICTableField = t.type({
   shortText: orUndefined(t.string),
   heading: orUndefined(t.string),
   checkTable: orUndefined(t.string),
-  foreignKey: orUndefined(t.string)
+  foreignKey: orUndefined(t.string),
+  nullable: orUndefined(t.boolean)
 })
 
 export type DDICTableField = t.OutputOf<typeof DDICTableField>
@@ -70,6 +71,32 @@ export const DDICTableDataResult = t.type({
 })
 
 export type DDICTableDataResult = t.OutputOf<typeof DDICTableDataResult>
+
+/**
+ * DDIC Table Metadata - DDIC 表元数据（blueSource 格式）
+ * 对应端点: GET /sap/bc/adt/ddic/tables/{table_name}
+ */
+export const DDICTableMetadata = t.type({
+  name: t.string,
+  description: orUndefined(t.string),
+  responsible: orUndefined(t.string),
+  masterLanguage: orUndefined(t.string),
+  masterSystem: orUndefined(t.string),
+  package: orUndefined(t.string),
+  version: orUndefined(t.string),
+  changedAt: orUndefined(t.string),
+  changedBy: orUndefined(t.string),
+  createdAt: orUndefined(t.string),
+  createdBy: orUndefined(t.string),
+  links: orUndefined(t.array(t.type({
+    rel: t.string,
+    href: t.string,
+    type: orUndefined(t.string),
+    title: orUndefined(t.string)
+  })))
+})
+
+export type DDICTableMetadata = t.OutputOf<typeof DDICTableMetadata>
 
 /**
  * ADSO DDIC Links - ADSO 的 DDIC 表链接信息
@@ -171,12 +198,66 @@ export async function getADSODDICTableName(
   adsoId: string
 ): Promise<string | undefined> {
   const links = await getADSODDICLinks(client, adsoId)
-  
+
   if (links.ddicTableLink) {
     return extractTableNameFromUrl(links.ddicTableLink)
   }
-  
+
   return undefined
+}
+
+/**
+ * Get DDIC Table Metadata - 获取 DDIC 表元数据（blueSource 格式）
+ *
+ * 对应请求: GET /sap/bc/adt/ddic/tables/{table_name}
+ * 返回 blueSource XML 格式的表元数据，包含各种链接
+ *
+ * @param client - ADT HTTP 客户端
+ * @param tableName - 表名
+ * @returns DDIC 表元数据
+ */
+export async function getDDICTableMetadata(
+  client: AdtHTTP,
+  tableName: string
+): Promise<DDICTableMetadata> {
+  const encodedName = encodeURIComponent(tableName.toUpperCase())
+  const response = await client.request(`/sap/bc/adt/ddic/tables/${encodedName}`, {
+    method: "GET",
+    headers: {
+      Accept: "application/vnd.sap.adt.tables.v2+xml,application/vnd.sap.adt.blues.v1+xml"
+    }
+  })
+
+  return parseDDICTableMetadata(response.body, tableName)
+}
+
+/**
+ * Parse DDIC Table Metadata - 解析 DDIC 表元数据（blueSource 格式）
+ */
+function parseDDICTableMetadata(raw: any, tableName: string): DDICTableMetadata {
+  const root = raw["blue:blueSource"] || raw
+
+  const links = xmlArray(root, "atom:link").map((link: any) => ({
+    rel: link["@_rel"] || link["rel"] || "",
+    href: link["@_href"] || link["href"] || "",
+    type: link["@_type"] || link["type"],
+    title: link["@_title"] || link["title"]
+  }))
+
+  return {
+    name: root["@_name"] || root["adtcore:name"] || tableName.toUpperCase(),
+    description: root["@_description"] || root["adtcore:description"],
+    responsible: root["adtcore:responsible"],
+    masterLanguage: root["adtcore:masterLanguage"],
+    masterSystem: root["adtcore:masterSystem"],
+    package: root["adtcore:packageRef"]?.["@_name"],
+    version: root["adtcore:version"],
+    changedAt: root["adtcore:changedAt"],
+    changedBy: root["adtcore:changedBy"],
+    createdAt: root["adtcore:createdAt"],
+    createdBy: root["adtcore:createdBy"],
+    links: links.length > 0 ? links : undefined
+  }
 }
 
 /**
@@ -207,42 +288,55 @@ export async function getDDICTableInfo(
 }
 
 /**
- * Parse DDIC Table Source - 解析 DDIC 表源码（ABAP CDS 格式）
+ * Parse DDIC Table Source - 解析 DDIC 表源码（ABAP CDS DDL 格式）
+ *
+ * 支持的字段格式：
+ * - key fieldname : abap.type(length) not null;
+ * - key fieldname : abap.type(length, decimals) not null;
+ * - fieldname : abap.type(length);
+ * - @EndUserText.label : 'label'
+ *   fieldname : abap.type(length) not null;
  */
 function parseDDICTableSource(source: string, tableName: string): DDICTableInfo {
   const fields: DDICTableField[] = []
-  
+
+  // 解析表级别的注解
   const labelMatch = source.match(/@EndUserText\.label\s*:\s*'([^']+)'/)
   const description = labelMatch ? labelMatch[1] : undefined
-  
+
   const deliveryClassMatch = source.match(/@AbapCatalog\.deliveryClass\s*:\s*#(\w+)/)
   const deliveryClass = deliveryClassMatch ? deliveryClassMatch[1] : undefined
-  
-  const fieldPattern = /(@EndUserText\.label\s*:\s*'([^']+)'\s+)?(key\s+)?(\w+)\s*:\s*(\w+)\.(\w+)\((\d+)\)/g
+
+  // 解析字段 - 支持单参数和双参数类型
+  // 格式: [@EndUserText.label:'xxx'] [key] fieldname : abap.type(length[, decimals]) [not null];
+  const fieldPattern =
+    /(?:@EndUserText\.label\s*:\s*'([^']+)'\s*)?(key\s+)?(\w+)\s*:\s*(\w+)\.(\w+)\((\d+)(?:,\s*(\d+))?\)/g
   let fieldMatch
-  
+
   while ((fieldMatch = fieldPattern.exec(source)) !== null) {
-    const fieldLabel = fieldMatch[2]
-    const isKey = !!fieldMatch[3]
-    const fieldName = fieldMatch[4]
-    const dataType = fieldMatch[5]
-    const dataTypeName = fieldMatch[6]
-    const length = parseInt(fieldMatch[7], 10)
-    
+    const fieldLabel = fieldMatch[1]
+    const isKey = !!fieldMatch[2]
+    const fieldName = fieldMatch[3]
+    const dataType = fieldMatch[4] // abap
+    const dataTypeName = fieldMatch[5] // numc, dec, char, int4 等
+    const length = fieldMatch[6] ? parseInt(fieldMatch[6], 10) : undefined
+    const decimals = fieldMatch[7] ? parseInt(fieldMatch[7], 10) : undefined
+
     fields.push({
       name: fieldName.toUpperCase(),
       position: fields.length + 1,
       keyFlag: isKey,
       dataType: `${dataType}.${dataTypeName}`,
       length,
-      decimals: undefined,
+      decimals,
       shortText: fieldLabel,
       heading: undefined,
       checkTable: undefined,
-      foreignKey: undefined
+      foreignKey: undefined,
+      nullable: undefined
     })
   }
-  
+
   return {
     name: tableName.toUpperCase(),
     description,
@@ -284,20 +378,19 @@ export async function getDDICTableFields(
 export async function getDDICTableDataMetadata(
   client: AdtHTTP,
   tableName: string
-): Promise<any> {
+): Promise<Record<string, unknown>> {
   const encodedName = encodeURIComponent(tableName.toUpperCase())
   const response = await client.request(
     `/sap/bc/adt/datapreview/ddic/${encodedName}/metadata`,
     {
       method: "GET",
       headers: {
-        "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml"
+        Accept: "application/vnd.sap.adt.datapreview.table.v1+xml"
       }
     }
   )
 
-  const raw = fullParse(response.body)
-  return raw
+  return fullParse(response.body)
 }
 
 /**
@@ -322,17 +415,33 @@ export async function getDDICTableData(
   }
 ): Promise<DDICTableDataResult> {
   const maxRows = options?.maxRows || 100
-  
-  const columns = options?.columns && options.columns.length > 0
-    ? options.columns.map(col => `${tableName.toUpperCase()}~${col}`).join(", ")
-    : "*"
-  
+
+  // 如果未指定 columns，先从元数据获取所有列名（模拟 SAP ADT 行为）
+  let columnNames = options?.columns
+  if (!columnNames || columnNames.length === 0) {
+    const metadata = await getDDICTableDataMetadata(client, tableName)
+    const root = metadata["dataPreview:tableData"] || metadata
+    const columnsRaw = xmlArray(root, "dataPreview:columns")
+    columnNames = columnsRaw
+      .map((colNode: any) => {
+        const colMeta = colNode["dataPreview:metadata"] || colNode
+        return colMeta["@_dataPreview:name"] ||
+               colMeta["dataPreview:name"] ||
+               colMeta["@_name"]
+      })
+      .filter((name: string | undefined) => name)
+  }
+
+  const columns = columnNames
+    .map((col: string) => `${tableName.toUpperCase()}~${col}`)
+    .join(", ")
+
   let selectStatement = `SELECT ${columns} FROM ${tableName.toUpperCase()}`
-  
+
   if (options?.whereClause) {
     selectStatement += ` WHERE ${options.whereClause}`
   }
-  
+
   if (options?.orderBy) {
     selectStatement += ` ORDER BY ${options.orderBy}`
   }
@@ -346,7 +455,7 @@ export async function getDDICTableData(
         ddicEntityName: tableName.toUpperCase()
       },
       headers: {
-        "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml",
+        Accept: "application/vnd.sap.adt.datapreview.table.v1+xml",
         "Content-Type": "text/plain"
       },
       body: selectStatement
@@ -477,66 +586,6 @@ export async function getTableDataViaSQL(
 // ============================================================================
 // Parse Functions
 // ============================================================================
-
-/**
- * Parse DDIC Table Info Response - 解析 DDIC 表信息响应
- */
-function parseDDICTableInfo(raw: any): DDICTableInfo {
-  const root = raw["table:table"] || raw["adt:table"] || raw
-
-  const fields = xmlArray(root, "table:fields", "table:field")
-    .map((field: any) => parseDDICTableField(field))
-
-  const indexes = xmlArray(root, "table:indexes", "table:index")
-    .map((index: any) => parseDDICTableIndex(index))
-
-  return {
-    name: root["table:name"] || root["name"] || "",
-    description: root["table:description"] || root["description"],
-    deliveryClass: root["table:deliveryClass"] || root["deliveryClass"],
-    dataClass: root["table:dataClass"] || root["dataClass"],
-    sizeCategory: root["table:sizeCategory"] || root["sizeCategory"],
-    buffering: root["table:buffering"] || root["buffering"],
-    fields,
-    indexes
-  }
-}
-
-/**
- * Parse DDIC Table Field - 解析 DDIC 表字段
- */
-function parseDDICTableField(field: any): DDICTableField {
-  const attrs = xmlNodeAttr(field) || {}
-
-  return {
-    name: field["table:name"] || attrs.name || "",
-    position: parseInt(field["table:position"] || attrs.position || "0", 10),
-    keyFlag: (field["table:keyFlag"] || attrs.keyFlag) === "true" || field["table:keyFlag"] === "X",
-    dataType: field["table:dataType"] || attrs.dataType,
-    length: parseInt(field["table:length"] || attrs.length || "0", 10),
-    decimals: parseInt(field["table:decimals"] || attrs.decimals || "0", 10),
-    shortText: field["table:shortText"] || attrs.shortText,
-    heading: field["table:heading"] || attrs.heading,
-    checkTable: field["table:checkTable"] || attrs.checkTable,
-    foreignKey: field["table:foreignKey"] || attrs.foreignKey
-  }
-}
-
-/**
- * Parse DDIC Table Index - 解析 DDIC 表索引
- */
-function parseDDICTableIndex(index: any): DDICTableIndex {
-  const attrs = xmlNodeAttr(index) || {}
-  const fields = xmlArray(index, "table:fields", "table:field")
-    .map((f: any) => f["table:name"] || xmlNodeAttr(f)?.name || "")
-    .filter((name: string) => name)
-
-  return {
-    name: index["table:name"] || attrs.name || "",
-    unique: (index["table:unique"] || attrs.unique) === "true",
-    fields
-  }
-}
 
 /**
  * Parse DDIC Table Data Response - 解析 DDIC 表数据响应

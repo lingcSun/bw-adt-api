@@ -194,33 +194,54 @@ export async function checkTransformation(
 }
 
 /**
+ * Update Transformation Options - 更新转换选项
+ */
+export interface UpdateTransformationOptions {
+  lockHandle: string
+  corrNr?: string
+  timestamp?: string
+}
+
+/**
  * Update Transformation - 更新转换内容
  *
  * 对应请求: PUT /sap/bw/modeling/trfn/{trfn_id}/{version}?lockHandle={lockHandle}
  *
  * @param client - ADT HTTP 客户端
  * @param trfnId - Transformation ID
- * @param content - Transformation XML 内容
- * @param lockHandle - 锁定句柄
- * @param version - 版本 (默认 "m" = active)
+ * @param xmlContent - Transformation XML 内容（完整的 transformation 定义）
+ * @param options - 更新选项
  * @returns 更新结果
  */
 export async function updateTransformation(
   client: AdtHTTP,
   trfnId: string,
-  content: string,
-  lockHandle: string,
+  xmlContent: string,
+  options: UpdateTransformationOptions,
   version: "m" | "a" | "d" = "m"
 ): Promise<ActivationResult> {
+  const { lockHandle, corrNr, timestamp } = options
+
+  const qs: Record<string, string> = {
+    lockHandle
+  }
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/xml, application/vnd.sap.bw.modeling.trfn-v1_0_0+xml",
+    "Accept": "application/vnd.sap.bw.modeling.trfn-v1_0_0+xml"
+  }
+
+  if (timestamp) {
+    headers["timestamp"] = timestamp
+  }
+
   const response = await client.request(
-    `/sap/bw/modeling/trfn/${trfnId}/${version}?lockHandle=${lockHandle}`,
+    `/sap/bw/modeling/trfn/${trfnId}/${version}`,
     {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/vnd.sap.bw.modeling.trfn-v1_0_0+xml",
-        "Accept": "application/vnd.sap.bw.modeling.trfn-v1_0_0+xml"
-      },
-      body: content
+      qs,
+      headers,
+      body: xmlContent
     }
   )
 

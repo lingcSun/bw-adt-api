@@ -333,6 +333,61 @@ export async function checkADSO(
   )
 }
 
+/**
+ * Update ADSO Options - 更新 ADSO 选项
+ */
+export interface UpdateADSOOptions {
+  lockHandle: string
+  corrNr?: string
+  timestamp?: string
+}
+
+/**
+ * Update ADSO - 更新 ADSO 元数据
+ *
+ * 对应请求: PUT /sap/bw/modeling/adso/{adso_id}/m?lockHandle=xxx
+ *
+ * @param client - ADT HTTP 客户端
+ * @param adsoId - ADSO ID
+ * @param xmlContent - ADSO XML 内容（完整的 dataStore 定义）
+ * @param options - 更新选项
+ * @returns 更新结果
+ */
+export async function updateADSO(
+  client: AdtHTTP,
+  adsoId: string,
+  xmlContent: string,
+  options: UpdateADSOOptions
+): Promise<ActivationResult> {
+  const { lockHandle, corrNr, timestamp } = options
+
+  const qs: Record<string, string> = {
+    lockHandle
+  }
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/xml, application/vnd.sap.bw.modeling.adso-v1_5_0+xml",
+    "Accept": "application/vnd.sap.bw.modeling.adso-v1_5_0+xml"
+  }
+
+  if (timestamp) {
+    headers["timestamp"] = timestamp
+  }
+
+  const response = await client.request(
+    `/sap/bw/modeling/adso/${adsoId.toLowerCase()}/m`,
+    {
+      method: "PUT",
+      qs,
+      headers,
+      body: xmlContent
+    }
+  )
+
+  // 响应是 ATOM feed 格式，包含检查结果
+  return parseActivationResponse(response.body)
+}
+
 // ============================================================================
 // Parse Functions
 // ============================================================================
