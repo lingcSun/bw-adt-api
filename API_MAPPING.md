@@ -199,6 +199,99 @@ await client.unlockDTP("DTP_XXX")
 ## 下一步计划
 
 根据新增的 Communication Log，可以继续实现：
-- Process Chain 操作
+- Process Chain 操作 ✅ (已实现)
 - InfoObject 详细操作
 - Query 管理
+
+---
+
+### 7. Process Chain (流程链) 操作 (`processchain.ts`) ✅
+
+| 功能 | HTTP 方法 | 端点 | 描述 |
+|------|-----------|------|------|
+| 获取流程链 | GET | `/sap/bw/modeling/pc/{id}/m` | 获取流程链详细信息 |
+| 获取版本历史 | GET | `/sap/bw/modeling/pc/{id}/versions` | 获取流程链版本历史 |
+| 锁定流程链 | POST | `/sap/bw/modeling/pc/{id}?action=lock` | 锁定流程链以便编辑 |
+| 解锁流程链 | POST | `/sap/bw/modeling/pc/{id}?action=unlock` | 解锁流程链 |
+| 激活流程链 | POST | `/sap/bw/modeling/activation` | 激活流程链 |
+| 检查流程链 | POST | `/sap/bw/modeling/activation` | 检查流程链一致性 |
+| 执行流程链 | POST | `/sap/bw/modeling/pc/{id}?action=execute` | 执行流程链 |
+| 停止流程链 | POST | `/sap/bw/modeling/pc/{id}?action=stop` | 停止正在运行的流程链 |
+| 获取日志 | GET | `/sap/bw/modeling/pc/{id}/logs` | 获取流程链执行日志 |
+| 获取状态 | GET | `/sap/bw/modeling/pc/{id}/status` | 获取流程链运行状态 |
+
+#### Process Chain 使用示例
+
+```typescript
+import { BWAdtClient } from "bw-adt-api"
+
+const client = new BWAdtClient(
+  "http://bw-system:8000",
+  "username",
+  "password"
+)
+
+await client.login()
+
+// 获取流程链详情
+const chainDetails = await client.getProcessChainDetails("PC_DAILY_LOAD")
+console.log(`Chain: ${chainDetails.name}`)
+console.log(`Status: ${chainDetails.status}`)
+if (chainDetails.steps) {
+  console.log(`Steps: ${chainDetails.steps.length}`)
+  chainDetails.steps.forEach(step => {
+    console.log(`  - ${step.stepType}: ${step.stepId}`)
+  })
+}
+
+// 获取版本历史
+const versions = await client.getProcessChainVersions("PC_DAILY_LOAD")
+versions.forEach(v => {
+  console.log(`Version ${v.version}: ${v.description}`)
+})
+
+// 锁定并激活流程链
+const lockResult = await client.lockProcessChain("PC_DAILY_LOAD")
+console.log(`Lock Handle: ${lockResult.lockHandle}`)
+
+const activateResult = await client.activateProcessChain(
+  "PC_DAILY_LOAD",
+  lockResult.lockHandle
+)
+console.log(`Activation Success: ${activateResult.success}`)
+
+await client.unlockProcessChain("PC_DAILY_LOAD")
+
+// 检查流程链一致性
+const checkResult = await client.checkProcessChain("PC_DAILY_LOAD")
+console.log(`Check Success: ${checkResult.success}`)
+checkResult.messages.forEach(msg => {
+  console.log(`  ${msg.type}: ${msg.message}`)
+})
+
+// 执行流程链
+const execResult = await client.executeProcessChain("PC_DAILY_LOAD")
+console.log(`Execution Success: ${execResult.success}`)
+if (execResult.requestID) {
+  console.log(`Request ID: ${execResult.requestID}`)
+}
+
+// 获取执行日志
+const logs = await client.getProcessChainLogs("PC_DAILY_LOAD")
+console.log(`Found ${logs.length} log entries`)
+logs.forEach(log => {
+  console.log(`  [${log.timestamp}] ${log.status}: ${log.message}`)
+
+  // 获取运行状态
+  const status = await client.getProcessChainStatus("PC_DAILY_LOAD")
+  console.log(`Status: ${status.status}`)
+  if (status.currentStep) {
+    console.log(`Current: ${status.currentStep}`)
+    console.log(`Progress: ${status.completedSteps}/${status.totalSteps}`)
+  }
+
+  // 停止正在运行的流程链
+  const stopResult = await client.stopProcessChain("PC_DAILY_LOAD")
+  console.log(`Stop Success: ${stopResult.success}`)
+}
+```

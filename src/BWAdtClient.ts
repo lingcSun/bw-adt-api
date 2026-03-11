@@ -811,4 +811,140 @@ export class BWAdtClient {
     const { getTableDataViaSQL } = await import("./api/ddic")
     return getTableDataViaSQL(this.h, tableName, sqlStatement)
   }
+
+  // ========================================
+  // Process Chain Operations (流程链)
+  // ========================================
+
+  /**
+   * Get Process Chain - 获取流程链元数据
+   * 对应请求: GET /sap/bw/modeling/pc/{chain_id}/m
+   *
+   * @param chainId - Process Chain ID
+   * @returns 流程链元数据
+   */
+  public async getProcessChain(chainId: string) {
+    const { getProcessChain } = await import("./api/processchain")
+    return getProcessChain(this.h, chainId)
+  }
+
+  /**
+   * Get Process Chain Details - 获取流程链详细信息
+   * 对应请求: GET /sap/bw/modeling/pc/{chain_id}/m
+   *
+   * @param chainId - Process Chain ID
+   * @returns 流程链详细信息
+   */
+  public async getProcessChainDetails(chainId: string) {
+    const { getProcessChainDetails } = await import("./api/processchain")
+    return getProcessChainDetails(this.h, chainId)
+  }
+
+  /**
+   * Get Process Chain Versions - 获取流程链版本历史
+   * 对应请求: GET /sap/bw/modeling/pc/{chain_id}/versions
+   *
+   * @param chainId - Process Chain ID
+   * @returns 版本历史列表
+   */
+  public async getProcessChainVersions(chainId: string) {
+    const { getProcessChainVersions } = await import("./api/processchain")
+    return getProcessChainVersions(this.h, chainId)
+  }
+
+  /**
+   * Lock Process Chain - 锁定流程链
+   * 对应请求: POST /sap/bw/modeling/pc/{chain_id}?action=lock
+   *
+   * @param chainId - Process Chain ID
+   * @returns 锁定结果（包含 lockHandle）
+   */
+  public async lockProcessChain(chainId: string) {
+    const { lockProcessChain } = await import("./api/processchain")
+    return lockProcessChain(this.h, chainId)
+  }
+
+  /**
+   * Unlock Process Chain - 解锁流程链
+   * 对应请求: POST /sap/bw/modeling/pc/{chain_id}?action=unlock
+   *
+   * @param chainId - Process Chain ID
+   */
+  public async unlockProcessChain(chainId: string) {
+    const { unlockProcessChain } = await import("./api/processchain")
+    return unlockProcessChain(this.h, chainId)
+  }
+
+  /**
+   * Activate Process Chain - 激活流程链
+   * 对应请求: POST /sap/bw/modeling/activation
+   *
+   * @param chainId - Process Chain ID
+   * @param lockHandle - 锁定句柄
+   * @param corrNr - 传输请求号（可选）
+   * @returns 激活结果
+   */
+  public async activateProcessChain(chainId: string, lockHandle?: string, corrNr?: string) {
+    const { activateProcessChain } = await import("./api/processchain")
+    return activateProcessChain(this.h, chainId, lockHandle || "", corrNr || "")
+  }
+
+  /**
+   * Check Process Chain - 检查流程链一致性
+   *
+   * @param chainId - Process Chain ID
+   * @returns 检查结果
+   */
+  public async checkProcessChain(chainId: string) {
+    const { checkProcessChain } = await import("./api/processchain")
+    return checkProcessChain(this.h, chainId)
+  }
+
+  /**
+   * Execute Process Chain - 执行流程链
+   * 对应请求: POST /sap/bw/modeling/pc/{chain_id}?action=execute
+   *
+   * @param chainId - Process Chain ID
+   * @returns 执行结果
+   */
+  public async executeProcessChain(chainId: string) {
+    const { executeProcessChain } = await import("./api/processchain")
+    return executeProcessChain(this.h, chainId)
+  }
+
+  /**
+   * Stop Process Chain - 停止正在运行的流程链
+   * 对应请求: POST /sap/bw/modeling/pc/{chain_id}?action=stop
+   *
+   * @param chainId - Process Chain ID
+   * @returns 停止结果
+   */
+  public async stopProcessChain(chainId: string) {
+    const { stopProcessChain } = await import("./api/processchain")
+    return stopProcessChain(this.h, chainId)
+  }
+
+  /**
+   * Get Process Chain Logs - 获取流程链执行日志
+   * 对应请求: GET /sap/bw/modeling/pc/{chain_id}/logs
+   *
+   * @param chainId - Process Chain ID
+   * @returns 执行日志列表
+   */
+  public async getProcessChainLogs(chainId: string) {
+    const { getProcessChainLogs } = await import("./api/processchain")
+    return getProcessChainLogs(this.h, chainId)
+  }
+
+  /**
+   * Get Process Chain Status - 获取流程链运行状态
+   * 对应请求: GET /sap/bw/modeling/pc/{chain_id}/status
+   *
+   * @param chainId - Process Chain ID
+   * @returns 运行状态信息
+   */
+  public async getProcessChainStatus(chainId: string) {
+    const { getProcessChainStatus } = await import("./api/processchain")
+    return getProcessChainStatus(this.h, chainId)
+  }
 }

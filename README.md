@@ -18,6 +18,8 @@ npm install bw-adt-api
 - ✅ BW object search
 - ✅ Transformation operations (lock/unlock/activate)
 - ✅ Data Transfer Process (DTP) operations (lock/unlock/activate/execute)
+- ✅ Process Chain operations (lock/unlock/activate/check/execute/logs/status)
+- ✅ DDIC table operations (metadata/fields/data queries)
 - 🚧 More modules coming soon...
 
 ## Sample usage
@@ -70,6 +72,15 @@ const dtpLock = await client.lockDTP("DTP_XXX")
 await client.activateDTP("DTP_XXX", dtpLock.lockHandle)
 const executeResult = await client.executeDTP("DTP_XXX")
 await client.unlockDTP("DTP_XXX")
+
+// Work with Process Chains
+const chainDetails = await client.getProcessChainDetails("PC_DAILY_LOAD")
+const chainVersions = await client.getProcessChainVersions("PC_DAILY_LOAD")
+const chainLock = await client.lockProcessChain("PC_DAILY_LOAD")
+await client.activateProcessChain("PC_DAILY_LOAD", chainLock.lockHandle)
+const chainStatus = await client.getProcessChainStatus("PC_DAILY_LOAD")
+const chainLogs = await client.getProcessChainLogs("PC_DAILY_LOAD")
+await client.unlockProcessChain("PC_DAILY_LOAD")
 ```
 
 ## API Documentation
