@@ -1,7 +1,9 @@
 import * as t from "io-ts"
 import { fullParse, xmlNodeAttr, xmlArray, xmlNode, orUndefined } from "../utilities"
 import { AdtHTTP } from "../AdtHTTP"
-import { ActivationResult, ActivationMessage, LockResult, activateObject, parseActivationResponse, parseLockResponse, parseObjectVersions } from "./common"
+import { ActivationResult, ActivationMessage, LockResult, activateObject, parseActivationResponse, parseLockResponse, parseObjectVersions, ValidationAction, ValidationResult } from "./common"
+import { BWObject, BWObjectType } from "./bwObject"
+import { ProcessChainDetails } from "./types"
 
 // ============================================================================
 // Types and Codecs for Process Chain (流程链)
@@ -9,6 +11,9 @@ import { ActivationResult, ActivationMessage, LockResult, activateObject, parseA
 
 // Re-export common types as ProcessChain-specific types for compatibility
 export type ProcessChainLockResult = LockResult
+
+// Re-export Validation types for convenience
+export { ValidationAction, ValidationResult } from "./common"
 
 /**
  * Process Chain Status - 流程链状态
@@ -55,23 +60,7 @@ export const ProcessChainStep = t.type({
 
 export type ProcessChainStep = t.OutputOf<typeof ProcessChainStep>
 
-/**
- * Process Chain Details - 流程链详细信息
- */
-export const ProcessChainDetails = t.type({
-  name: t.string,
-  technicalName: t.string,
-  description: orUndefined(t.string),
-  objVers: orUndefined(t.string),
-  chainType: orUndefined(t.string),
-  status: orUndefined(t.string),
-  steps: orUndefined(t.array(ProcessChainStep)),  // 流程链步骤列表
-  created: orUndefined(t.string),
-  changed: orUndefined(t.string),
-  changedBy: orUndefined(t.string)
-})
-
-export type ProcessChainDetails = t.OutputOf<typeof ProcessChainDetails>
+// ProcessChainDetails is now imported from types.ts to avoid duplication
 
 /**
  * Process Chain Version - 流程链版本信息
@@ -148,17 +137,8 @@ export async function lockProcessChain(
   client: AdtHTTP,
   chainId: string
 ): Promise<ProcessChainLockResult> {
-  const response = await client.request(
-    `/sap/bw/modeling/pc/${chainId}?action=lock`,
-    {
-      method: "POST",
-      headers: {
-        "Accept": "application/vnd.sap.bw.modeling.pc-v1_0_0+xml"
-      }
-    }
-  )
-
-  return parseLockResponse(response.body)
+  const obj = new BWObject(client, BWObjectType.PROCESS_CHAIN, chainId)
+  return obj.lock()
 }
 
 /**
@@ -173,12 +153,8 @@ export async function unlockProcessChain(
   client: AdtHTTP,
   chainId: string
 ): Promise<void> {
-  await client.request(
-    `/sap/bw/modeling/pc/${chainId}?action=unlock`,
-    {
-      method: "POST"
-    }
-  )
+  const obj = new BWObject(client, BWObjectType.PROCESS_CHAIN, chainId)
+  return obj.unlock()
 }
 
 /**
@@ -312,16 +288,8 @@ export async function getProcessChainVersions(
   client: AdtHTTP,
   chainId: string
 ): Promise<ProcessChainVersion[]> {
-  const response = await client.request(
-    `/sap/bw/modeling/pc/${chainId}/versions`,
-    {
-      headers: {
-        "Accept": "application/vnd.sap.bw.modeling.pc-v1_0_0+xml"
-      }
-    }
-  )
-
-  return parseObjectVersions(response.body)
+  const obj = new BWObject(client, BWObjectType.PROCESS_CHAIN, chainId)
+  return obj.getVersions()
 }
 
 /**
@@ -341,14 +309,8 @@ export async function activateProcessChain(
   lockHandle?: string,
   corrNr?: string
 ): Promise<ActivationResult> {
-  const objectUri = `/sap/bw/modeling/pc/${chainId}/m`
-  return activateObject(
-    client,
-    objectUri,
-    lockHandle || "",
-    "inactive",
-    "application/vnd.sap.bw.modeling.pc-v1_0_0+xml"
-  )
+  const obj = new BWObject(client, BWObjectType.PROCESS_CHAIN, chainId)
+  return obj.activate(lockHandle)
 }
 
 /**
@@ -364,14 +326,8 @@ export async function checkProcessChain(
   client: AdtHTTP,
   chainId: string
 ): Promise<ActivationResult> {
-  const objectUri = `/sap/bw/modeling/pc/${chainId}/m`
-  return activateObject(
-    client,
-    objectUri,
-    "",
-    "inactive",
-    "application/vnd.sap.bw.modeling.pc-v1_0_0+xml"
-  )
+  const obj = new BWObject(client, BWObjectType.PROCESS_CHAIN, chainId)
+  return obj.check()
 }
 
 /**
@@ -519,4 +475,68 @@ export async function getProcessChainStatus(
     endTime: statusNode["bwModel:endTime"] || statusNode["endTime"],
     message: statusNode["bwModel:message"] || statusNode["message"]
   }
+}
+
+// ============================================================================
+// Validation Functions (using BWObject base class)
+// ============================================================================
+
+/**
+ * Validate Process Chain Exists - 验证流程链是否存在
+ *
+ * @param client - ADT HTTP 客户端
+ * @param chainId - Process Chain ID
+ * @returns 验证结果
+ */
+export async function validateProcessChainExists(
+  client: AdtHTTP,
+  chainId: string
+): Promise<ValidationResult> {
+  const obj = new BWObject(client, BWObjectType.PROCESS_CHAIN, chainId)
+  return obj.exists()
+}
+
+/**
+ * Validate New Process Chain Name - 验证新流程链名称是否可用
+ *
+ * @param client - ADT HTTP 客户端
+ * @param chainId - Process Chain ID
+ * @returns 验证结果
+ */
+export async function validateProcessChainNewName(
+  client: AdtHTTP,
+  chainId: string
+): Promise<ValidationResult> {
+  const obj = new BWObject(client, BWObjectType.PROCESS_CHAIN, chainId)
+  return obj.isNewNameAvailable()
+}
+
+/**
+ * Validate Process Chain Can Delete - 验证流程链是否可删除
+ *
+ * @param client - ADT HTTP 客户端
+ * @param chainId - Process Chain ID
+ * @returns 验证结果
+ */
+export async function validateProcessChainCanDelete(
+  client: AdtHTTP,
+  chainId: string
+): Promise<ValidationResult> {
+  const obj = new BWObject(client, BWObjectType.PROCESS_CHAIN, chainId)
+  return obj.canDelete()
+}
+
+/**
+ * Validate Process Chain Can Activate - 验证流程链是否可激活
+ *
+ * @param client - ADT HTTP 客户端
+ * @param chainId - Process Chain ID
+ * @returns 验证结果
+ */
+export async function validateProcessChainCanActivate(
+  client: AdtHTTP,
+  chainId: string
+): Promise<ValidationResult> {
+  const obj = new BWObject(client, BWObjectType.PROCESS_CHAIN, chainId)
+  return obj.canActivate()
 }

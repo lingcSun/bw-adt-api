@@ -4,8 +4,28 @@ import { AdtHTTP } from "../AdtHTTP"
 import { fullParse, xmlNodeAttr, xmlArray, xmlNode } from "../utilities"
 
 // ============================================================================
-// Common Types for BW Objects (Activation, Lock, etc.)
+// Common Types for BW Objects (Activation, Lock, Validation, etc.)
 // ============================================================================
+
+/**
+ * Validation Action - 验证动作类型
+ */
+export enum ValidationAction {
+  EXISTS = "exists",     // 验证对象是否存在
+  NEW = "new",           // 验证新名称是否可用
+  DELETE = "delete",     // 验证是否可删除
+  ACTIVATE = "activate"  // 验证是否可激活
+}
+
+/**
+ * Validation Result - 验证结果
+ */
+export const ValidationResult = t.type({
+  valid: t.boolean,
+  message: orUndefined(t.string)
+})
+
+export type ValidationResult = t.OutputOf<typeof ValidationResult>
 
 /**
  * Activation Message - 激活消息
@@ -196,4 +216,59 @@ export function parseObjectVersions(body: string): ObjectVersion[] {
       user: userName
     }
   })
+}
+
+/**
+ * Validate Object - 通用验证 BW 对象
+ *
+ * 对应请求: POST /sap/bw/modeling/validation?objectType={type}&objectName={name}&action={action}
+ *
+ * @param client - ADT HTTP 客户端
+ * @param objectType - 对象类型 (ADSO, TRFN, DTPA, PC, IOBJ, DSO, ISRC, AREA 等)
+ * @param objectName - 对象名称
+ * @param action - 验证动作
+ * @returns 验证结果
+ */
+export async function validateObject(
+  client: AdtHTTP,
+  objectType: string,
+  objectName: string,
+  action: ValidationAction
+): Promise<ValidationResult> {
+  const response = await client.request("/sap/bw/modeling/validation", {
+    method: "POST",
+    qs: {
+      objectType,
+      objectName: objectName.toLowerCase(),
+      action
+    }
+  })
+
+  // 200 OK 表示验证通过
+  return {
+    valid: response.status === 200,
+    message: response.status === 200 ? "Validation passed" : "Validation failed"
+  }
+}
+
+/**
+ * Check Object - 通用检查函数（使用 activateObject 的检查模式）
+ *
+ * @param client - ADT HTTP 客户端
+ * @param objectUri - 对象 URI
+ * @param contentType - 内容类型
+ * @returns 检查结果
+ */
+export async function checkObject(
+  client: AdtHTTP,
+  objectUri: string,
+  contentType: string
+): Promise<ActivationResult> {
+  return activateObject(
+    client,
+    objectUri,
+    "",  // lockHandle 为空表示只检查不修改
+    "inactive",
+    contentType
+  )
 }

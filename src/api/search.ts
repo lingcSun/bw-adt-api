@@ -7,9 +7,9 @@ import { AdtHTTP } from "../AdtHTTP"
 // ============================================================================
 
 /**
- * BW Object Type - BW 对象类型
+ * BW Object Type - BW 对象类型（用于搜索）
  */
-export enum BWObjectType {
+export enum SearchObjectType {
   ADSO = "ADSO",           // Advanced DataStore Object
   DTPA = "DTPA",           // Data Transfer Process
   TRFN = "TRFN",           // Transformation
@@ -53,7 +53,7 @@ export interface BWSearchOptions {
   searchTerm: string                 // 搜索关键词
   searchInName?: boolean             // 是否在名称中搜索
   searchInDescription?: boolean      // 是否在描述中搜索
-  objectType?: BWObjectType | string // 对象类型过滤
+  objectType?: SearchObjectType | string // 对象类型过滤
   createdOnFrom?: string             // 创建日期起始 (ISO 8601)
   createdOnTo?: string               // 创建日期结束 (ISO 8601)
   changedOnFrom?: string             // 修改日期起始 (ISO 8601)
@@ -145,7 +145,7 @@ function parseBWSearchResponse(body: string): BWSearchResult[] {
 export async function quickSearch(
   client: AdtHTTP,
   searchTerm: string,
-  objectType?: BWObjectType | string
+  objectType?: SearchObjectType | string
 ): Promise<BWSearchResult[]> {
   return searchBWObjects(client, {
     searchTerm,
@@ -163,7 +163,7 @@ export async function quickSearch(
  */
 export async function searchByObjectType(
   client: AdtHTTP,
-  objectType: BWObjectType | string,
+  objectType: SearchObjectType | string,
   options: Partial<BWSearchOptions> = {}
 ): Promise<BWSearchResult[]> {
   return searchBWObjects(client, {

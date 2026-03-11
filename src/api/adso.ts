@@ -1,12 +1,66 @@
 import * as t from "io-ts"
 import { fullParse, xmlNodeAttr, xmlArray, xmlNode, orUndefined } from "../utilities"
 import { AdtHTTP } from "../AdtHTTP"
-import { ActivationResult, ActivationMessage, LockResult, activateObject, parseActivationResponse } from "./common"
+import { ActivationResult, ActivationMessage, LockResult, activateObject, parseActivationResponse, ValidationAction, ValidationResult } from "./common"
+import { BWObject, BWObjectType } from "./bwObject"
+import { ADSODetails } from "./types"
 
 // ============================================================================
 // Types and Codecs for ADSO (Advanced DataStore Object)
 // Based on: /sap/bw/modeling/adso (v1_5_0)
 // ============================================================================
+
+// Re-export Validation types for convenience
+export { ValidationAction, ValidationResult } from "./common"
+
+/**
+ * Template Type - 模板类型
+ */
+export enum TemplateType {
+  ADSO = "ADSO",         // InfoProvider (ADSO)
+  DSO = "DSO",           // DataSource
+  IOBJ = "IOBJ",         // InfoObject
+  ISRC = "ISRC",         // InfoSource
+  NONE = ""              // 无模板（空白创建）
+}
+
+export type TemplateTypeString = "ADSO" | "DSO" | "IOBJ" | "ISRC" | ""
+
+/**
+ * ADSO Create Options - ADSO 创建选项
+ */
+export interface CreateADSOOptions {
+  name: string                          // ADSO 技术名称
+  description: string                   // 描述
+  infoArea: string                      // InfoArea
+  masterLanguage: string                // 主语言 (如: ZH, EN)
+  responsible: string                   // 负责人用户名
+  masterSystem?: string                 // 主系统 (默认: 从配置获取)
+  // 模板选项 (5种创建方式)
+  template?: {
+    objectName: string                  // 模板对象名称
+    type: TemplateTypeString            // 模板类型
+  }
+  // ADSO 属性
+  activateData?: boolean                // 激活数据 (默认: true)
+  writeChangelog?: boolean              // 写入变更日志 (默认: true)
+  readOnly?: boolean                    // 只读 (默认: false)
+  // 父级信息
+  parentName?: string                   // 父级名称 (InfoArea)
+  parentType?: string                   // 父级类型 (如: AREA)
+}
+
+/**
+ * Node Path Entry - 节点路径条目
+ */
+export interface NodePathEntry {
+  name: string
+  techName: string
+  type: string
+  description?: string
+  uri?: string
+  childrenUri?: string
+}
 
 /**
  * ADSO Type - ADSO 类型
@@ -52,23 +106,7 @@ export const ADSOMetaData = t.type({
 
 export type ADSOMetaData = t.OutputOf<typeof ADSOMetaData>
 
-/**
- * ADSO Details - ADSO 详细信息
- */
-export const ADSODetails = t.type({
-  name: t.string,
-  technicalName: t.string,
-  description: orUndefined(t.string),
-  objVers: orUndefined(t.string),
-  adsoType: orUndefined(t.string),
-  status: orUndefined(t.string),
-  infoArea: orUndefined(t.string),
-  isRealTime: orUndefined(t.boolean),
-  partitioning: orUndefined(t.string),
-  activationStatus: orUndefined(t.string)
-})
-
-export type ADSODetails = t.OutputOf<typeof ADSODetails>
+// ADSODetails is now imported from types.ts to avoid duplication
 
 /**
  * ADSO Version - ADSO 版本信息
@@ -115,6 +153,221 @@ export type ADSOConfiguration = t.OutputOf<typeof ADSOConfiguration>
 // ============================================================================
 // API Functions
 // ============================================================================
+
+/**
+ * Validate Object - 验证 BW 对象
+ *
+ * 对应请求: POST /sap/bw/modeling/validation?objectType={type}&objectName={name}&action={action}
+ *
+ * @param client - ADT HTTP 客户端
+ * @param objectType - 对象类型 (ADSO, AREA, DSO, IOBJ, ISRC 等)
+ * @param objectName - 对象名称
+ * @param action - 验证动作
+ * @returns 验证结果
+ */
+export async function validateObject(
+  client: AdtHTTP,
+  objectType: string,
+  objectName: string,
+  action: ValidationAction
+): Promise<ValidationResult> {
+  const response = await client.request("/sap/bw/modeling/validation", {
+    method: "POST",
+    qs: {
+      objectType,
+      objectName: objectName.toLowerCase(),
+      action
+    }
+  })
+
+  // 200 OK 表示验证通过
+  return {
+    valid: response.status === 200,
+    message: response.status === 200 ? "Validation passed" : "Validation failed"
+  }
+}
+
+/**
+ * Validate InfoArea - 验证 InfoArea 是否存在
+ *
+ * @param client - ADT HTTP 客户端
+ * @param infoAreaName - InfoArea 名称
+ * @returns 验证结果
+ */
+export async function validateInfoArea(
+  client: AdtHTTP,
+  infoAreaName: string
+): Promise<ValidationResult> {
+  return validateObject(client, "AREA", infoAreaName, ValidationAction.EXISTS)
+}
+
+/**
+ * Validate Template ADSO - 验证模板 ADSO 是否存在
+ *
+ * @param client - ADT HTTP 客户端
+ * @param templateName - 模板 ADSO 名称
+ * @returns 验证结果
+ */
+export async function validateTemplateADSO(
+  client: AdtHTTP,
+  templateName: string
+): Promise<ValidationResult> {
+  return validateObject(client, "ADSO", templateName, ValidationAction.EXISTS)
+}
+
+/**
+ * Validate New ADSO Name - 验证新 ADSO 名称是否可用
+ *
+ * @param client - ADT HTTP 客户端
+ * @param adsoName - ADSO 名称
+ * @returns 验证结果
+ */
+export async function validateNewADSOName(
+  client: AdtHTTP,
+  adsoName: string
+): Promise<ValidationResult> {
+  return validateObject(client, "ADSO", adsoName, ValidationAction.NEW)
+}
+
+/**
+ * Create ADSO - 创建 ADSO
+ *
+ * 对应请求: POST /sap/bw/modeling/adso/{name}?lockHandle={lockHandle}
+ *
+ * @param client - ADT HTTP 客户端
+ * @param options - 创建选项
+ * @param lockHandle - 锁定句柄
+ * @returns 创建结果
+ */
+export async function createADSO(
+  client: AdtHTTP,
+  options: CreateADSOOptions,
+  lockHandle: string
+): Promise<void> {
+  const {
+    name,
+    description,
+    infoArea,
+    masterLanguage,
+    responsible,
+    masterSystem = "BPD",
+    template,
+    activateData = true,
+    writeChangelog = true,
+    readOnly = false,
+    parentName,
+    parentType = "AREA"
+  } = options
+
+  // 构建模板 XML (如果提供)
+  const templateXml = template
+    ? `  <template objectName="${template.objectName}" tlogo="${template.type}"/>`
+    : ""
+
+  // 构建 dimension XML
+  const dimensionXml = `  <dimension name="GROUP1">
+    <descriptions/>
+  </dimension>`
+
+  const body = `<?xml version="1.0" encoding="UTF-8"?>
+<adso:dataStore xmlns:adso="http://www.sap.com/bw/modeling/adso.ecore" xmlns:adtcore="http://www.sap.com/adt/core" schemaVersion="1.0" name="${name}" readOnly="${readOnly}" activateData="${activateData}" writeChangelog="${writeChangelog}">
+  <endUserTexts label="${description}"/>
+  <tlogoProperties adtcore:language="${masterLanguage}" adtcore:name="${name}" adtcore:type="ADSO" adtcore:masterLanguage="${masterLanguage}" adtcore:masterSystem="${masterSystem}" adtcore:responsible="${responsible}">
+    <infoArea>${infoArea}</infoArea>
+  </tlogoProperties>
+${dimensionXml}
+${templateXml}
+</adso:dataStore>`
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/vnd.sap.bw.modeling.adso-v1_5_0+xml",
+    "Accept": "application/vnd.sap.bw.modeling.adso-v1_5_0+xml",
+    "Development-Class": "$TMP"
+  }
+
+  // 如果是创建新对象，添加父级信息
+  if (parentName) {
+    headers["parent_name"] = parentName
+    headers["parent_type"] = parentType
+    headers["activity_context"] = "CREA"
+  }
+
+  const response = await client.request(
+    `/sap/bw/modeling/adso/${name.toLowerCase()}?lockHandle=${lockHandle}`,
+    {
+      method: "POST",
+      headers,
+      body
+    }
+  )
+
+  if (response.status !== 200) {
+    throw new Error(`Failed to create ADSO ${name}: ${response.status}`)
+  }
+}
+
+/**
+ * Get ADSO Node Path - 获取 ADSO 节点路径
+ *
+ * 对应请求: GET /sap/bw/modeling/repo/nodepath?objectUri={uri}
+ *
+ * @param client - ADT HTTP 客户端
+ * @param adsoName - ADSO 名称
+ * @param version - 版本 (m=active, a=modified, d=revised, 默认: m)
+ * @returns 节点路径列表
+ */
+export async function getADSONodePath(
+  client: AdtHTTP,
+  adsoName: string,
+  version: "m" | "a" | "d" = "m"
+): Promise<NodePathEntry[]> {
+  const objectUri = encodeURIComponent(`/sap/bw/modeling/adso/${adsoName.toLowerCase()}/${version}`)
+
+  const response = await client.request("/sap/bw/modeling/repo/nodepath", {
+    method: "GET",
+    qs: { objectUri }
+  })
+
+  return parseNodePathResponse(response.body)
+}
+
+/**
+ * Parse Node Path Response - 解析节点路径响应
+ */
+function parseNodePathResponse(body: string): NodePathEntry[] {
+  const parsed = fullParse(body)
+  const feed = xmlNode(parsed, "atom:feed")
+
+  if (!feed) {
+    return []
+  }
+
+  const entries = xmlArray(feed, "atom:entry")
+
+  return entries.map((entry: any) => {
+    const content = xmlNode(entry, "atom:content")
+    const bwObject = xmlNode(content, "bwModel:object")
+    const title = xmlNode(entry, "atom:title")
+    const id = xmlNode(entry, "atom:id")
+    const links = xmlArray(entry, "atom:link")
+
+    const attrs = bwObject ? xmlNodeAttr(bwObject) : {}
+
+    // 提取 children URL
+    const childrenLink = links.find((link: any) =>
+      link["@_rel"] === "http://www.sap.com/bw/modeling/relations:children"
+    )
+
+    return {
+      name: title || "",
+      techName: attrs?.objectName || bwObject?.["@_objectName"] || "",
+      type: attrs?.objectType || bwObject?.["@_objectType"] || "",
+      description: title || "",
+      uri: id || "",
+      childrenUri: (childrenLink as any)?.["@_href"] || ""
+    }
+  })
+}
 
 /**
  * Get ADSO Details - 获取 ADSO 详细信息
@@ -174,14 +427,72 @@ export async function getADSOVersions(
   client: AdtHTTP,
   adsoId: string
 ): Promise<ADSOVersion[]> {
-  const response = await client.request(`/sap/bw/modeling/adso/${adsoId.toLowerCase()}/versions`, {
-    method: "GET",
-    headers: {
-      "Accept": "application/atom+xml;type=feed"
-    }
-  })
+  const obj = new BWObject(client, BWObjectType.ADSO, adsoId)
+  return obj.getVersions()
+}
 
-  return parseADSOVersions(response.body)
+// ============================================================================
+// Validation Functions (using BWObject base class)
+// ============================================================================
+
+/**
+ * Validate ADSO Exists - 验证 ADSO 是否存在
+ *
+ * @param client - ADT HTTP 客户端
+ * @param adsoId - ADSO ID
+ * @returns 验证结果
+ */
+export async function validateADSOExists(
+  client: AdtHTTP,
+  adsoId: string
+): Promise<ValidationResult> {
+  const obj = new BWObject(client, BWObjectType.ADSO, adsoId)
+  return obj.exists()
+}
+
+/**
+ * Validate New ADSO Name - 验证新 ADSO 名称是否可用
+ *
+ * @param client - ADT HTTP 客户端
+ * @param adsoId - ADSO ID
+ * @returns 验证结果
+ */
+export async function validateADSONewName(
+  client: AdtHTTP,
+  adsoId: string
+): Promise<ValidationResult> {
+  const obj = new BWObject(client, BWObjectType.ADSO, adsoId)
+  return obj.isNewNameAvailable()
+}
+
+/**
+ * Validate ADSO Can Delete - 验证 ADSO 是否可删除
+ *
+ * @param client - ADT HTTP 客户端
+ * @param adsoId - ADSO ID
+ * @returns 验证结果
+ */
+export async function validateADSOCanDelete(
+  client: AdtHTTP,
+  adsoId: string
+): Promise<ValidationResult> {
+  const obj = new BWObject(client, BWObjectType.ADSO, adsoId)
+  return obj.canDelete()
+}
+
+/**
+ * Validate ADSO Can Activate - 验证 ADSO 是否可激活
+ *
+ * @param client - ADT HTTP 客户端
+ * @param adsoId - ADSO ID
+ * @returns 验证结果
+ */
+export async function validateADSOCanActivate(
+  client: AdtHTTP,
+  adsoId: string
+): Promise<ValidationResult> {
+  const obj = new BWObject(client, BWObjectType.ADSO, adsoId)
+  return obj.canActivate()
 }
 
 /**
@@ -250,18 +561,9 @@ export async function getADSOTables(
 export async function lockADSO(
   client: AdtHTTP,
   adsoId: string
-): Promise<ADSOLockResult> {
-  const response = await client.request(
-    `/sap/bw/modeling/adso/${adsoId.toLowerCase()}?action=lock`,
-    {
-      method: "POST",
-      headers: {
-        "Accept": "application/vnd.sap.bw.modeling.adso-v1_5_0+xml"
-      }
-    }
-  )
-
-  return parseADSOLockResponse(response.body)
+): Promise<LockResult> {
+  const obj = new BWObject(client, BWObjectType.ADSO, adsoId)
+  return obj.lock()
 }
 
 /**
@@ -276,15 +578,8 @@ export async function unlockADSO(
   client: AdtHTTP,
   adsoId: string
 ): Promise<void> {
-  await client.request(
-    `/sap/bw/modeling/adso/${adsoId.toLowerCase()}?action=unlock`,
-    {
-      method: "POST",
-      headers: {
-        "Accept": "application/vnd.sap.bw.modeling.adso-v1_5_0+xml"
-      }
-    }
-  )
+  const obj = new BWObject(client, BWObjectType.ADSO, adsoId)
+  return obj.unlock()
 }
 
 /**
@@ -304,13 +599,8 @@ export async function activateADSO(
   lockHandle: string = "",
   corrNr: string = ""
 ): Promise<ActivationResult> {
-  return activateObject(
-    client,
-    `/sap/bw/modeling/adso/${adsoId.toLowerCase()}/m`,
-    lockHandle,
-    "inactive",
-    "application/vnd.sap.bw.modeling.adso-v1_5_0+xml"
-  )
+  const obj = new BWObject(client, BWObjectType.ADSO, adsoId)
+  return obj.activate(lockHandle)
 }
 
 /**
@@ -324,13 +614,8 @@ export async function checkADSO(
   client: AdtHTTP,
   adsoId: string
 ): Promise<ActivationResult> {
-  return activateObject(
-    client,
-    `/sap/bw/modeling/adso/${adsoId.toLowerCase()}/m`,
-    "",
-    "inactive",
-    "application/vnd.sap.bw.modeling.adso-v1_5_0+xml"
-  )
+  const obj = new BWObject(client, BWObjectType.ADSO, adsoId)
+  return obj.check()
 }
 
 /**

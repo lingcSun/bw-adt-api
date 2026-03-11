@@ -1,10 +1,16 @@
 import * as t from "io-ts"
 import { fullParse, xmlNodeAttr, xmlArray, xmlNode, orUndefined } from "../utilities"
 import { AdtHTTP } from "../AdtHTTP"
+import { ActivationResult, LockResult, ValidationAction, ValidationResult } from "./common"
+import { BWObject, BWObjectType } from "./bwObject"
+import { DTPDetails } from "./types"
 
 // ============================================================================
 // Types and Codecs for DTP (Data Transfer Process)
 // ============================================================================
+
+// Re-export Validation types for convenience
+export { ValidationAction, ValidationResult } from "./common"
 
 /**
  * DTP Type - DTP 类型
@@ -51,25 +57,7 @@ export const DTPMetaData = t.type({
 
 export type DTPMetaData = t.OutputOf<typeof DTPMetaData>
 
-/**
- * DTP Details - DTP 详细信息
- */
-export const DTPDetails = t.type({
-  name: t.string,
-  technicalName: t.string,
-  source: t.string,
-  target: t.string,
-  sourceType: orUndefined(t.string),
-  targetType: orUndefined(t.string),
-  description: orUndefined(t.string),
-  objVers: orUndefined(t.string),
-  dtpType: orUndefined(t.string),
-  status: orUndefined(t.string),
-  deltaRequest: orUndefined(t.boolean),
-  realTimeLoad: orUndefined(t.boolean)
-})
-
-export type DTPDetails = t.OutputOf<typeof DTPDetails>
+// DTPDetails is now imported from types.ts to avoid duplication
 
 /**
  * DTP Version - DTP 版本信息
@@ -160,14 +148,72 @@ export async function getDTPVersions(
   client: AdtHTTP,
   dtpId: string
 ): Promise<DTPVersion[]> {
-  const response = await client.request(`/sap/bw/modeling/dtpa/${dtpId.toLowerCase()}/versions`, {
-    method: "GET",
-    headers: {
-      "Accept": "application/atom+xml;type=feed"
-    }
-  })
+  const obj = new BWObject(client, BWObjectType.DTP, dtpId)
+  return obj.getVersions()
+}
 
-  return parseDTPVersions(response.body)
+// ============================================================================
+// Validation Functions (using BWObject base class)
+// ============================================================================
+
+/**
+ * Validate DTP Exists - 验证 DTP 是否存在
+ *
+ * @param client - ADT HTTP 客户端
+ * @param dtpId - DTP ID
+ * @returns 验证结果
+ */
+export async function validateDTPExists(
+  client: AdtHTTP,
+  dtpId: string
+): Promise<ValidationResult> {
+  const obj = new BWObject(client, BWObjectType.DTP, dtpId)
+  return obj.exists()
+}
+
+/**
+ * Validate New DTP Name - 验证新 DTP 名称是否可用
+ *
+ * @param client - ADT HTTP 客户端
+ * @param dtpId - DTP ID
+ * @returns 验证结果
+ */
+export async function validateDTPNewName(
+  client: AdtHTTP,
+  dtpId: string
+): Promise<ValidationResult> {
+  const obj = new BWObject(client, BWObjectType.DTP, dtpId)
+  return obj.isNewNameAvailable()
+}
+
+/**
+ * Validate DTP Can Delete - 验证 DTP 是否可删除
+ *
+ * @param client - ADT HTTP 客户端
+ * @param dtpId - DTP ID
+ * @returns 验证结果
+ */
+export async function validateDTPCanDelete(
+  client: AdtHTTP,
+  dtpId: string
+): Promise<ValidationResult> {
+  const obj = new BWObject(client, BWObjectType.DTP, dtpId)
+  return obj.canDelete()
+}
+
+/**
+ * Validate DTP Can Activate - 验证 DTP 是否可激活
+ *
+ * @param client - ADT HTTP 客户端
+ * @param dtpId - DTP ID
+ * @returns 验证结果
+ */
+export async function validateDTPCanActivate(
+  client: AdtHTTP,
+  dtpId: string
+): Promise<ValidationResult> {
+  const obj = new BWObject(client, BWObjectType.DTP, dtpId)
+  return obj.canActivate()
 }
 
 /**
@@ -182,18 +228,9 @@ export async function getDTPVersions(
 export async function lockDTP(
   client: AdtHTTP,
   dtpId: string
-): Promise<DTPLockResult> {
-  const response = await client.request(
-    `/sap/bw/modeling/dtpa/${dtpId.toLowerCase()}?action=lock`,
-    {
-      method: "POST",
-      headers: {
-        "Accept": "application/vnd.sap.bw.modeling.dtpa-v1_0_0+xml"
-      }
-    }
-  )
-
-  return parseDTPLockResponse(response.body)
+): Promise<LockResult> {
+  const obj = new BWObject(client, BWObjectType.DTP, dtpId)
+  return obj.lock()
 }
 
 /**
@@ -208,15 +245,8 @@ export async function unlockDTP(
   client: AdtHTTP,
   dtpId: string
 ): Promise<void> {
-  await client.request(
-    `/sap/bw/modeling/dtpa/${dtpId.toLowerCase()}?action=unlock`,
-    {
-      method: "POST",
-      headers: {
-        "Accept": "application/vnd.sap.bw.modeling.dtpa-v1_0_0+xml"
-      }
-    }
-  )
+  const obj = new BWObject(client, BWObjectType.DTP, dtpId)
+  return obj.unlock()
 }
 
 /**
