@@ -107,22 +107,37 @@ export async function unlockTransformation(
 }
 
 /**
+ * Get Transformation Options - 获取转换选项
+ */
+export interface GetTransformationOptions {
+  forceCacheUpdate?: boolean
+}
+
+/**
  * Get Transformation Metadata - 获取转换元数据
  *
- * 对应请求: GET /sap/bw/modeling/trfn/{trfn_id}
+ * 对应请求: GET /sap/bw/modeling/trfn/{trfn_id}/{version}?forceCacheUpdate=true
  *
  * @param client - ADT HTTP 客户端
  * @param trfnId - Transformation ID
  * @param version - 版本 (m=active, a=modified, d=revised)
+ * @param options - 获取选项
  * @returns Transformation 元数据
  */
 export async function getTransformation(
   client: AdtHTTP,
   trfnId: string,
-  version: "m" | "a" | "d" = "m"
+  version: "m" | "a" | "d" = "m",
+  options?: GetTransformationOptions
 ): Promise<any> {
+  const qs: Record<string, string> = {}
+  if (options?.forceCacheUpdate) {
+    qs.forceCacheUpdate = "true"
+  }
+
   const response = await client.request(`/sap/bw/modeling/trfn/${trfnId}/${version}`, {
     method: "GET",
+    qs,
     headers: {
       "Accept": "application/vnd.sap.bw.modeling.trfn-v1_0_0+xml"
     }
@@ -137,14 +152,16 @@ export async function getTransformation(
  * @param client - ADT HTTP 客户端
  * @param trfnId - Transformation ID
  * @param version - 版本 (m=active, a=modified, d=revised)
+ * @param options - 获取选项
  * @returns 转换详细信息
  */
 export async function getTransformationDetails(
   client: AdtHTTP,
   trfnId: string,
-  version: "m" | "a" | "d" = "m"
+  version: "m" | "a" | "d" = "m",
+  options?: GetTransformationOptions
 ): Promise<TransformationDetails> {
-  const raw = await getTransformation(client, trfnId, version)
+  const raw = await getTransformation(client, trfnId, version, options)
   return parseTransformationDetails(raw)
 }
 
@@ -338,4 +355,280 @@ function parseTransformationDetails(raw: any): TransformationDetails {
     ruleCount: root["trfn:ruleCount"],
     status: root["trfn:status"]
   }
+}
+
+// ============================================================================
+// Helper Functions for Transformation Routine Management
+// ============================================================================
+
+/**
+ * Transformation Routine Step - 转换例程步骤信息
+ */
+export interface TransformationRoutineStep {
+  type: string          // ROUTINE, DIRECT, etc.
+  classNameM?: string   // ABAP 类名 (当 type=ROUTINE 时)
+  methodNameM?: string  // ABAP 方法名 (当 type=ROUTINE 时)
+  hanaRuntime?: boolean // HANA 运行时标志
+  rank?: string         // MAIN, BEFORE, AFTER
+}
+
+/**
+ * Transformation Routine Rule - 转换例程规则
+ */
+export interface TransformationRoutineRule {
+  id: string
+  description?: string
+  routineType?: string  // START, END, EXPERT
+  step?: TransformationRoutineStep
+}
+
+/**
+ * Transformation Routine Group - 转换例程组
+ */
+export interface TransformationRoutineGroup {
+  id: string
+  description?: string
+  type: string          // G=Routine Group, S=Standard Rules, T=Technical Rules
+  rules?: TransformationRoutineRule[]
+}
+
+/**
+ * Parsed Transformation Settings - 解析后的转换设置
+ */
+export interface TransformationSettings {
+  name: string
+  description: string
+  hanaRuntime: boolean  // HANARuntime attribute
+  abapProgram: string   // abapProgram attribute
+  hapProgram: string    // hapProgram attribute
+  startRoutine: string  // startRoutine attribute
+  endRoutine: string    // endRoutine attribute
+  expertRoutine: string // expertRoutine attribute
+  allowCurrencyAndUnitConversion: boolean
+  enableCurrencyAndUnitConversion: boolean
+  enableErrorHandlingInRoutines: boolean
+  // 新增：例程相关信息
+  routineClassName?: string    // 从 Routine Group 的 step 中提取的类名
+  routineMethodName?: string   // 从 Routine Group 的 step 中提取的方法名
+  hasStartRoutine?: boolean    // 是否存在开始例程
+  hasEndRoutine?: boolean      // 是否存在结束例程
+  hasExpertRoutine?: boolean   // 是否存在专家例程
+}
+
+/**
+ * Parse Transformation Settings - 解析转换设置（从完整 XML）
+ *
+ * 从转换 XML 中提取关键设置，包括运行时模式和 ABAP 类名
+ *
+ * @param raw - 原始转换 XML 解析结果
+ * @returns 解析后的转换设置
+ */
+export function parseTransformationSettings(raw: any): TransformationSettings | undefined {
+  const root = raw["trfn:transformation"] || raw
+  if (!root) return undefined
+
+  // 提取 Routine Group 中的类名和方法名
+  const routineInfo = extractRoutineInfo(root)
+
+  return {
+    name: root["@_name"] || root["name"] || "",
+    description: root["@_description"] || root["description"] || "",
+    hanaRuntime: root["@_HANARuntime"] === "true" || root["@_HANARuntime"] === true,
+    abapProgram: root["@_abapProgram"] || root["abapProgram"] || "",
+    hapProgram: root["@_hapProgram"] || root["hapProgram"] || "",
+    startRoutine: root["@_startRoutine"] || root["startRoutine"] || "",
+    endRoutine: root["@_endRoutine"] || root["endRoutine"] || "",
+    expertRoutine: root["@_expertRoutine"] || root["expertRoutine"] || "",
+    allowCurrencyAndUnitConversion: root["@_allowCurrencyAndUnitConversion"] === "true" || root["@_allowCurrencyAndUnitConversion"] === true,
+    enableCurrencyAndUnitConversion: root["@_enableCurrencyAndUnitConversion"] === "true" || root["@_enableCurrencyAndUnitConversion"] === true,
+    enableErrorHandlingInRoutines: root["@_enableErrorHandlingInRoutines"] === "true" || root["@_enableErrorHandlingInRoutines"] === true,
+    routineClassName: routineInfo.className,
+    routineMethodName: routineInfo.methodName,
+    hasStartRoutine: routineInfo.hasStartRoutine,
+    hasEndRoutine: routineInfo.hasEndRoutine,
+    hasExpertRoutine: routineInfo.hasExpertRoutine
+  }
+}
+
+/**
+ * Extract Routine Info - 从 Routine Group 中提取例程信息
+ *
+ * @param root - Transformation XML 根节点
+ * @returns 例程信息
+ */
+function extractRoutineInfo(root: any): {
+  className?: string
+  methodName?: string
+  hasStartRoutine: boolean
+  hasEndRoutine: boolean
+  hasExpertRoutine: boolean
+} {
+  const groups = xmlArray(root, "group") || xmlArray(root, "trfn:group")
+
+  let className: string | undefined
+  let methodName: string | undefined
+  let hasStartRoutine = false
+  let hasEndRoutine = false
+  let hasExpertRoutine = false
+
+  for (const group of groups) {
+    const g = group as any
+    const groupType = g["@_type"] || g["type"]
+
+    // Routine Group (type="G") 包含例程信息
+    if (groupType === "G") {
+      const rules = xmlArray(g, "rule") || xmlArray(g, "trfn:rule")
+      for (const rule of rules) {
+        const r = rule as any
+        const routineType = r["@_routinetype"] || r["routinetype"]
+        const steps = xmlArray(r, "step") || xmlArray(r, "trfn:step")
+
+        for (const step of steps) {
+          const s = step as any
+          const stepType = s["@_type"] || s["type"]
+          if (stepType === "ROUTINE") {
+            className = s["@_classNameM"] || s["classNameM"]
+            methodName = s["@_methodNameM"] || s["methodNameM"]
+
+            if (routineType === "START") hasStartRoutine = true
+            if (routineType === "END") hasEndRoutine = true
+            if (routineType === "EXPERT") hasExpertRoutine = true
+          }
+        }
+      }
+    }
+  }
+
+  return { className, methodName, hasStartRoutine, hasEndRoutine, hasExpertRoutine }
+}
+
+/**
+ * Extract ABAP Class Name from Transformation - 从转换中提取 ABAP 类名
+ *
+ * 优先级：
+ * 1. 从 Routine Group 的 step.classNameM 属性提取（最可靠）
+ * 2. 通过命名约定从 Transformation ID 推导
+ *
+ * @param raw - 原始转换 XML 解析结果
+ * @returns ABAP 类名或 undefined
+ */
+export function extractAbapClassName(raw: any): string | undefined {
+  const root = raw["trfn:transformation"] || raw
+  if (!root) return undefined
+
+  // 方法1: 优先从 Routine Group 的 step.classNameM 提取
+  const groups = xmlArray(root, "group") || xmlArray(root, "trfn:group")
+  for (const group of groups) {
+    const g = group as any
+    const groupType = g["@_type"] || g["type"]
+    if (groupType === "G") {
+      const rules = xmlArray(g, "rule") || xmlArray(g, "trfn:rule")
+      for (const rule of rules) {
+        const r = rule as any
+        const steps = xmlArray(r, "step") || xmlArray(r, "trfn:step")
+        for (const step of steps) {
+          const s = step as any
+          const stepType = s["@_type"] || s["type"]
+          if (stepType === "ROUTINE") {
+            const className = s["@_classNameM"] || s["classNameM"]
+            if (className) return className
+          }
+        }
+      }
+    }
+  }
+
+  // 方法2: 通过命名约定推导
+  const trfnName = root["@_name"] || root["name"]
+  if (trfnName && typeof trfnName === "string") {
+    // 去掉前导 "0"，添加 /BIC/3M 前缀和 _M 后缀
+    const suffix = trfnName.startsWith("0") ? trfnName.substring(1) : trfnName
+    return `/BIC/3M${suffix}_M`
+  }
+
+  return undefined
+}
+
+/**
+ * Extract Routine Method Name from Transformation - 从转换中提取例程方法名
+ *
+ * @param raw - 原始转换 XML 解析结果
+ * @returns 方法名或 undefined
+ */
+export function extractRoutineMethodName(raw: any): string | undefined {
+  const root = raw["trfn:transformation"] || raw
+  if (!root) return undefined
+
+  const groups = xmlArray(root, "group") || xmlArray(root, "trfn:group")
+  for (const group of groups) {
+    const g = group as any
+    const groupType = g["@_type"] || g["type"]
+    if (groupType === "G") {
+      const rules = xmlArray(g, "rule") || xmlArray(g, "trfn:rule")
+      for (const rule of rules) {
+        const r = rule as any
+        const steps = xmlArray(r, "step") || xmlArray(r, "trfn:step")
+        for (const step of steps) {
+          const s = step as any
+          const stepType = s["@_type"] || s["type"]
+          if (stepType === "ROUTINE") {
+            const methodName = s["@_methodNameM"] || s["methodNameM"]
+            if (methodName) return methodName
+          }
+        }
+      }
+    }
+  }
+
+  return undefined
+}
+
+/**
+ * Switch Transformation Runtime Mode - 切换转换运行时模式
+ *
+ * 修改转换 XML 中的 HANARuntime 属性以切换运行时模式
+ *
+ * @param xmlContent - 原始转换 XML 内容
+ * @param useHanaRuntime - 是否使用 HANA 运行时 (true=HANA, false=ABAP)
+ * @returns 修改后的 XML 内容
+ */
+export function switchTransformationRuntime(xmlContent: string, useHanaRuntime: boolean): string {
+  // Replace HANARuntime attribute value
+  const hanaPattern = /HANARuntime="(true|false)"/gi
+  const replaced = xmlContent.replace(hanaPattern, `HANARuntime="${useHanaRuntime ? "true" : "false"}"`)
+
+  return replaced
+}
+
+/**
+ * Check if Transformation has Start Routine - 检查转换是否有开始例程
+ *
+ * @param raw - 原始转换 XML 解析结果
+ * @returns 是否有开始例程
+ */
+export function hasStartRoutine(raw: any): boolean {
+  const settings = parseTransformationSettings(raw)
+  return !!settings?.hasStartRoutine
+}
+
+/**
+ * Check if Transformation has End Routine - 检查转换是否有结束例程
+ *
+ * @param raw - 原始转换 XML 解析结果
+ * @returns 是否有结束例程
+ */
+export function hasEndRoutine(raw: any): boolean {
+  const settings = parseTransformationSettings(raw)
+  return !!settings?.hasEndRoutine
+}
+
+/**
+ * Check if Transformation has Expert Routine - 检查转换是否有专家例程
+ *
+ * @param raw - 原始转换 XML 解析结果
+ * @returns 是否有专家例程
+ */
+export function hasExpertRoutine(raw: any): boolean {
+  const settings = parseTransformationSettings(raw)
+  return !!settings?.hasExpertRoutine
 }

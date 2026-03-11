@@ -520,11 +520,16 @@ export class BWAdtClient {
    *
    * @param trfnId - Transformation ID
    * @param version - 版本 (m=active, a=modified, d=revised)
+   * @param options - 获取选项 (forceCacheUpdate)
    * @returns Transformation 元数据
    */
-  public async getTransformation(trfnId: string, version?: "m" | "a" | "d") {
+  public async getTransformation(
+    trfnId: string,
+    version?: "m" | "a" | "d",
+    options?: { forceCacheUpdate?: boolean }
+  ) {
     const { getTransformation } = await import("./api/transformation")
-    return getTransformation(this.h, trfnId, version)
+    return getTransformation(this.h, trfnId, version, options)
   }
 
   /**
@@ -561,14 +566,16 @@ export class BWAdtClient {
    *
    * @param trfnId - Transformation ID
    * @param version - 版本 (m=active, a=modified, d=revised)
+   * @param options - 获取选项 (forceCacheUpdate)
    * @returns 转换详细信息
    */
   public async getTransformationDetails(
     trfnId: string,
-    version?: "m" | "a" | "d"
+    version?: "m" | "a" | "d",
+    options?: { forceCacheUpdate?: boolean }
   ) {
     const { getTransformationDetails } = await import("./api/transformation")
-    return getTransformationDetails(this.h, trfnId, version)
+    return getTransformationDetails(this.h, trfnId, version, options)
   }
 
   /**
@@ -612,6 +619,182 @@ export class BWAdtClient {
   ) {
     const { updateTransformation } = await import("./api/transformation")
     return updateTransformation(this.h, trfnId, xmlContent, options, version)
+  }
+
+  /**
+   * Get Transformation Class Metadata - 获取转换关联的 ABAP 类元数据
+   *
+   * 从转换元数据中提取 abapProgram 属性，获取对应的 ABAP 类信息
+   *
+   * @param trfnId - Transformation ID
+   * @param options - 获取选项 (version, forceCacheUpdate)
+   * @returns ABAP 类元数据
+   */
+  public async getTransformationClass(trfnId: string, options?: {
+    version?: "m" | "a" | "d"
+    forceCacheUpdate?: boolean
+  }) {
+    const { getTransformation, extractAbapClassName } = await import("./api/transformation")
+    const { getAbapClassMetadata } = await import("./api/abapClass")
+
+    const trfnRaw = await getTransformation(this.h, trfnId, options?.version, {
+      forceCacheUpdate: options?.forceCacheUpdate
+    })
+
+    const className = extractAbapClassName(trfnRaw)
+    if (!className) {
+      throw new Error(`No ABAP class found for transformation ${trfnId}`)
+    }
+
+    return getAbapClassMetadata(this.h, className)
+  }
+
+  /**
+   * Get Transformation Class Source - 获取转换关联的 ABAP 类源代码
+   *
+   * 获取转换的 ABAP 类（用于 start/end/expert routines）的源代码
+   *
+   * @param trfnId - Transformation ID
+   * @param options - 获取选项 (version, forceCacheUpdate, classVersion)
+   * @returns ABAP 类源代码信息
+   */
+  public async getTransformationClassSource(trfnId: string, options?: {
+    version?: "m" | "a" | "d"
+    forceCacheUpdate?: boolean
+    classVersion?: "active" | "inactive"
+  }) {
+    const { getTransformation, extractAbapClassName } = await import("./api/transformation")
+    const { getAbapClassSource } = await import("./api/abapClass")
+
+    const trfnRaw = await getTransformation(this.h, trfnId, options?.version, {
+      forceCacheUpdate: options?.forceCacheUpdate
+    })
+
+    const className = extractAbapClassName(trfnRaw)
+    if (!className) {
+      throw new Error(`No ABAP class found for transformation ${trfnId}`)
+    }
+
+    return getAbapClassSource(this.h, className, options?.classVersion)
+  }
+
+  /**
+   * Update Transformation Class Source - 更新转换关联的 ABAP 类源代码
+   *
+   * 更新转换的 ABAP 类源代码（用于修改 start/end/expert routines）
+   *
+   * @param trfnId - Transformation ID
+   * @param sourceCode - ABAP 源代码
+   * @param lockHandle - 锁定句柄
+   * @param options - 选项
+   * @returns 更新结果（包含 etag 和 lastModified）
+   */
+  public async updateTransformationClassSource(
+    trfnId: string,
+    sourceCode: string,
+    lockHandle: string,
+    options?: { version?: "m" | "a" | "d"; forceCacheUpdate?: boolean }
+  ) {
+    const { getTransformation, extractAbapClassName } = await import("./api/transformation")
+    const { updateAbapClassSource } = await import("./api/abapClass")
+
+    const trfnRaw = await getTransformation(this.h, trfnId, options?.version, {
+      forceCacheUpdate: options?.forceCacheUpdate
+    })
+
+    const className = extractAbapClassName(trfnRaw)
+    if (!className) {
+      throw new Error(`No ABAP class found for transformation ${trfnId}`)
+    }
+
+    return updateAbapClassSource(this.h, className, sourceCode, lockHandle)
+  }
+
+  /**
+   * Switch Transformation Runtime - 切换转换运行时模式
+   *
+   * 在 HANA 运行时和 ABAP 运行时之间切换
+   * 注意：切换到 ABAP 运行时后才能使用 start/end/expert routines
+   *
+   * @param trfnId - Transformation ID
+   * @param useHanaRuntime - 是否使用 HANA 运行时 (true=HANA, false=ABAP)
+   * @param lockHandle - 锁定句柄
+   * @param options - 选项
+   * @returns 更新结果
+   */
+  public async switchTransformationRuntime(
+    trfnId: string,
+    useHanaRuntime: boolean,
+    lockHandle: string,
+    options?: { version?: "m" | "a" | "d"; corrNr?: string; timestamp?: string }
+  ) {
+    const { getTransformation, switchTransformationRuntime, updateTransformation } = await import("./api/transformation")
+
+    // Get current transformation XML
+    const trfnRaw = await getTransformation(this.h, trfnId, options?.version)
+    const xmlContent = switchTransformationRuntime(
+      typeof trfnRaw === "string" ? trfnRaw : JSON.stringify(trfnRaw),
+      useHanaRuntime
+    )
+
+    return updateTransformation(this.h, trfnId, xmlContent, {
+      lockHandle,
+      corrNr: options?.corrNr,
+      timestamp: options?.timestamp
+    }, options?.version)
+  }
+
+  /**
+   * Lock Transformation Class - 锁定转换关联的 ABAP 类
+   *
+   * @param trfnId - Transformation ID
+   * @param options - 选项
+   * @returns 锁定结果
+   */
+  public async lockTransformationClass(trfnId: string, options?: {
+    version?: "m" | "a" | "d"
+    forceCacheUpdate?: boolean
+  }) {
+    const { getTransformation, extractAbapClassName } = await import("./api/transformation")
+    const { lockAbapClass } = await import("./api/abapClass")
+
+    const trfnRaw = await getTransformation(this.h, trfnId, options?.version, {
+      forceCacheUpdate: options?.forceCacheUpdate
+    })
+
+    const className = extractAbapClassName(trfnRaw)
+    if (!className) {
+      throw new Error(`No ABAP class found for transformation ${trfnId}`)
+    }
+
+    return lockAbapClass(this.h, className)
+  }
+
+  /**
+   * Unlock Transformation Class - 解锁转换关联的 ABAP 类
+   *
+   * @param trfnId - Transformation ID
+   * @param lockHandle - 锁定句柄
+   * @param options - 选项
+   */
+  public async unlockTransformationClass(
+    trfnId: string,
+    lockHandle: string,
+    options?: { version?: "m" | "a" | "d"; forceCacheUpdate?: boolean }
+  ) {
+    const { getTransformation, extractAbapClassName } = await import("./api/transformation")
+    const { unlockAbapClass } = await import("./api/abapClass")
+
+    const trfnRaw = await getTransformation(this.h, trfnId, options?.version, {
+      forceCacheUpdate: options?.forceCacheUpdate
+    })
+
+    const className = extractAbapClassName(trfnRaw)
+    if (!className) {
+      throw new Error(`No ABAP class found for transformation ${trfnId}`)
+    }
+
+    return unlockAbapClass(this.h, className, lockHandle)
   }
 
   // ========================================
