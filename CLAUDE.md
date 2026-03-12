@@ -27,7 +27,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **监控功能**：查看执行状态、日志
 
 #### ⚠️ 已知不支持（服务端限制）
-- **Transformation 创建**：通过 API 创建 TRFN 对象会触发 SAP 服务端 `CL_RSTRAN_TRFN->GET_PROGID` 的 `CX_SY_REF_IS_INITIAL` dump。8TRANSIENT 端点返回的 XML 不完整（缺少 `adtcore:responsible`、`masterLanguage`、`masterSystem`、`createdAt`、`createdBy`、`packageRef` 等），即使手动补全这些属性，服务端仍然无法正确初始化 transformation 版本对象。此为 SAP BW ADT 服务端的限制，Eclipse ADT 客户端可能使用了非公开的内部机制。**TRFN 的读取、修改、激活、删除等操作均正常支持。**
+- **Transformation 创建**：TRFN 创建依赖 SAP JCo (Java Connector) 的特殊机制，包括：
+  - **ModalContext 执行上下文**：Eclipse ADT 在特殊的执行上下文中执行创建操作
+  - **JCoEnqueueSystemSession**：使用 "stateful,enqueue" 会话模式进行对象锁定
+  - **跨会话 lockHandle 绑定**：lockHandle 在不同会话类型间的状态由 JCo 维护
+  - 纯 HTTP/REST 客户端无法模拟这些 JCo 特性，因此无法通过 API 创建 TRFN
+
+  **支持的操作**：read（读取详情、字段映射）、update（修改内容）、activate（激活）、delete（删除）、lock/unlock（锁定/解锁）、check（检查一致性）、getVersions（版本历史）
+
+  **替代方案**：使用 SAP GUI 手动创建，或使用 ABAP 程序批量创建。创建后可使用本 API 进行其他所有操作。
 
 #### ❌ 不应该实现（UI 导航 API）
 - **树形结构**：`/sap/bw/modeling/repo/infoproviderstructure` - ADT 显示导航树用

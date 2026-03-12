@@ -8,12 +8,44 @@ import { TransformationDetails } from "./types"
 // ============================================================================
 // KNOWN LIMITATION: Transformation CREATE is NOT supported via API.
 //
-// The 8TRANSIENT endpoint returns incomplete XML (missing adtcore attributes
-// and packageRef), and even with manual enrichment, the SAP server throws
-// CX_SY_REF_IS_INITIAL in CL_RSTRAN_TRFN->GET_PROGID during POST creation.
-// This is a SAP BW ADT server-side limitation.
+// 技术原因：
+// --------
+// SAP BW ADT 使用 JCo (Java Connector) 的特殊机制来实现 TRFN 创建，
+// 包括 ModalContext 执行上下文和 JCoEnqueueSystemSession (enqueue 模式)。
+// 这些机制超出了纯 HTTP/REST 客户端的能力范围。
 //
-// Supported operations: read, update, activate, delete, lock/unlock, check.
+// 具体限制：
+// ---------
+// 1. JCo Enqueue 机制：
+//    - 锁定操作需要在 "stateful,enqueue" 会话中执行
+//    - 更新操作需要在特定的 ModalContext 上下文中进行
+//    - lockHandle 在不同会话类型间的绑定由 JCo 底层维护
+//
+// 2. ModalContext 执行上下文：
+//    - Eclipse ADT 在 ModalContext 线程中执行创建操作
+//    - 该上下文维护了跨会话的状态（lockHandle、临时对象引用等）
+//    - 纯 HTTP 客户端无法模拟这种执行模式
+//
+// 3. 8TRANSIENT 端点的限制：
+//    - 返回的 XML 缺少部分必需属性
+//    - 即使手动补全，服务端仍会在 CL_RSTRAN_TRFN->GET_PROGID
+//      抛出 CX_SY_REF_IS_INITIAL dump
+//
+// 支持的操作：
+// -----------
+// - read (读取 TRFN 详情、字段映射)
+// - update (修改 TRFN 内容，需先 lock)
+// - activate (激活 TRFN)
+// - delete (删除 TRFN，需先 lock)
+// - lock/unlock (锁定/解锁 TRFN)
+// - check (检查 TRFN 一致性)
+// - getVersions (获取版本历史)
+//
+// 替代方案：
+// ---------
+// - 使用 SAP GUI 手动创建 TRFN
+// - 使用 ABAP 程序批量创建
+// - 创建后可使用本 API 进行其他操作
 // ============================================================================
 
 // ============================================================================

@@ -44,6 +44,7 @@ let lastClientId = 0
 export enum session_types {
   stateful = "stateful",
   stateless = "stateless",
+  stateful_enqueue = "stateful;enqueue",  // 用于需要锁定的操作
   keep = ""
 }
 
