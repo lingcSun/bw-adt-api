@@ -6,6 +6,53 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 这是一个用于访问 SAP BW/4HANA ADT (ABAP Developer Tools) REST API 的 TypeScript 库。所有 API 端点都基于 SAP BW Communication Log 实际追踪结果实现。
 
+---
+
+## 项目初衷
+
+**核心目标：通过 API 调用实现 SAP BW 开发自动化**
+
+本项目旨在提供一套完整的 TypeScript API，使开发者能够通过编程方式完成 SAP BW/4HANA 中的常见开发任务，而非通过 GUI (如 SAP GUI 或 Eclipse ADT) 手动操作。
+
+### 开发原则
+
+在添加新功能时，必须确认符合以下原则：
+
+#### ✅ 应该实现（核心开发 API）
+- **对象操作**：创建、修改、删除、激活 BW 对象（ADSO、DTP、Transformation、ProcessChain 等）
+- **数据操作**：执行 DTP、加载和转换数据
+- **查询检索**：获取对象详情、字段结构、关联关系
+- **搜索功能**：按名称、类型、条件搜索对象
+- **批量操作**：批量处理多个对象
+- **监控功能**：查看执行状态、日志
+
+#### ⚠️ 已知不支持（服务端限制）
+- **Transformation 创建**：通过 API 创建 TRFN 对象会触发 SAP 服务端 `CL_RSTRAN_TRFN->GET_PROGID` 的 `CX_SY_REF_IS_INITIAL` dump。8TRANSIENT 端点返回的 XML 不完整（缺少 `adtcore:responsible`、`masterLanguage`、`masterSystem`、`createdAt`、`createdBy`、`packageRef` 等），即使手动补全这些属性，服务端仍然无法正确初始化 transformation 版本对象。此为 SAP BW ADT 服务端的限制，Eclipse ADT 客户端可能使用了非公开的内部机制。**TRFN 的读取、修改、激活、删除等操作均正常支持。**
+
+#### ❌ 不应该实现（UI 导航 API）
+- **树形结构**：`/sap/bw/modeling/repo/infoproviderstructure` - ADT 显示导航树用
+- **节点路径**：`/sap/bw/modeling/repo/nodepath` - 定位对象在树中的位置
+- **区域浏览**：按 InfoArea 层级浏览对象
+
+> **理由**：这些 API 是为 UI 导航设计的，API 开发时用搜索功能更高效。
+
+### 功能偏离检查清单
+
+添加新功能前，问自己：
+
+1. **这个 API 是用于实际 BW 开发操作，还是 UI 展示？**
+2. **如果只有对象名称，能否通过搜索 API 替代树形导航？**
+3. **这个功能是否会被自动化脚本或 CI/CD 流程使用？**
+
+### 替代方案
+
+| UI 导航 API | 替代方案 |
+|------------|---------|
+| `infoProviderStructure()` | `searchBWObjects()` |
+| `infoAreaADSOs()` | `searchBWObjects({ objectType: "ADSO" })` |
+| `adsoTransformations()` | `searchBWObjects({ objectType: "TRFN" })` + 过滤 |
+| `getADSONodePath()` | 已知对象名，无需路径 |
+
 ## 构建命令
 
 - `npm run build` - 编译 TypeScript 到 `build/` 目录
@@ -37,9 +84,10 @@ BW_LANGUAGE=EN
    - 自动登录重试逻辑
 
 2. **API 层** (`src/api/*.ts`)
-   - 按功能模块分文件：`adso.ts`, `dtp.ts`, `transformation.ts`, `processchain.ts`, `ddic.ts`, `infoprovider.ts`, `search.ts`, `systemInfo.ts`, `common.ts`
+   - 按功能模块分文件：`adso.ts`, `dtp.ts`, `transformation.ts`, `processchain.ts`, `ddic.ts`, `infoobject.ts`, `search.ts`, `systemInfo.ts`, `common.ts`, `abapClass.ts`, `repository.ts`
    - 每个模块导出类型定义（使用 `io-ts`）和 API 函数
    - 使用 `fullParse` 和 XML 工具函数解析响应
+   - **注意**：只包含核心开发 API，不包含 UI 导航相关 API
 
 3. **客户端层** (`BWAdtClient.ts`)
    - 主要入口类，暴露所有 BW 操作方法

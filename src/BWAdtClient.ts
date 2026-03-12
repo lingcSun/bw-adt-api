@@ -7,7 +7,6 @@ import {
   HttpClient
 } from "./AdtHTTP"
 import { followUrl, isString } from "./utilities"
-import { InfoProviderType } from "./api/infoprovider"
 import https from "https"
 
 export function createSSLConfig(
@@ -216,39 +215,6 @@ export class BWAdtClient {
   // - dataTransferProcesses(): manage DTPs
   // - processChains(): execute and monitor process chains
 
-  /**
-   * Query InfoProvider Structure - 查询 InfoProvider/InfoArea 结构树
-   * 对应请求: GET /sap/bw/modeling/repo/infoproviderstructure
-   *
-   * @param options - 查询选项
-   * @returns InfoProvider 结构列表（通常是 InfoArea 列表）
-   */
-  public async infoProviderStructure(options?: {
-    infoProvider?: string
-    infoArea?: string
-    type?: InfoProviderType
-    depth?: number
-  }) {
-    const { infoProviderStructure } = await import("./api/infoprovider")
-    return infoProviderStructure(this.h, options || {})
-  }
-
-  /**
-   * Query InfoProviders - 查询 InfoProvider 列表
-   *
-   * @param options - 查询选项
-   * @returns InfoProvider 列表
-   */
-  public async infoProviders(options?: {
-    infoProvider?: string
-    infoArea?: string
-    type?: InfoProviderType
-    depth?: number
-  }) {
-    const { infoProviders } = await import("./api/infoprovider")
-    return infoProviders(this.h, options || {})
-  }
-
   // ========================================
   // System Information
   // ========================================
@@ -324,43 +290,134 @@ export class BWAdtClient {
   }
 
   // ========================================
-  // InfoProvider Navigation
+  // Generic CRUD Operations
   // ========================================
 
   /**
-   * Query InfoArea ADSOs - 查询 InfoArea 下的 ADSO 列表
-   * 对应请求: GET /sap/bw/modeling/repo/infoproviderstructure/area/{area}/adso
+   * Create BW Object - 创建 BW 对象（泛型方法）
    *
-   * @param areaName - InfoArea 名称
-   * @returns ADSO 列表
+   * 使用 BWObject 基类进行统一的对象创建操作
+   *
+   * @param objectType - 对象类型
+   * @param objectName - 对象名称
+   * @param xmlBody - 对象 XML 内容
+   * @param options - 创建选项
+   * @returns 创建结果
    */
-  public async infoAreaADSOs(areaName: string) {
-    const { infoAreaADSOs } = await import("./api/infoprovider")
-    return infoAreaADSOs(this.h, areaName)
+  public async createObject(
+    objectType: "adso" | "trfn" | "dtpa" | "pc" | "iobj" | "area",
+    objectName: string,
+    xmlBody: string,
+    options?: {
+      parent?: string
+      transport?: string
+      headers?: Record<string, string>
+    }
+  ) {
+    if (objectType === "trfn") {
+      throw new Error(
+        "Creating Transformation (TRFN) via API is not supported. " +
+        "SAP BW server throws CX_SY_REF_IS_INITIAL in CL_RSTRAN_TRFN->GET_PROGID. " +
+        "Please create Transformations manually via Eclipse ADT."
+      )
+    }
+    const { BWObjectType, createBWObject } = await import("./api/bwObject")
+    const typeMap: Record<string, keyof typeof BWObjectType> = {
+      adso: "ADSO",
+      trfn: "TRANSFORMATION",
+      dtpa: "DTP",
+      pc: "PROCESS_CHAIN",
+      iobj: "INFO_OBJECT",
+      area: "INFO_AREA"
+    }
+    const obj = createBWObject(this.h, BWObjectType[typeMap[objectType]], objectName)
+    return obj.create(xmlBody, options)
   }
 
   /**
-   * Query ADSO Transformations - 查询 ADSO 关联的 Transformations
-   * 对应请求: GET /sap/bw/modeling/repo/infoproviderstructure/adso/{adso}/trfn
+   * Update BW Object - 更新 BW 对象（泛型方法）
    *
-   * @param adsoName - ADSO 名称
-   * @returns Transformation 列表
+   * @param objectType - 对象类型
+   * @param objectName - 对象名称
+   * @param xmlBody - 对象 XML 内容
+   * @param options - 更新选项
+   * @returns 更新结果
    */
-  public async adsoTransformations(adsoName: string) {
-    const { adsoTransformations } = await import("./api/infoprovider")
-    return adsoTransformations(this.h, adsoName)
+  public async updateObject(
+    objectType: "adso" | "trfn" | "dtpa" | "pc" | "iobj" | "area",
+    objectName: string,
+    xmlBody: string,
+    options?: {
+      lockHandle?: string
+      transport?: string
+      headers?: Record<string, string>
+    }
+  ) {
+    const { BWObjectType, createBWObject } = await import("./api/bwObject")
+    const typeMap: Record<string, keyof typeof BWObjectType> = {
+      adso: "ADSO",
+      trfn: "TRANSFORMATION",
+      dtpa: "DTP",
+      pc: "PROCESS_CHAIN",
+      iobj: "INFO_OBJECT",
+      area: "INFO_AREA"
+    }
+    const obj = createBWObject(this.h, BWObjectType[typeMap[objectType]], objectName)
+    return obj.update(xmlBody, options)
   }
 
   /**
-   * Query ADSO DTPs - 查询 ADSO 关联的 Data Transfer Processes
-   * 对应请求: GET /sap/bw/modeling/repo/infoproviderstructure/adso/{adso}/dtpa
+   * Delete BW Object - 删除 BW 对象（泛型方法）
    *
-   * @param adsoName - ADSO 名称
-   * @returns DTP 列表
+   * InfoArea: 需要先 lock 获取 lockHandle
+   * 其他对象: 使用 transport 请求号
+   *
+   * @param objectType - 对象类型
+   * @param objectName - 对象名称
+   * @param lockHandleOrTransport - 锁定句柄（InfoArea）或传输请求号（其他对象）
+   * @returns 删除结果
    */
-  public async adsoDTPs(adsoName: string) {
-    const { adsoDTPs } = await import("./api/infoprovider")
-    return adsoDTPs(this.h, adsoName)
+  public async deleteObject(
+    objectType: "adso" | "trfn" | "dtpa" | "pc" | "iobj" | "area",
+    objectName: string,
+    lockHandleOrTransport: string
+  ) {
+    const { BWObjectType, createBWObject } = await import("./api/bwObject")
+    const typeMap: Record<string, keyof typeof BWObjectType> = {
+      adso: "ADSO",
+      trfn: "TRANSFORMATION",
+      dtpa: "DTP",
+      pc: "PROCESS_CHAIN",
+      iobj: "INFO_OBJECT",
+      area: "INFO_AREA"
+    }
+    const obj = createBWObject(this.h, BWObjectType[typeMap[objectType]], objectName)
+    return obj.delete(lockHandleOrTransport)
+  }
+
+  /**
+   * Get BW Object - 获取 BW 对象实例（泛型方法）
+   *
+   * 返回 BWObject 实例，可以执行 lock/unlock/activate/validate 等操作
+   *
+   * @param objectType - 对象类型
+   * @param objectName - 对象名称
+   * @returns BWObject 实例
+   */
+  public async getObject(
+    objectType: "adso" | "trfn" | "dtpa" | "pc" | "iobj" | "area",
+    objectName: string
+  ) {
+    const { BWObjectType, createBWObject } = await import("./api/bwObject")
+    const typeMap: Record<string, keyof typeof BWObjectType> = {
+      adso: "ADSO",
+      trfn: "TRANSFORMATION",
+      dtpa: "DTP",
+      pc: "PROCESS_CHAIN",
+      iobj: "INFO_OBJECT",
+      area: "INFO_AREA"
+    }
+    return createBWObject(this.h, BWObjectType[typeMap[objectType]], objectName)
   }
 
   // ========================================
@@ -644,6 +701,9 @@ export class BWAdtClient {
 
   // ========================================
   // Transformation Operations
+  // NOTE: Creating TRFN via API is NOT supported (SAP server-side limitation).
+  //       Use createObject("trfn", ...) will fail with CX_SY_REF_IS_INITIAL.
+  //       Read, update, activate, delete operations work normally.
   // ========================================
 
   /**
