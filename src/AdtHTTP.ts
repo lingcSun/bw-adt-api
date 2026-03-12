@@ -71,6 +71,7 @@ export interface RequestOptions extends ClientOptions {
   headers?: Record<string, string>
   httpsAgent?: https.Agent
   qs?: Record<string, any>
+  sessionType?: session_types
   baseURL?: string
   timeout?: number
   auth?: BasicCredentials
@@ -320,15 +321,16 @@ export class AdtHTTP {
     options: RequestOptions
   ): Promise<HttpClientResponse> {
     this.needKeepalive = false
-    const headers = { ...this.commonHeaders, ...options.headers }
-    headers[SESSION_HEADER] = this.stateful
+    const { sessionType, ...requestOptions } = options
+    const headers = { ...this.commonHeaders, ...requestOptions.headers }
+    headers[SESSION_HEADER] = sessionType ?? this.stateful
     if (!headers["Cookie"] && runningInNode)
       headers["Cookie"] = this.ascookies()
 
     adtRequestNumber++
     const adtStartTime = new Date()
     const config = {
-      ...options,
+      ...requestOptions,
       auth: this.auth,
       headers,
       adtStartTime,

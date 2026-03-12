@@ -22,6 +22,39 @@ npm install bw-adt-api
 - ✅ DDIC table operations (metadata/fields/data queries)
 - 🚧 More modules coming soon...
 
+## Verified ADT Behavior (Important)
+
+Based on latest Communication Log verification in this repository:
+
+- `lock` / `unlock` should run with `stateful` session (`enqueue` context)
+- read/create/update/delete requests remain `stateless` by default
+- `InfoArea` update uses:
+  - `PUT /sap/bw/modeling/area/{name}/a?lockHandle=...`
+  - `Content-Type: application/xml, application/vnd.sap.bw.modeling.area-v1_1_0+xml`
+- `ADSO` update uses:
+  - `PUT /sap/bw/modeling/adso/{name}/m?lockHandle=...`
+  - `Content-Type: application/xml, application/vnd.sap.bw.modeling.adso-v1_5_0+xml`
+- `ADSO` delete supports lock-handle mode:
+  - `DELETE /sap/bw/modeling/adso/{name}/m?lockHandle=...`
+
+## Script Examples (project local)
+
+These scripts are available under `src/scripts/`:
+
+- `createArea.ts`: create InfoArea
+- `areaCrud.ts`: InfoArea create/update/delete flow
+- `adsoCrud.ts`: ADSO create/update/delete flow
+- `createAdsoFromInfoprovider.ts`: create ADSO from template InfoProvider
+- `convertAdsoToStandard.ts`: convert ADSO to standard type (set key fields) and activate
+
+Run after build:
+
+```bash
+npm run build
+node build/scripts/createAdsoFromInfoprovider.js
+node build/scripts/convertAdsoToStandard.js
+```
+
 ## Sample usage
 
 ```typescript
