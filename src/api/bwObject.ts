@@ -1,4 +1,4 @@
-import { AdtHTTP } from "../AdtHTTP"
+import { AdtHTTP, session_types } from "../AdtHTTP"
 import {
   LockResult,
   ActivationResult,
@@ -10,6 +10,33 @@ import {
   parseLockResponse,
   parseObjectVersions
 } from "./common"
+
+// ============================================================================
+// Types for CRUD Operations
+// ============================================================================
+
+/**
+ * XML Builder Function - XML 构建器函数类型
+ * 用于构建 create/update 请求的 XML body
+ */
+export type XMLBuilderFunction<T = any> = (options: T) => string
+
+/**
+ * Create Options - 创建对象选项
+ */
+export interface CreateOptionsBase {
+  transport?: string      // 传输请求号
+  parent?: string         // 父对象（如 InfoArea 的 parentInfoArea）
+}
+
+/**
+ * Update Options - 更新对象选项
+ */
+export interface UpdateOptionsBase {
+  lockHandle?: string     // 锁定句柄（如果已锁定）
+  transport?: string      // 传输请求号
+  timestamp?: string      // 时间戳（某些对象更新需要）
+}
 
 // ============================================================================
 // BW Object Type Enum and Configuration
@@ -36,6 +63,8 @@ interface BWObjectConfig {
   endpoint: string          // 如 "/sap/bw/modeling/adso"
   contentType: string       // 如 "application/vnd.sap.bw.modeling.adso-v1_5_0+xml"
   versionSuffix?: boolean   // URI 是否需要版本后缀 (/m, /a, /d)
+  needsActivate?: boolean   // 创建后是否需要激活（InfoArea 为 false）
+  versionChar?: string      // 版本字符（InfoArea 用 "a"，其他用 "m"）
 }
 
 /**
@@ -45,42 +74,58 @@ const BW_OBJECT_CONFIGS: Record<BWObjectType, BWObjectConfig> = {
   [BWObjectType.ADSO]: {
     endpoint: "/sap/bw/modeling/adso",
     contentType: "application/vnd.sap.bw.modeling.adso-v1_5_0+xml",
-    versionSuffix: true
+    versionSuffix: true,
+    needsActivate: true,
+    versionChar: "m"
   },
   [BWObjectType.TRANSFORMATION]: {
     endpoint: "/sap/bw/modeling/trfn",
     contentType: "application/vnd.sap.bw.modeling.trfn-v1_0_0+xml",
-    versionSuffix: true
+    versionSuffix: true,
+    needsActivate: true,
+    versionChar: "m"
   },
   [BWObjectType.DTP]: {
     endpoint: "/sap/bw/modeling/dtpa",
     contentType: "application/vnd.sap.bw.modeling.dtpa-v1_0_0+xml",
-    versionSuffix: true
+    versionSuffix: true,
+    needsActivate: true,
+    versionChar: "m"
   },
   [BWObjectType.PROCESS_CHAIN]: {
     endpoint: "/sap/bw/modeling/pc",
     contentType: "application/vnd.sap.bw.modeling.pc-v1_0_0+xml",
-    versionSuffix: true
+    versionSuffix: true,
+    needsActivate: true,
+    versionChar: "m"
   },
   [BWObjectType.INFO_OBJECT]: {
     endpoint: "/sap/bw/modeling/iobj",
     contentType: "application/vnd.sap-bw-modeling.iobj-v2_1_0+xml",
-    versionSuffix: true
+    versionSuffix: true,
+    needsActivate: true,
+    versionChar: "m"
   },
   [BWObjectType.DATA_SOURCE]: {
     endpoint: "/sap/bw/modeling/datasource",
     contentType: "application/vnd.sap.bw.modeling.datasource+xml",
-    versionSuffix: false
+    versionSuffix: false,
+    needsActivate: true,
+    versionChar: "m"
   },
   [BWObjectType.INFO_SOURCE]: {
     endpoint: "/sap/bw/modeling/infosource",
     contentType: "application/vnd.sap.bw.modeling.infosource+xml",
-    versionSuffix: false
+    versionSuffix: false,
+    needsActivate: true,
+    versionChar: "m"
   },
   [BWObjectType.INFO_AREA]: {
     endpoint: "/sap/bw/modeling/area",
-    contentType: "application/vnd.sap.bw.modeling.infoarea+xml",
-    versionSuffix: false
+    contentType: "application/vnd.sap.bw.modeling.area-v1_1_0+xml",
+    versionSuffix: false,
+    needsActivate: false,  // InfoArea 不需要激活
+    versionChar: "a"       // InfoArea 使用 /a 表示 active 版本
   }
 }
 
@@ -92,6 +137,7 @@ const BW_OBJECT_CONFIGS: Record<BWObjectType, BWObjectConfig> = {
  * BW Object - 泛型基类
  *
  * 提供所有 BW 对象类型的通用操作：
+ * - Create / Update / Delete
  * - Lock / Unlock
  * - Activate / Check
  * - Get Versions
@@ -100,11 +146,24 @@ const BW_OBJECT_CONFIGS: Record<BWObjectType, BWObjectConfig> = {
  * @template T - BW 对象类型
  */
 export class BWObject<T extends BWObjectType> {
+  private xmlBuilder?: XMLBuilderFunction
+
   constructor(
     protected client: AdtHTTP,
     public readonly objectType: T,
-    public readonly objectName: string
-  ) {}
+    public readonly objectName: string,
+    xmlBuilder?: XMLBuilderFunction
+  ) {
+    this.xmlBuilder = xmlBuilder
+  }
+
+  /**
+   * Set XML Builder - 设置 XML 构建器
+   * 用于 create/update 操作
+   */
+  public setXMLBuilder(builder: XMLBuilderFunction): void {
+    this.xmlBuilder = builder
+  }
 
   /**
    * Get object configuration
@@ -131,13 +190,16 @@ export class BWObject<T extends BWObjectType> {
    *
    * @returns 锁定结果（包含 lockHandle）
    */
-  async lock(): Promise<LockResult> {
+  async lock(options: { headers?: Record<string, string> } = {}): Promise<LockResult> {
+    const { headers = {} } = options
     const response = await this.client.request(
       `${this.config.endpoint}/${this.objectName.toLowerCase()}?action=lock`,
       {
         method: "POST",
+        sessionType: session_types.stateful,
         headers: {
-          "Accept": this.config.contentType
+          "Accept": this.config.contentType,
+          ...headers
         }
       }
     )
@@ -154,6 +216,7 @@ export class BWObject<T extends BWObjectType> {
       `${this.config.endpoint}/${this.objectName.toLowerCase()}?action=unlock`,
       {
         method: "POST",
+        sessionType: session_types.stateful,
         headers: {
           "Accept": this.config.contentType
         }
@@ -252,7 +315,7 @@ export class BWObject<T extends BWObjectType> {
    */
   async getVersions(): Promise<ObjectVersion[]> {
     const response = await this.client.request(
-      `${this.buildUri("m")}/versions`,
+      `${this.buildUri(this.config.versionChar === "a" ? "a" : "m")}/versions`,
       {
         method: "GET",
         headers: {
@@ -261,6 +324,180 @@ export class BWObject<T extends BWObjectType> {
       }
     )
     return parseObjectVersions(response.body)
+  }
+
+  // ========================================
+  // CRUD Operations
+  // ========================================
+
+  /**
+   * Create Object - 创建对象
+   *
+   * 流程：验证 → 锁定 → 创建 → （可选激活）→ 解锁
+   *
+   * 对应请求: POST /sap/bw/modeling/{endpoint}/{name}?lockHandle={lock_handle}
+   *
+   * @param xmlBody - 对象 XML 内容
+   * @param options - 创建选项
+   * @returns 创建结果
+   */
+  async create(
+    xmlBody: string,
+    options: CreateOptionsBase & {
+      parent?: string           // 父对象（用于验证）
+      headers?: Record<string, string>  // 额外的请求头
+    } = {}
+  ): Promise<void> {
+    const { transport, parent, headers = {} } = options
+
+    // Step 1: 验证父对象（如果提供）
+    if (parent) {
+      await validateObject(this.client, this.objectType.toUpperCase(), parent, ValidationAction.EXISTS)
+    }
+
+    // Step 2: 验证新名称是否可用
+    await this.isNewNameAvailable()
+
+    // Step 3: 锁定对象
+    const lockResult = await this.lock({
+      // ADT 创建流程会带此上下文，部分系统缺失时会导致后续 create 失败
+      headers: { "activity_context": "CREA" }
+    })
+
+    // Step 4: 创建对象
+    const qs: Record<string, string> = { lockHandle: lockResult.lockHandle }
+    if (transport) qs["transport"] = transport
+
+    await this.client.request(this.buildUri(), {
+      method: "POST",
+      qs,
+      headers: {
+        "Content-Type": this.config.contentType,
+        "Accept": this.config.contentType,
+        ...headers
+      },
+      body: xmlBody
+    })
+
+    // Step 5: 激活（如果需要）并解锁
+    if (this.config.needsActivate) {
+      await this.activate(lockResult.lockHandle)
+    }
+
+    await this.unlock()
+  }
+
+  /**
+   * Update Object - 更新对象
+   *
+   * 流程：锁定 → 更新 → （可选激活）
+   *
+   * 对应请求: POST /sap/bw/modeling/{endpoint}/{name}?lockHandle={lock_handle}
+   *
+   * @param xmlBody - 对象 XML 内容
+   * @param options - 更新选项
+   * @returns 更新结果
+   */
+  async update(
+    xmlBody: string,
+    options: UpdateOptionsBase & {
+      headers?: Record<string, string>
+    } = {}
+  ): Promise<ActivationResult | void> {
+    const { lockHandle: providedLockHandle, transport, timestamp, headers = {} } = options
+
+    // Step 1: 锁定（如果未提供 lockHandle）
+    const lockResult = providedLockHandle
+      ? { lockHandle: providedLockHandle }
+      : await this.lock()
+
+    // Step 2: 更新对象
+    const qs: Record<string, string> = { lockHandle: lockResult.lockHandle }
+    if (transport) qs["transport"] = transport
+
+    const isInfoArea = this.objectType === BWObjectType.INFO_AREA
+    const isADSO = this.objectType === BWObjectType.ADSO
+    const updateUri = isInfoArea
+      ? this.buildUri("a" as "m" | "a")
+      : isADSO
+        ? this.buildUri("m")
+        : this.buildUri()
+    const method = (isInfoArea || isADSO) ? "PUT" : "POST"
+    const contentType = (isInfoArea || isADSO)
+      ? `application/xml, ${this.config.contentType}`
+      : this.config.contentType
+
+    const requestHeaders: Record<string, string> = {
+      "Content-Type": contentType,
+      "Accept": this.config.contentType,
+      ...headers
+    }
+    if (timestamp) requestHeaders["timestamp"] = timestamp
+
+    await this.client.request(updateUri, {
+      method,
+      qs,
+      headers: requestHeaders,
+      body: xmlBody
+    })
+
+    // Step 3: 激活（如果需要）
+    if (this.config.needsActivate) {
+      return this.activate(lockResult.lockHandle)
+    }
+  }
+
+  /**
+   * Delete Object - 删除对象
+   *
+   * InfoArea: DELETE /sap/bw/modeling/area/{name}/a?lockHandle={lockHandle}
+   * ADSO: DELETE /sap/bw/modeling/adso/{name}/m?lockHandle={lockHandle}
+   * 其他对象: DELETE /sap/bw/modeling/{endpoint}/{name}?transport={transport}
+   *
+   * @param lockHandleOrTransport - 锁定句柄 或 传输请求号
+   * @returns 删除结果
+   */
+  async delete(lockHandleOrTransport: string): Promise<void> {
+    const useLockHandleMode =
+      this.objectType === BWObjectType.INFO_AREA ||
+      this.objectType === BWObjectType.ADSO
+
+    const lockVersion: "m" | "a" = this.objectType === BWObjectType.INFO_AREA ? "a" : "m"
+    const uri = useLockHandleMode ? this.buildUri(lockVersion) : this.buildUri()
+    const qs = useLockHandleMode
+      ? { lockHandle: lockHandleOrTransport }
+      : { transport: lockHandleOrTransport }
+
+    await this.client.request(uri, { method: "DELETE", qs })
+
+    if (useLockHandleMode) {
+      try {
+        await this.unlock()
+      } catch {
+        // 删除后对象可能已不存在，unlock 失败可忽略
+      }
+    }
+  }
+
+  /**
+   * Get Object Details - 获取对象详细信息
+   *
+   * 对应请求: GET /sap/bw/modeling/{endpoint}/{name}/{version}
+   *
+   * @returns 对象详细信息（原始 XML 字符串）
+   */
+  async getDetails(): Promise<string> {
+    const version = this.config.versionChar === "a" ? "a" : "m"
+    const response = await this.client.request(
+      this.buildUri(version as "m" | "a"),
+      {
+        method: "GET",
+        headers: {
+          "Accept": this.config.contentType
+        }
+      }
+    )
+    return response.body
   }
 }
 
@@ -274,12 +511,14 @@ export class BWObject<T extends BWObjectType> {
  * @param client - ADT HTTP 客户端
  * @param objectType - 对象类型
  * @param objectName - 对象名称
+ * @param xmlBuilder - 可选的 XML 构建器函数
  * @returns BWObject 实例
  */
 export function createBWObject<T extends BWObjectType>(
   client: AdtHTTP,
   objectType: T,
-  objectName: string
+  objectName: string,
+  xmlBuilder?: XMLBuilderFunction
 ): BWObject<T> {
-  return new BWObject(client, objectType, objectName)
+  return new BWObject(client, objectType, objectName, xmlBuilder)
 }
