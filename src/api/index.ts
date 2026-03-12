@@ -4,7 +4,6 @@
 export * from "./abapClass"
 export * from "./common"
 export * from "./ddic"
-export * from "./infoprovider"
 export * from "./repository"
 export * from "./systemInfo"
 export * from "./search"

@@ -154,6 +154,78 @@ describe("BW Search Tests", () => {
     console.log(`========================================================\n`)
   }, 30000)
 
+  /**
+   * Test case based on actual Communication Log:
+   * Request: GET /sap/bw/modeling/repo/is/bwsearch?searchTerm=ZSD001&searchInName=true&searchInDescription=true&objectType=&createdOnFrom=1970-01-01T00:00:00Z&createdOnTo=2026-03-12T23:59:59Z&changedOnFrom=1970-01-01T00:00:00Z&changedOnTo=2026-03-12T23:59:59Z
+   * Expected: One ADSO with objectName="ZSD001", objectType="ADSO", technicalObjectName="ZSD001", objectStatus="active", objectVersion="M"
+   */
+  test("should search for ZSD001 ADSO - based on communication log", async () => {
+    const results = await client.searchBWObjects({
+      searchTerm: "ZSD001",
+      searchInName: true,
+      searchInDescription: true,
+      objectType: "",  // 搜索所有对象类型
+      createdOnFrom: "1970-01-01T00:00:00Z",
+      createdOnTo: "2026-03-12T23:59:59Z",
+      changedOnFrom: "1970-01-01T00:00:00Z",
+      changedOnTo: "2026-03-12T23:59:59Z"
+    })
+
+    expect(results).toBeDefined()
+    expect(Array.isArray(results)).toBe(true)
+
+    console.log(`\n========== Search: ZSD001 (Communication Log) ==========`)
+    console.log(`Found ${results.length} result(s)`)
+    results.forEach((item, index) => {
+      console.log(`  [${index + 1}] ${item.title || item.objectName}`)
+      console.log(`      Technical Name: ${item.technicalObjectName}`)
+      console.log(`      Type: ${item.objectType}`)
+      console.log(`      Status: ${item.objectStatus}`)
+      console.log(`      Version: ${item.objectVersion}`)
+      console.log(`      URI: ${item.uri}`)
+    })
+    console.log(`========================================================\n`)
+
+    // 根据日志，应该找到一个 ADSO 对象
+    if (results.length > 0) {
+      const result = results.find(r => r.objectName === "ZSD001" || r.technicalObjectName === "ZSD001")
+      expect(result).toBeDefined()
+      if (result) {
+        expect(result.objectType).toBe("ADSO")
+        expect(result.technicalObjectName).toBe("ZSD001")
+        expect(result.objectStatus).toBe("active")
+        expect(result.objectVersion).toBe("M")
+        expect(result.uri).toContain("/sap/bw/modeling/adso/")
+      }
+    }
+  }, 30000)
+
+  /**
+   * Test case: Search with wildcard to get all objects
+   */
+  test("should search with wildcard pattern", async () => {
+    const results = await client.searchBWObjects({
+      searchTerm: "ZSD*",
+      searchInName: true,
+      objectType: "ADSO"
+    })
+
+    expect(results).toBeDefined()
+    expect(Array.isArray(results)).toBe(true)
+
+    console.log(`\n========== Search: ZSD* (Wildcard) ==========`)
+    console.log(`Found ${results.length} result(s)`)
+    results.slice(0, 10).forEach((item, index) => {  // 只显示前10个
+      console.log(`  [${index + 1}] ${item.title || item.objectName}`)
+      console.log(`      Technical Name: ${item.technicalObjectName}`)
+      console.log(`      Type: ${item.objectType}`)
+    })
+    if (results.length > 10) {
+      console.log(`  ... and ${results.length - 10} more`)
+    }
+    console.log(`==========================================\n`)
+  }, 30000)
+
   afterAll(async () => {
     console.log(`\n========== BW Search Tests Completed ==========\n`)
     if (client.loggedin) {

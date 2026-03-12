@@ -6,6 +6,17 @@ import { BWObject, BWObjectType } from "./bwObject"
 import { TransformationDetails } from "./types"
 
 // ============================================================================
+// KNOWN LIMITATION: Transformation CREATE is NOT supported via API.
+//
+// The 8TRANSIENT endpoint returns incomplete XML (missing adtcore attributes
+// and packageRef), and even with manual enrichment, the SAP server throws
+// CX_SY_REF_IS_INITIAL in CL_RSTRAN_TRFN->GET_PROGID during POST creation.
+// This is a SAP BW ADT server-side limitation.
+//
+// Supported operations: read, update, activate, delete, lock/unlock, check.
+// ============================================================================
+
+// ============================================================================
 // Types and Codecs for Transformation
 // ============================================================================
 
