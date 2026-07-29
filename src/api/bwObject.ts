@@ -107,9 +107,12 @@ const BW_OBJECT_CONFIGS: Record<BWObjectType, BWObjectConfig> = {
     versionChar: "m"
   },
   [BWObjectType.DATA_SOURCE]: {
-    endpoint: "/sap/bw/modeling/datasource",
-    contentType: "application/vnd.sap.bw.modeling.datasource+xml",
-    versionSuffix: false,
+    // 实测修正 (2026-07-16 Eclipse Communication Log): 真实端点是 /rsds, 非 /datasource。
+    // ⚠️ RSDS 是双段标识 /rsds/{datasource}/{sourceSystem}/m, 基类 buildUri() 只拼单段,
+    // 不适用于 DataSource。完整的读写操作见 src/api/datasource.ts。此配置仅作对象类型登记。
+    endpoint: "/sap/bw/modeling/rsds",
+    contentType: "application/vnd.sap.bw.modeling.rsds-v1_1_0+xml",
+    versionSuffix: true,
     needsActivate: true,
     versionChar: "m"
   },
@@ -188,6 +191,14 @@ export class BWObject<T extends BWObjectType> {
    *
    * 对应请求: POST /sap/bw/modeling/{endpoint}/{name}?action=lock
    *
+   * 会话模型 (实测验证, 对照 Eclipse Communication Log):
+   * - lock 必须用 "stateful" 会话头。服务端返回 sap-contextid 建立会话,
+   *   锁由该会话持有; 同会话内重复 lock 返回相同 lockHandle。
+   * - 注意不要用 "stateful;enqueue" —— 实测该头会导致服务端销毁会话 (contextid=0),
+   *   锁立即丢失。Eclipse 日志中的 "stateful, enqueue" 只是服务端会话的展示标签。
+   * - 后续写操作 (PUT update / activation) 走 stateless 且不带 contextid,
+   *   服务端通过 enqueue 锁表验证 URL 上的 lockHandle。
+   *
    * @returns 锁定结果（包含 lockHandle）
    */
   async lock(options: { headers?: Record<string, string> } = {}): Promise<LockResult> {
@@ -210,6 +221,8 @@ export class BWObject<T extends BWObjectType> {
    * Unlock Object - 解锁对象
    *
    * 对应请求: POST /sap/bw/modeling/{endpoint}/{name}?action=unlock
+   *
+   * 必须回到持锁的 stateful 会话中执行 (stateful 头 + contextid, 由 AdtHTTP 自动携带)。
    */
   async unlock(): Promise<void> {
     await this.client.request(
@@ -315,7 +328,7 @@ export class BWObject<T extends BWObjectType> {
    */
   async getVersions(): Promise<ObjectVersion[]> {
     const response = await this.client.request(
-      `${this.buildUri(this.config.versionChar === "a" ? "a" : "m")}/versions`,
+      `${this.buildUri()}/versions`,
       {
         method: "GET",
         headers: {
@@ -402,9 +415,11 @@ export class BWObject<T extends BWObjectType> {
     xmlBody: string,
     options: UpdateOptionsBase & {
       headers?: Record<string, string>
+      /** 保存后是否自动激活 (默认 true; 调用方需要带 corrNr 激活时传 false 自行处理) */
+      activate?: boolean
     } = {}
   ): Promise<ActivationResult | void> {
-    const { lockHandle: providedLockHandle, transport, timestamp, headers = {} } = options
+    const { lockHandle: providedLockHandle, transport, timestamp, headers = {}, activate = true } = options
 
     // Step 1: 锁定（如果未提供 lockHandle）
     const lockResult = providedLockHandle
@@ -412,20 +427,31 @@ export class BWObject<T extends BWObjectType> {
       : await this.lock()
 
     // Step 2: 更新对象
+    // 实测 (Eclipse Communication Log):
+    //   DTP: PUT /sap/bw/modeling/dtpa/{id}/m?lockHandle=...   (有 /m, 用 PUT)
+    //   ADSO: PUT /sap/bw/modeling/adso/{id}/m?lockHandle=...
+    //   InfoArea: PUT /sap/bw/modeling/area/{id}/a?lockHandle=...
+    // PUT 走 stateless 会话 (Eclipse 亦如此), 不带 contextid;
+    // 服务端通过 enqueue 锁表验证 lockHandle, 锁由 lock 建立的 stateful 会话持有
+    // TR 号通过 Transport-Lock-Holder header 传递 (复用已有 TR 时)
+    // 或 corrNr query 参数 (新建 TR 时)
+    // Eclipse 实测两种传 TR 方式均可见:
+    //   ADSO: PUT .../m?corrNr={tr}&lockHandle={h}
+    //   TRFN setFields: PUT .../m?lockHandle={h} + header Transport-Lock-Holder: {tr}
+    // 同时带上两者最稳妥
     const qs: Record<string, string> = { lockHandle: lockResult.lockHandle }
-    if (transport) qs["transport"] = transport
+    if (transport) qs["corrNr"] = transport
 
     const isInfoArea = this.objectType === BWObjectType.INFO_AREA
-    const isADSO = this.objectType === BWObjectType.ADSO
+    // 有 versionSuffix 的对象 (ADSO/DTP/TRFN/PC/IOBJ) 用 /m, InfoArea 用 /a
     const updateUri = isInfoArea
       ? this.buildUri("a" as "m" | "a")
-      : isADSO
+      : this.config.versionSuffix
         ? this.buildUri("m")
         : this.buildUri()
-    const method = (isInfoArea || isADSO) ? "PUT" : "POST"
-    const contentType = (isInfoArea || isADSO)
-      ? `application/xml, ${this.config.contentType}`
-      : this.config.contentType
+    // 所有 BW 对象 update 都用 PUT
+    const method = "PUT"
+    const contentType = `application/xml, ${this.config.contentType}`
 
     const requestHeaders: Record<string, string> = {
       "Content-Type": contentType,
@@ -433,16 +459,18 @@ export class BWObject<T extends BWObjectType> {
       ...headers
     }
     if (timestamp) requestHeaders["timestamp"] = timestamp
+    if (transport) requestHeaders["Transport-Lock-Holder"] = transport
 
     await this.client.request(updateUri, {
       method,
       qs,
+      sessionType: session_types.stateless,
       headers: requestHeaders,
       body: xmlBody
     })
 
     // Step 3: 激活（如果需要）
-    if (this.config.needsActivate) {
+    if (activate && this.config.needsActivate) {
       return this.activate(lockResult.lockHandle)
     }
   }

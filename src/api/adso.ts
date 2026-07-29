@@ -646,9 +646,9 @@ export async function updateADSO(
 ): Promise<ActivationResult> {
   const { lockHandle, corrNr, timestamp } = options
 
-  const qs: Record<string, string> = {
-    lockHandle
-  }
+  // Eclipse: PUT .../m?corrNr={tr}&lockHandle={handle}  (stateless)
+  const qs: Record<string, string> = { lockHandle }
+  if (corrNr) qs["corrNr"] = corrNr
 
   const headers: Record<string, string> = {
     "Content-Type": "application/xml, application/vnd.sap.bw.modeling.adso-v1_5_0+xml",
@@ -671,6 +671,193 @@ export async function updateADSO(
 
   // 响应是 ATOM feed 格式，包含检查结果
   return parseActivationResponse(response.body)
+}
+
+/**
+ * Field 类型字段定义 (本地字段, 非 InfoObject)
+ *
+ * Eclipse 特征: 无 infoObjectName / atom:link, sidDeterminationMode="N",
+ * 标签放在 localProperties/descriptions/@label。
+ */
+export interface ADSOFieldDefinition {
+  name: string
+  /** DDIC 类型, 默认 CHAR */
+  dataType?: "CHAR" | "NUMC" | "DATS" | "TIMS" | "DEC" | "CUKY" | "CURR" | "QUAN" | "INT4" | "FLTP"
+  length?: number
+  label?: string
+  /** 维度短名, 默认 CHA → dimension="#///CHA§" */
+  dimension?: string
+  semanticType?: string
+  precision?: number
+  scale?: number
+}
+
+function defaultSemanticType(dataType: string): string {
+  switch (dataType) {
+    case "DATS":
+    case "TIMS":
+      return "date"
+    case "CURR":
+      return "amount"
+    case "CUKY":
+      return "currencyCode"
+    case "QUAN":
+      return "quantity"
+    default:
+      return "empty"
+  }
+}
+
+function defaultLength(dataType: string): number {
+  switch (dataType) {
+    case "DATS":
+      return 8
+    case "TIMS":
+      return 6
+    case "CUKY":
+      return 5
+    case "INT4":
+      return 10
+    default:
+      return 10
+  }
+}
+
+/**
+ * 构建 field 类型 element XML 片段
+ * 对照 AUGBL / SGTXT / ZC_MATNR 等本地字段节点
+ *
+ * dimension 入参支持两种写法:
+ *   - 短名 (如 "CHA"/"__NON_KEY"): 拼成 "#///CHA§"/"#///__NON_KEY§"
+ *   - 完整 (如 "#///__NON_KEY§"): 原样使用
+ */
+export function buildADSOFieldElementXml(field: ADSOFieldDefinition): string {
+  const dataType = field.dataType || "CHAR"
+  const length = field.length ?? defaultLength(dataType)
+  const semanticType = field.semanticType ?? defaultSemanticType(dataType)
+  const rawDim = field.dimension || "CHA"
+  const dimension = rawDim.startsWith("#") ? rawDim : `#///${rawDim}§`
+
+  let inlineAttrs = `name="${dataType}"`
+  if (dataType === "CURR" || dataType === "DEC" || dataType === "QUAN" || dataType === "FLTP") {
+    const precision = field.precision ?? 17
+    const scale = field.scale ?? 2
+    inlineAttrs += ` precision="${precision}" scale="${scale}"`
+  } else {
+    inlineAttrs += ` length="${length}"`
+  }
+  inlineAttrs += ` semanticType="${semanticType}"`
+
+  const descriptions = field.label
+    ? `<descriptions label="${escapeXmlAttr(field.label)}"/>`
+    : "<descriptions/>"
+
+  return `<element xsi:type="adso:AdsoElement" name="${field.name}" dimension="${dimension}" sidDeterminationMode="N">
+    <inlineType ${inlineAttrs}/>
+    <localProperties xsi:type="BwCore:LocalCharacteristicProperties">
+      ${descriptions}
+    </localProperties>
+  </element>`
+}
+
+function escapeXmlAttr(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+}
+
+/**
+ * 向 ADSO XML 插入 field 类型字段
+ *
+ * 插入位置: 最后一个已有 <element> 之后 (在 <dimension>/<keyElement>/<hashElements>
+ * 等结构节点之前), 保证符合 XSD 子元素顺序。
+ *
+ * dimension: 若 field 未指定, 自动从已有非 __KEY 的 element 继承 (如 __NON_KEY);
+ * 没有可用参照时回退到 "CHA"。
+ */
+export function addADSOFieldToXml(adsoXml: string, field: ADSOFieldDefinition): string {
+  if (new RegExp(`<element[^>]*\\sname="${field.name}"`).test(adsoXml)) {
+    throw new Error(`Field "${field.name}" already exists in ADSO XML`)
+  }
+
+  // 未指定 dimension 时, 从已有 element 继承 (优先 __NON_KEY, 否则任取一个)
+  let resolved = field
+  if (!field.dimension) {
+    const dims = [...adsoXml.matchAll(/<element[^>]*\sdimension="([^"]*)"/g)].map(
+      (m) => m[1]
+    )
+    const inherited =
+      dims.find((d) => d.includes("__NON_KEY")) || dims[0]
+    if (inherited) resolved = { ...field, dimension: inherited }
+  }
+
+  const elementXml = buildADSOFieldElementXml(resolved)
+
+  // 定位插入点: 最后一个 </element> 之后; 若无 element, 则回退到 keyElement/根结构之前
+  const lastElementEnd = adsoXml.lastIndexOf("</element>")
+  if (lastElementEnd !== -1) {
+    const insertAt = lastElementEnd + "</element>".length
+    return adsoXml.slice(0, insertAt) + elementXml + adsoXml.slice(insertAt)
+  }
+
+  const keyIdx = adsoXml.search(/<keyElement[\s>]/)
+  if (keyIdx !== -1) {
+    return adsoXml.slice(0, keyIdx) + elementXml + "\n  " + adsoXml.slice(keyIdx)
+  }
+
+  const closeIdx = adsoXml.lastIndexOf("</adso:dataStore>")
+  if (closeIdx === -1) {
+    throw new Error("Invalid ADSO XML: missing </adso:dataStore>")
+  }
+  return adsoXml.slice(0, closeIdx) + "  " + elementXml + "\n" + adsoXml.slice(closeIdx)
+}
+
+/**
+ * 从 ADSO XML 移除指定字段 (field / InfoObject 通用)
+ */
+export function removeADSOFieldFromXml(adsoXml: string, fieldName: string): string {
+  const pattern = new RegExp(
+    `\\s*<element[^>]*\\sname="${fieldName}"[^>]*(?:/>|>[\\s\\S]*?</element>)`,
+    "g"
+  )
+  const next = adsoXml.replace(pattern, "")
+  if (next === adsoXml) {
+    throw new Error(`Field "${fieldName}" not found in ADSO XML`)
+  }
+  return next
+}
+
+/**
+ * 从 tlogoProperties/@adtcore:changedAt 提取 PUT 所需 timestamp 头
+ * 例: 2025-06-12T09:56:38Z → 20250612095638
+ */
+export function extractADSOTimestamp(adsoXml: string): string | undefined {
+  const m = adsoXml.match(
+    /adtcore:changedAt="(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/
+  )
+  if (!m) return undefined
+  return `${m[1]}${m[2]}${m[3]}${m[4]}${m[5]}${m[6]}`
+}
+
+/**
+ * Get ADSO Raw XML - 获取 ADSO 原始 XML 字符串 (供 PUT update 使用)
+ */
+export async function getADSOXml(
+  client: AdtHTTP,
+  adsoId: string,
+  forceCacheUpdate: boolean = false
+): Promise<string> {
+  const qs = forceCacheUpdate ? { forceCacheUpdate: "true" } : undefined
+  const response = await client.request(`/sap/bw/modeling/adso/${adsoId.toLowerCase()}/m`, {
+    method: "GET",
+    qs,
+    headers: {
+      Accept: "application/vnd.sap.bw.modeling.adso-v1_5_0+xml"
+    }
+  })
+  return response.body
 }
 
 // ============================================================================

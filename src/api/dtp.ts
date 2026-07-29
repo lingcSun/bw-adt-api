@@ -339,21 +339,29 @@ export async function executeDTP(
  * Parse DTP Details Response - 解析 DTP 详细信息响应
  */
 function parseDTPDetails(raw: any): DTPDetails {
-  const root = raw["dtp:dtp"] || raw
+  // 根节点: dtpa:dataTransferProcess
+  const root = raw["dtpa:dataTransferProcess"] || raw
+
+  // source / target 是子元素,类型/名称/描述在属性上
+  const sourceNode = root["source"] || {}
+  const targetNode = root["target"] || {}
+
+  // generalInformation.tlogoProperties 含 version/status 信息
+  const tlogo = root["generalInformation"]?.["tlogoProperties"] || {}
 
   return {
-    name: root["dtp:name"] || root["name"] || "",
-    technicalName: root["dtp:technicalName"] || root["technicalName"] || "",
-    source: root["dtp:source"] || root["source"] || "",
-    target: root["dtp:target"] || root["target"] || "",
-    description: root["dtp:description"] || root["description"],
-    objVers: root["dtp:objVers"] || root["objVers"] || "M",
-    dtpType: root["dtp:dtpType"] || root["dtpType"],
-    status: root["dtp:status"] || root["status"],
-    sourceType: root["dtp:sourceType"],
-    targetType: root["dtp:targetType"],
-    deltaRequest: root["dtp:deltaRequest"] === "true",
-    realTimeLoad: root["dtp:realTimeLoad"] === "true"
+    name: root["@_name"] || "",
+    technicalName: root["@_name"] || "",
+    description: root["@_description"],
+    source: sourceNode["@_name"] || "",
+    sourceType: sourceNode["@_tlogo"] || sourceNode["@_type"],
+    target: targetNode["@_name"] || "",
+    targetType: targetNode["@_tlogo"] || targetNode["@_type"],
+    objVers: tlogo["@_version"] || tlogo["objectVersion"] || "M",
+    status: tlogo["@_version"] === "active" ? "active" : tlogo["objectStatus"],
+    dtpType: root["@_type"],
+    deltaRequest: undefined,
+    realTimeLoad: undefined
   }
 }
 

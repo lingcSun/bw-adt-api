@@ -18,7 +18,39 @@
 | DDIC Tables | `/sap/bc/adt/ddic/tables/*` | `ddic.ts` | ✅ |
 | ABAP Class | `/sap/bc/adt/programs/programs/*` | `abapClass.ts` | ✅ |
 
-### 最新更新 (2026-03-11)
+### 最新更新 (2026-07-15)
+
+- **TRFN 例程源码保存/激活打通**:
+  - ABAP 类 lock/unlock 对齐 Eclipse: `_action=LOCK/UNLOCK` (非 `action=lock`)
+  - 类激活走 `POST /sap/bc/adt/activation` (区别于 BW `/sap/bw/modeling/activation`)
+  - API: `activateAbapClass` / `saveAndActivateAbapClassSource` / `saveAndActivateTransformationClassSource`
+  - 实测: 原样写回类源码 + 激活类 + 激活 TRFN (`trfn-routine-write.test.ts` 3/3)
+- **TRFN 结束例程 setFields 写操作打通**:
+  - 对照 Eclipse `SetGlobalRoutineFieldsAction`: END rule 增加 elementRef + StepNoUpdate
+  - PUT 使用 `Transport-Lock-Holder` header (可与 `corrNr` query 并存)
+  - API: `addFieldToEndRoutine` / `setEndRoutineFields` / `saveAndActivateTransformation`
+  - 实测: `ZC_JTL4` 取消(仅PUT)→再勾选激活 (`trfn-write.test.ts` 3/3)
+- **ADSO 写操作全链路打通** (与 DTP 同一会话模型):
+  - 对照 Eclipse 日志: lock → transport → `PUT /adso/{id}/m?corrNr=&lockHandle=` → activation → unlock
+  - 修复 `updateADSO` / `BWObject.update`: `corrNr` 正确写入 query
+  - 新增 field 类型本地字段辅助: `buildADSOFieldElementXml` / `addADSOFieldToXml` / `removeADSOFieldFromXml`
+  - 高阶 API: `getADSOXml` / `saveAndActivateADSO` / `addADSOField`
+  - 实测: `ZL_FID37` 原样写回 + 临时字段 `ZADT_TMP_F` 增删均成功 (`adso-write.test.ts` 4/4)
+- **DTP 写操作 (PUT update) 全链路打通**,推翻此前 "JCo 限制、纯 HTTP 无法更新" 的错误结论:
+  - 根因 1: lock/unlock 曾发送 `X-sap-adt-sessiontype: stateful;enqueue`,实测该头会导致服务端
+    返回 `sap-contextid=0` 并销毁会话(锁随之丢失)。正确值是 `stateful`
+    (Eclipse 日志里的 "stateful, enqueue" 是服务端会话展示标签,不是协议头值)
+  - 根因 2: 单一 cookie jar 把 `sap-contextid` 混进 stateless 请求,会杀掉持锁会话。
+    `AdtHTTP` 已改为 contextid 独立存储、仅随 stateful 请求发送
+  - 会话模型: lock/unlock 走 stateful 会话(持锁),PUT/transportchecks/activation 走 stateless
+    (与 Eclipse 一致),服务端通过 enqueue 锁表验证 URL 上的 lockHandle
+  - `dropSession()` 语义修正: 发送携带 contextid 的 stateless 请求以显式销毁服务端会话
+  - `BWObject.update()` 新增 `activate` 选项,`saveAndActivateDTP()` 不再重复激活
+  - 实战验证: 成功修改 `DTP_ET0916OM0DNHSHAP1BKTB6DJP` 的 ALLOC_NMBR 筛选(新增 P1* 排除)
+    并激活,详见 `docs/VERIFIED_APIS.md` 第 10 节
+- **待办**: 用修复后的会话模型重新验证 TRFN 创建(此前的 "JCo 限制" 结论可能同样源于此 bug)
+
+### 历史更新 (2026-03-11)
 - **BW 对象操作抽象重构**:
   - 新增泛型基类 `BWObject<T>` 统一所有 BW 对象操作
   - 统一类型定义在 `types.ts`

@@ -289,6 +289,84 @@ export class BWAdtClient {
     return quickSearch(this.h, searchTerm, objectType)
   }
 
+  /**
+   * Get Transformations of an InfoProvider - 获取 ADSO 关联的 Transformation
+   *
+   * 通过搜索对象名实现（替代 UI 导航端点 infoproviderstructure/.../trfn）。
+   * 返回的 TRFN title 含 "SOURCE -> TARGET" 关系。
+   *
+   * @param adsoName - ADSO 技术名称
+   * @returns 关联的 Transformation 列表
+   */
+  public async getADSOTransformations(adsoName: string) {
+    const { getTransformationsOf } = await import("./api/search")
+    return getTransformationsOf(this.h, adsoName)
+  }
+
+  /**
+   * Get DTPs of an InfoProvider - 获取 ADSO 关联的 DTP
+   *
+   * 通过搜索对象名实现（替代 UI 导航端点 infoproviderstructure/.../dtpa）。
+   * 返回的 DTP title 含 "SOURCE -> TARGET" 关系。
+   *
+   * @param adsoName - ADSO 技术名称
+   * @returns 关联的 DTP 列表
+   */
+  public async getADSODataTransferProcesses(adsoName: string) {
+    const { getDTPsOf } = await import("./api/search")
+    return getDTPsOf(this.h, adsoName)
+  }
+
+  // ========================================
+  // Data Flow (DMOD) Operations
+  // ========================================
+
+  /**
+   * Get Dataflow Model - 获取对象的数据流血缘图
+   *
+   * 对应请求: GET /sap/bw/modeling/dmod/8TRANSIENT?objecttype={type}&objectname={name}&...
+   *
+   * 从指定对象出发展开上下游关系。返回的节点中,TRFN/DTPA 节点的
+   * description 已自动解析为结构化的 relations 列表 (含 source/target)。
+   *
+   * 方向语义 (业务数据流角度,与 SAP 端点参数名相反):
+   * - "upstream"  : 汇入 root 的来源链 (DataSource → ... → root)
+   * - "downstream": root 流出的目标链 (root → ... → 消费者)
+   * - "both" (默认): 同时向上、向下展开
+   *
+   * @param objectName - 起点对象名称 (如 "ZL_FID40")
+   * @param objectType - 起点对象类型 (默认 "ADSO")
+   * @param options - 展开选项 (direction, levels)
+   * @returns 数据流模型 (含节点和关系)
+   */
+  public async getDataflow(
+    objectName: string,
+    objectType: string = "ADSO",
+    options?: { direction?: "upstream" | "downstream" | "both"; levels?: number }
+  ) {
+    const { getDataflow } = await import("./api/dataflow")
+    return getDataflow(this.h, objectName, objectType, options)
+  }
+
+  /**
+   * Get Dataflow Lineage - 查询从指定来源到指定目标的转换和 DTP
+   *
+   * 典型场景: "查来源是 ZL_FID01 的 ZL_FID40 的转换和 DTP"
+   *
+   * @param targetName - 目标对象名称 (如 "ZL_FID40")
+   * @param sourceName - 源对象名称 (如 "ZL_FID01")
+   * @param targetType - 目标对象类型 (默认 "ADSO")
+   * @returns 匹配的关系列表 (TRFN + DTPA)
+   */
+  public async getDataflowLineage(
+    targetName: string,
+    sourceName: string,
+    targetType: string = "ADSO"
+  ) {
+    const { getDataflowLineage } = await import("./api/dataflow")
+    return getDataflowLineage(this.h, targetName, sourceName, targetType)
+  }
+
   // ========================================
   // Generic CRUD Operations
   // ========================================
@@ -534,6 +612,119 @@ export class BWAdtClient {
   }
 
   /**
+   * Get ADSO Raw XML - 获取 ADSO 原始 XML (供 PUT 使用)
+   */
+  public async getADSOXml(adsoId: string, forceCacheUpdate?: boolean) {
+    const { getADSOXml } = await import("./api/adso")
+    return getADSOXml(this.h, adsoId, forceCacheUpdate)
+  }
+
+  /**
+   * Save and Activate ADSO - 完整的 ADSO 修改保存激活流程
+   *
+   * 对照 Eclipse Communication Log (ZL_FID37 加 field):
+   *   1. lock (stateful)
+   *   2. transportCheck / createTransport (如需要)
+   *   3. PUT .../m?corrNr=&lockHandle= (stateless, 可带 timestamp 头)
+   *   4. activation (stateless)
+   *   5. unlock (stateful)
+   */
+  public async saveAndActivateADSO(
+    adsoId: string,
+    xmlContent: string,
+    options?: {
+      transport?: string
+      transportDescription?: string
+      autoActivate?: boolean
+      timestamp?: string
+    }
+  ) {
+    const {
+      lockADSO,
+      unlockADSO,
+      activateADSO,
+      updateADSO,
+      extractADSOTimestamp
+    } = await import("./api/adso")
+
+    const adsoUri = `/sap/bw/modeling/adso/${adsoId.toLowerCase()}/m`
+    const autoActivate = options?.autoActivate ?? true
+    const timestamp = options?.timestamp ?? extractADSOTimestamp(xmlContent)
+
+    const lockResult = await lockADSO(this.h, adsoId)
+
+    try {
+      let transport = options?.transport || lockResult.corrNr
+      if (!transport) {
+        const check = await this.transportCheck(adsoUri)
+        if (check.RECORDING === "X") {
+          transport = await this.createTransport(
+            adsoUri,
+            options?.transportDescription || "API ADSO update"
+          )
+        }
+      }
+
+      const updateResult = await updateADSO(this.h, adsoId, xmlContent, {
+        lockHandle: lockResult.lockHandle,
+        corrNr: transport,
+        timestamp
+      })
+
+      let activateResult
+      if (autoActivate) {
+        activateResult = await activateADSO(
+          this.h,
+          adsoId,
+          lockResult.lockHandle,
+          transport || ""
+        )
+      }
+
+      return {
+        lockHandle: lockResult.lockHandle,
+        transport,
+        updateResult,
+        activated: autoActivate,
+        activateResult
+      }
+    } finally {
+      await unlockADSO(this.h, adsoId)
+    }
+  }
+
+  /**
+   * Add Field to ADSO - 向 ADSO 添加 field 类型本地字段并保存激活
+   *
+   * @param adsoId - ADSO 技术名称
+   * @param field - field 类型字段定义
+   * @param options - 传输/激活选项
+   */
+  public async addADSOField(
+    adsoId: string,
+    field: {
+      name: string
+      dataType?: "CHAR" | "NUMC" | "DATS" | "TIMS" | "DEC" | "CUKY" | "CURR" | "QUAN" | "INT4" | "FLTP"
+      length?: number
+      label?: string
+      dimension?: string
+      semanticType?: string
+      precision?: number
+      scale?: number
+    },
+    options?: {
+      transport?: string
+      transportDescription?: string
+      autoActivate?: boolean
+    }
+  ) {
+    const { getADSOXml, addADSOFieldToXml } = await import("./api/adso")
+    const xml = await getADSOXml(this.h, adsoId, true)
+    const nextXml = addADSOFieldToXml(xml, field)
+    return this.saveAndActivateADSO(adsoId, nextXml, options)
+  }
+
+  /**
    * Get ADSO Configuration - 获取 ADSO 配置信息
    * 对应请求: GET /sap/bw/modeling/adso/{adso_id}/configuration
    *
@@ -770,9 +961,9 @@ export class BWAdtClient {
    * @param trfnId - Transformation ID
    * @returns 激活结果
    */
-  public async activateTransformation(trfnId: string) {
+  public async activateTransformation(trfnId: string, lockHandle?: string) {
     const { activateTransformation } = await import("./api/transformation")
-    return activateTransformation(this.h, trfnId)
+    return activateTransformation(this.h, trfnId, lockHandle || "")
   }
 
   /**
@@ -836,6 +1027,230 @@ export class BWAdtClient {
   }
 
   /**
+   * Get Transformation Raw XML - 获取原始 XML (供 PUT 使用)
+   */
+  public async getTransformationXml(
+    trfnId: string,
+    version: "m" | "a" | "d" = "m",
+    options?: { forceCacheUpdate?: boolean }
+  ) {
+    const { getTransformationXml } = await import("./api/transformation")
+    return getTransformationXml(this.h, trfnId, version, options)
+  }
+
+  /**
+   * Save and Activate Transformation - 完整的 TRFN 修改保存激活流程
+   *
+   * 对照 Eclipse setFields Communication Log:
+   *   lock → transportchecks → PUT (lockHandle + Transport-Lock-Holder + timestamp) → activation → unlock
+   */
+  public async saveAndActivateTransformation(
+    trfnId: string,
+    xmlContent: string,
+    options?: {
+      transport?: string
+      transportDescription?: string
+      autoActivate?: boolean
+      timestamp?: string
+    }
+  ) {
+    const {
+      lockTransformation,
+      unlockTransformation,
+      activateTransformation,
+      updateTransformation,
+      extractTransformationTimestamp
+    } = await import("./api/transformation")
+
+    const trfnUri = `/sap/bw/modeling/trfn/${trfnId.toLowerCase()}/m`
+    const autoActivate = options?.autoActivate ?? true
+    const timestamp =
+      options?.timestamp ?? extractTransformationTimestamp(xmlContent)
+
+    const lockResult = await lockTransformation(this.h, trfnId)
+
+    try {
+      let transport = options?.transport || lockResult.corrNr
+      if (!transport) {
+        const check = await this.transportCheck(trfnUri)
+        if (check.RECORDING === "X") {
+          transport = await this.createTransport(
+            trfnUri,
+            options?.transportDescription || "API TRFN update"
+          )
+        }
+      }
+
+      const updateResult = await updateTransformation(
+        this.h,
+        trfnId,
+        xmlContent,
+        {
+          lockHandle: lockResult.lockHandle,
+          corrNr: transport,
+          timestamp
+        }
+      )
+
+      let activateResult
+      if (autoActivate) {
+        activateResult = await activateTransformation(
+          this.h,
+          trfnId,
+          lockResult.lockHandle
+        )
+      }
+
+      return {
+        lockHandle: lockResult.lockHandle,
+        transport,
+        updateResult,
+        activated: autoActivate,
+        activateResult
+      }
+    } finally {
+      await unlockTransformation(this.h, trfnId)
+    }
+  }
+
+  /**
+   * Set End Routine Fields - 将目标字段勾进结束例程 setFields 并保存激活
+   *
+   * 对照 Eclipse SetGlobalRoutineFieldsAction:
+   * 在 END routine 增加 elementRef, 必要时补 StepNoUpdate 规则。
+   */
+  public async setEndRoutineFields(
+    trfnId: string,
+    fieldNames: string[],
+    options?: {
+      transport?: string
+      transportDescription?: string
+      autoActivate?: boolean
+    }
+  ) {
+    const {
+      getTransformationXml,
+      addFieldToEndRoutine
+    } = await import("./api/transformation")
+
+    let xml = await getTransformationXml(this.h, trfnId, "m", {
+      forceCacheUpdate: true
+    })
+    for (const name of fieldNames) {
+      xml = addFieldToEndRoutine(xml, name)
+    }
+    return this.saveAndActivateTransformation(trfnId, xml, {
+      ...options,
+      transportDescription:
+        options?.transportDescription ||
+        `API set end routine fields: ${fieldNames.join(",")}`
+    })
+  }
+
+  /**
+   * Add Transformation Rule (纯 XML 辅助) - 往 TRFN XML 插入一条 DIRECT 映射 rule
+   *
+   * 对照 Eclipse (2026-07-16 PUT body): 在 Rules group (type="S") 中插入
+   * sourceField → targetField 的 StepDirect 规则。source/target 字段必须已存在于
+   * TRFN 结构 (ADSO/DataSource 加字段并同步后即满足)。
+   *
+   * 返回新 XML (不触发网络), 配合 saveAndActivateTransformation 保存。
+   */
+  public addTransformationRule(
+    trfnXml: string,
+    sourceField: string,
+    targetField?: string
+  ): string {
+    // 纯函数, 但保持与同类 helper 一致的实例方法风格; 动态 import 避免顶层依赖
+    const transformation = require("./api/transformation") as typeof import("./api/transformation")
+    return transformation.addTransformationRule(trfnXml, sourceField, targetField)
+  }
+
+  /**
+   * Auto Map Transformation Fields (纯 XML 辅助) - 批量同名 source→target 映射
+   *
+   * 扫描 source/target segment 同名字段, 为每个未映射的生成 DIRECT rule
+   * (模拟 Eclipse "Auto Map")。返回 { xml, mapped }。
+   */
+  public autoMapTransformationFields(
+    trfnXml: string
+  ): { xml: string; mapped: string[] } {
+    const transformation = require("./api/transformation") as typeof import("./api/transformation")
+    return transformation.autoMapTransformationFields(trfnXml)
+  }
+
+  /**
+   * Add Transformation Rule and Save - 一站式: 加映射 rule 并保存激活
+   *
+   * 读取当前 TRFN → 插入 rule(s) → saveAndActivate。
+   *
+   * @param trfnId - TRFN ID
+   * @param rules - 映射规则列表 [{ source, target? }]; target 省略则同名
+   * @param options - transport / autoActivate
+   */
+  public async addTransformationRulesAndSave(
+    trfnId: string,
+    rules: Array<{ source: string; target?: string }>,
+    options?: {
+      transport?: string
+      transportDescription?: string
+      autoActivate?: boolean
+    }
+  ) {
+    const {
+      getTransformationXml,
+      addTransformationRule
+    } = await import("./api/transformation")
+
+    let xml = await getTransformationXml(this.h, trfnId, "m", {
+      forceCacheUpdate: true
+    })
+    for (const r of rules) {
+      xml = addTransformationRule(xml, r.source, r.target)
+    }
+    return this.saveAndActivateTransformation(trfnId, xml, {
+      ...options,
+      transportDescription:
+        options?.transportDescription ||
+        `API add rules: ${rules.map(r => `${r.source}→${r.target || r.source}`).join(",")}`
+    })
+  }
+
+  /**
+   * Auto Map and Save - 一站式: 批量同名映射并保存激活
+   *
+   * @param trfnId - TRFN ID
+   * @param options - transport / autoActivate
+   * @returns saveAndActivate 结果 + 已映射字段列表
+   */
+  public async autoMapTransformationFieldsAndSave(
+    trfnId: string,
+    options?: {
+      transport?: string
+      transportDescription?: string
+      autoActivate?: boolean
+    }
+  ) {
+    const {
+      getTransformationXml,
+      autoMapTransformationFields
+    } = await import("./api/transformation")
+
+    const xml = await getTransformationXml(this.h, trfnId, "m", {
+      forceCacheUpdate: true
+    })
+    const { xml: mappedXml, mapped } = autoMapTransformationFields(xml)
+
+    const result = await this.saveAndActivateTransformation(trfnId, mappedXml, {
+      ...options,
+      transportDescription:
+        options?.transportDescription ||
+        `API auto map: ${mapped.length} fields`
+    })
+    return { ...result, mapped }
+  }
+
+  /**
    * Get Transformation Class Metadata - 获取转换关联的 ABAP 类元数据
    *
    * 从转换元数据中提取 abapProgram 属性，获取对应的 ABAP 类信息
@@ -875,7 +1290,7 @@ export class BWAdtClient {
   public async getTransformationClassSource(trfnId: string, options?: {
     version?: "m" | "a" | "d"
     forceCacheUpdate?: boolean
-    classVersion?: "active" | "inactive"
+    classVersion?: "active" | "inactive" | "workingArea"
   }) {
     const { getTransformation, extractAbapClassName } = await import("./api/transformation")
     const { getAbapClassSource } = await import("./api/abapClass")
@@ -890,6 +1305,68 @@ export class BWAdtClient {
     }
 
     return getAbapClassSource(this.h, className, options?.classVersion)
+  }
+
+  /**
+   * Save and Activate Transformation Class Source - 保存并激活转换例程 ABAP 类
+   *
+   * 对照 Eclipse 结束例程编辑器保存/激活 Communication Log:
+   *   1. LOCK class (_action=LOCK&accessMode=MODIFY) [stateful]
+   *   2. PUT .../source/main?lockHandle=...         [stateless]
+   *   3. UNLOCK class (_action=UNLOCK)               [stateful]
+   *   4. POST /sap/bc/adt/activation                 [stateless]
+   *   5. (关闭编辑器后) lock TRFN → PUT → modeling/activation → unlock
+   *
+   * @param trfnId - Transformation ID
+   * @param sourceCode - 完整类源码
+   * @param options.activateTransformation - 是否接着激活 TRFN (默认 true)
+   */
+  public async saveAndActivateTransformationClassSource(
+    trfnId: string,
+    sourceCode: string,
+    options?: {
+      activateTransformation?: boolean
+      transport?: string
+      transportDescription?: string
+    }
+  ) {
+    const { getTransformation, extractAbapClassName } = await import(
+      "./api/transformation"
+    )
+    const { saveAndActivateAbapClassSource } = await import("./api/abapClass")
+
+    const trfnRaw = await getTransformation(this.h, trfnId, "m", {
+      forceCacheUpdate: true
+    })
+    const className = extractAbapClassName(trfnRaw)
+    if (!className) {
+      throw new Error(`No ABAP class found for transformation ${trfnId}`)
+    }
+
+    const classResult = await saveAndActivateAbapClassSource(
+      this.h,
+      className,
+      sourceCode
+    )
+
+    const activateTrfn = options?.activateTransformation ?? true
+    let trfnResult
+    if (activateTrfn) {
+      const xml = await this.getTransformationXml(trfnId, "m", {
+        forceCacheUpdate: true
+      })
+      trfnResult = await this.saveAndActivateTransformation(trfnId, xml, {
+        transport: options?.transport,
+        transportDescription:
+          options?.transportDescription || "API activate after routine edit"
+      })
+    }
+
+    return {
+      className,
+      classResult,
+      trfnResult
+    }
   }
 
   /**
@@ -1142,6 +1619,456 @@ export class BWAdtClient {
   public async executeDTP(dtpId: string) {
     const { executeDTP } = await import("./api/dtp")
     return executeDTP(this.h, dtpId)
+  }
+
+  /**
+   * Update DTP - 更新 DTP 内容
+   * 对应请求: PUT /sap/bw/modeling/dtpa/{dtp_id}/m?corrNr={tr}&lockHandle={handle}
+   *
+   * @param dtpId - DTP ID
+   * @param xmlContent - DTP XML 内容
+   * @param lockHandle - 锁定句柄
+   * @param transport - 传输请求号 (作为 corrNr 传递)
+   * @returns 更新结果
+   */
+  public async updateDTP(
+    dtpId: string,
+    xmlContent: string,
+    lockHandle: string,
+    transport?: string
+  ) {
+    const { BWObjectType, createBWObject } = await import("./api/bwObject")
+    const obj = createBWObject(this.h, BWObjectType.DTP, dtpId)
+    return obj.update(xmlContent, { lockHandle, transport })
+  }
+
+  // ========================================
+  // Transport (CTS) Operations
+  // ========================================
+
+  /**
+   * Transport Check - 检查对象保存/修改是否需要传输请求
+   * 对应请求: POST /sap/bc/adt/cts/transportchecks
+   *
+   * 返回可用的传输请求列表 (TRANSPORTS) 和是否需要记录 (RECORDING)。
+   *
+   * @param objectUri - 对象 URI (如 "/sap/bw/modeling/dtpa/dtp_xxx/m")
+   * @param devclass - 开发包 (可选)
+   * @param operation - 操作类型 (默认 "I"=插入)
+   * @returns 传输检查信息
+   */
+  public async transportCheck(
+    objectUri: string,
+    devclass: string = "",
+    operation: string = "I"
+  ) {
+    const { transportCheck } = await import("./api/transport")
+    return transportCheck(this.h, objectUri, devclass, operation)
+  }
+
+  /**
+   * Create Transport - 新建传输请求
+   * 对应请求: POST /sap/bc/adt/cts/transports
+   *
+   * @param refUri - 参考对象 URI
+   * @param description - 传输请求描述
+   * @param devclass - 开发包 (可选)
+   * @returns 新建的传输请求号 (如 "BPDK903265")
+   */
+  public async createTransport(
+    refUri: string,
+    description: string,
+    devclass: string = ""
+  ) {
+    const { createTransport } = await import("./api/transport")
+    return createTransport(this.h, refUri, description, devclass)
+  }
+
+  /**
+   * Save and Activate DTP - 完整的 DTP 修改保存激活流程
+   *
+   * 封装 Eclipse 的完整写操作序列 (会话模型见 BWObject.lock 注释):
+   *   1. lock (stateful 会话, 持锁至 unlock)
+   *   2. transportCheck (stateless, 检查是否需要 TR)
+   *   3. createTransport (如需要,新建 TR)
+   *   4. PUT update (stateless, lockHandle 由服务端查 enqueue 锁表验证)
+   *   5. activation (stateless)
+   *   6. unlock (回到持锁的 stateful 会话)
+   *
+   * @param dtpId - DTP ID
+   * @param xmlContent - 修改后的 DTP XML 内容
+   * @param options - 选项 (transport 已有TR号 / autoActivate 是否自动激活)
+   * @returns 保存激活结果 (含使用的 transport 号)
+   */
+  public async saveAndActivateDTP(
+    dtpId: string,
+    xmlContent: string,
+    options?: {
+      transport?: string         // 已有的 TR 号;不提供则自动新建
+      transportDescription?: string // 新建 TR 的描述 (默认 "API update")
+      autoActivate?: boolean     // 是否自动激活 (默认 true)
+    }
+  ) {
+    const { lockDTP, unlockDTP, activateDTP } = await import("./api/dtp")
+    const { BWObjectType, createBWObject } = await import("./api/bwObject")
+
+    const dtpUri = `/sap/bw/modeling/dtpa/${dtpId.toLowerCase()}/m`
+    const autoActivate = options?.autoActivate ?? true
+
+    // 1. 锁定 (lock 内部使用 stateful 会话, AdtHTTP 通过 sap-contextid 保持该会话;
+    //    后续 stateless 请求不携带 contextid, 不会破坏持锁会话)
+    const lockResult = await lockDTP(this.h, dtpId)
+
+    try {
+      // 2. 确定 TR 号 (lock 返回的 corrNr 优先: 对象已绑定的 TR)
+      let transport = options?.transport || lockResult.corrNr
+      if (!transport) {
+        // 检查是否需要 TR
+        const check = await this.transportCheck(dtpUri)
+        if (check.RECORDING === "X") {
+          // 需要记录,新建 TR
+          transport = await this.createTransport(
+            dtpUri,
+            options?.transportDescription || "API update"
+          )
+        }
+      }
+
+      // 3. 保存 (PUT update, stateless; 激活由下一步带 corrNr 统一执行)
+      const obj = createBWObject(this.h, BWObjectType.DTP, dtpId)
+      await obj.update(xmlContent, {
+        lockHandle: lockResult.lockHandle,
+        transport,
+        activate: false
+      })
+
+      // 4. 激活
+      let activateResult
+      if (autoActivate) {
+        activateResult = await activateDTP(this.h, dtpId, lockResult.lockHandle, transport || "")
+      }
+
+      return {
+        lockHandle: lockResult.lockHandle,
+        transport,
+        activated: autoActivate,
+        activateResult
+      }
+    } finally {
+      // 5. 解锁 (回到持锁的 stateful 会话)
+      await unlockDTP(this.h, dtpId)
+    }
+  }
+
+  // ========================================
+  // DataSource (RSDS) Operations
+  // ========================================
+
+  /**
+   * Get DataSource (raw) - 获取 DataSource 原始元数据 (fullParse 后对象)
+   * 对应请求: GET /sap/bw/modeling/rsds/{datasource}/{sourceSystem}/m
+   *
+   * @param datasource - DataSource 技术名 (如 "ZBW_ZFIVTASK_STAGE_H")
+   * @param sourceSystem - 源系统逻辑名 (如 "S4DCLNT300")
+   * @param forceCacheUpdate - 是否强制更新缓存
+   */
+  public async getDataSource(
+    datasource: string,
+    sourceSystem: string,
+    forceCacheUpdate?: boolean
+  ) {
+    const { getDataSource } = await import("./api/datasource")
+    return getDataSource(this.h, datasource, sourceSystem, forceCacheUpdate)
+  }
+
+  /**
+   * Get DataSource XML (raw string) - 获取 DataSource 原始 XML 字符串
+   * 用于 PUT 写操作前读取当前内容。
+   *
+   * @param datasource - DataSource 技术名
+   * @param sourceSystem - 源系统逻辑名
+   * @param forceCacheUpdate - 是否强制更新缓存
+   */
+  public async getDataSourceXml(
+    datasource: string,
+    sourceSystem: string,
+    forceCacheUpdate?: boolean
+  ) {
+    const { getDataSourceXml } = await import("./api/datasource")
+    return getDataSourceXml(this.h, datasource, sourceSystem, forceCacheUpdate)
+  }
+
+  /**
+   * Get DataSource Details (parsed) - 获取解析后的 DataSource 详情
+   *
+   * @param datasource - DataSource 技术名
+   * @param sourceSystem - 源系统逻辑名
+   * @param forceCacheUpdate - 是否强制更新缓存
+   */
+  public async getDataSourceDetails(
+    datasource: string,
+    sourceSystem: string,
+    forceCacheUpdate?: boolean
+  ) {
+    const { getDataSourceDetails } = await import("./api/datasource")
+    return getDataSourceDetails(this.h, datasource, sourceSystem, forceCacheUpdate)
+  }
+
+  /**
+   * Get DataSource Versions - 获取 DataSource 版本历史
+   * 对应请求: GET /sap/bw/modeling/rsds/{datasource}/{sourceSystem}/versions
+   *
+   * @param datasource - DataSource 技术名
+   * @param sourceSystem - 源系统逻辑名
+   */
+  public async getDataSourceVersions(
+    datasource: string,
+    sourceSystem: string
+  ) {
+    const { getDataSourceVersions } = await import("./api/datasource")
+    return getDataSourceVersions(this.h, datasource, sourceSystem)
+  }
+
+  /**
+   * Get DataSource Fields - 解析 DataSource 的字段列表
+   *
+   * @param datasource - DataSource 技术名
+   * @param sourceSystem - 源系统逻辑名
+   * @param forceCacheUpdate - 是否强制更新缓存
+   */
+  public async getDataSourceFields(
+    datasource: string,
+    sourceSystem: string,
+    forceCacheUpdate?: boolean
+  ) {
+    const { getDataSourceFields } = await import("./api/datasource")
+    return getDataSourceFields(this.h, datasource, sourceSystem, forceCacheUpdate)
+  }
+
+  /**
+   * Lock DataSource - 锁定 DataSource
+   * 对应请求: POST /sap/bw/modeling/rsds/{datasource}/{sourceSystem}?action=lock
+   * 会话: stateful
+   *
+   * @param datasource - DataSource 技术名
+   * @param sourceSystem - 源系统逻辑名
+   */
+  public async lockDataSource(datasource: string, sourceSystem: string) {
+    const { lockDataSource } = await import("./api/datasource")
+    return lockDataSource(this.h, datasource, sourceSystem)
+  }
+
+  /**
+   * Unlock DataSource - 解锁 DataSource
+   * 对应请求: POST /sap/bw/modeling/rsds/{datasource}/{sourceSystem}?action=unlock
+   * 会话: stateful
+   *
+   * @param datasource - DataSource 技术名
+   * @param sourceSystem - 源系统逻辑名
+   */
+  public async unlockDataSource(datasource: string, sourceSystem: string) {
+    const { unlockDataSource } = await import("./api/datasource")
+    return unlockDataSource(this.h, datasource, sourceSystem)
+  }
+
+  /**
+   * Update DataSource (PUT) - 保存修改后的 DataSource XML
+   * 对应请求: PUT /sap/bw/modeling/rsds/{datasource}/{sourceSystem}/m?lockHandle={h}
+   * 会话: stateless (实测不带 corrNr, TR 走 Transport-Lock-Holder header)
+   *
+   * @param datasource - DataSource 技术名
+   * @param sourceSystem - 源系统逻辑名
+   * @param xmlContent - 修改后的 DataSource XML 内容
+   * @param options - lockHandle (必填) / transport / timestamp
+   */
+  public async updateDataSource(
+    datasource: string,
+    sourceSystem: string,
+    xmlContent: string,
+    options: { lockHandle: string; transport?: string; timestamp?: string; headers?: Record<string, string> }
+  ) {
+    const { updateDataSource } = await import("./api/datasource")
+    return updateDataSource(this.h, datasource, sourceSystem, xmlContent, options)
+  }
+
+  /**
+   * Activate DataSource - 激活 DataSource
+   * 对应请求: POST /sap/bw/modeling/activation
+   * 会话: stateless
+   *
+   * @param datasource - DataSource 技术名
+   * @param sourceSystem - 源系统逻辑名
+   * @param lockHandle - 锁定句柄
+   * @param corrNr - 传输请求号 (可选)
+   */
+  public async activateDataSource(
+    datasource: string,
+    sourceSystem: string,
+    lockHandle: string = "",
+    corrNr: string = ""
+  ) {
+    const { activateDataSource } = await import("./api/datasource")
+    return activateDataSource(this.h, datasource, sourceSystem, lockHandle, corrNr)
+  }
+
+  /**
+   * Merge DataSource Proposal - 合并 ODP 提案 (改 ODP 适配器后的字段同步)
+   * 对应请求: POST /sap/bw/modeling/rsdsint/proposal/{ds}/{src}?action=merge
+   * 会话: stateless
+   *
+   * 把当前 DataSource XML 发给服务端, 服务端合并外部 ODP 字段结构后返回新的 XML。
+   * 返回的 XML 可直接用作 PUT body。
+   *
+   * @param datasource - DataSource 技术名
+   * @param sourceSystem - 源系统逻辑名
+   * @param dataSourceXml - 当前 DataSource XML (通常来自 getDataSourceXml)
+   */
+  public async mergeDataSourceProposal(
+    datasource: string,
+    sourceSystem: string,
+    dataSourceXml: string
+  ) {
+    const { mergeDataSourceProposal } = await import("./api/datasource")
+    return mergeDataSourceProposal(this.h, datasource, sourceSystem, dataSourceXml)
+  }
+
+  /**
+   * Save and Activate DataSource - 一站式保存激活 DataSource
+   *
+   * 封装完整写操作流程 (会话模型与 DTP/ADSO 一致):
+   *   1. lock (stateful, 建立 sap-contextid 持锁会话)
+   *   2. 确定 TR 号 (lock 返回 corrNr 优先; 否则 transportCheck → createTransport)
+   *   3. PUT update (stateless, 仅 lockHandle; timestamp 自动从 xml 提取)
+   *   4. activation (stateless)
+   *   5. unlock (回到持锁的 stateful 会话)
+   *
+   * @param datasource - DataSource 技术名
+   * @param sourceSystem - 源系统逻辑名
+   * @param xmlContent - 修改后的 DataSource XML 内容
+   * @param options - transport 已有TR号 / transportDescription / autoActivate
+   */
+  public async saveAndActivateDataSource(
+    datasource: string,
+    sourceSystem: string,
+    xmlContent: string,
+    options?: {
+      transport?: string
+      transportDescription?: string
+      autoActivate?: boolean
+    }
+  ) {
+    const {
+      lockDataSource,
+      unlockDataSource,
+      activateDataSource,
+      updateDataSource,
+      extractDataSourceTimestamp
+    } = await import("./api/datasource")
+
+    const dsUri = `/sap/bw/modeling/rsds/${datasource.toLowerCase()}/${sourceSystem.toLowerCase()}/m`
+    const autoActivate = options?.autoActivate ?? true
+
+    // 1. 锁定
+    const lockResult = await lockDataSource(this.h, datasource, sourceSystem)
+
+    try {
+      // 2. 确定 TR 号
+      let transport = options?.transport || lockResult.corrNr
+      if (!transport) {
+        const check = await this.transportCheck(dsUri)
+        if (check.RECORDING === "X") {
+          transport = await this.createTransport(
+            dsUri,
+            options?.transportDescription || "API update DataSource"
+          )
+        }
+      }
+
+      // 3. PUT update (timestamp 自动提取)
+      const timestamp = extractDataSourceTimestamp(xmlContent)
+      await updateDataSource(this.h, datasource, sourceSystem, xmlContent, {
+        lockHandle: lockResult.lockHandle,
+        transport,
+        timestamp
+      })
+
+      // 4. 激活
+      let activateResult
+      if (autoActivate) {
+        activateResult = await activateDataSource(
+          this.h,
+          datasource,
+          sourceSystem,
+          lockResult.lockHandle,
+          transport || ""
+        )
+      }
+
+      return {
+        lockHandle: lockResult.lockHandle,
+        transport,
+        activated: autoActivate,
+        activateResult
+      }
+    } finally {
+      // 5. 解锁
+      await unlockDataSource(this.h, datasource, sourceSystem)
+    }
+  }
+
+  // ========================================
+  // DataSource Replication Operations
+  // ========================================
+
+  /**
+   * Get Replication Info - 查询数据源复制信息 (复制预检)
+   * 对应请求: GET /sap/bw/modeling/lsysint/replication/{sourceSystem}?datasource={ds}
+   *
+   * datasource 自动补齐到 30 字符定长。
+   *
+   * @param sourceSystem - 源系统逻辑名 (如 "S4DCLNT300")
+   * @param datasource - DataSource 技术名
+   */
+  public async getReplicationInfo(sourceSystem: string, datasource: string) {
+    const { getReplicationInfo } = await import("./api/replication")
+    return getReplicationInfo(this.h, sourceSystem, datasource)
+  }
+
+  /**
+   * Replicate DataSource - 触发数据源复制
+   * 对应请求: POST /sap/bw/modeling/lsysint/replication/{sourceSystem}?datasource=...&activate=&background=
+   *
+   * 请求体必须回传预检 (getReplicationInfo) 返回的 replicationTask。
+   *
+   * @param sourceSystem - 源系统逻辑名
+   * @param datasource - DataSource 技术名
+   * @param tasks - 从 getReplicationInfo 获取的任务
+   * @param options - activate 策略 / 是否后台执行
+   */
+  public async replicateDataSource(
+    sourceSystem: string,
+    datasource: string,
+    tasks: import("./api/types").ReplicationTask[],
+    options?: { activate?: string; background?: boolean }
+  ) {
+    const { replicateDataSource } = await import("./api/replication")
+    return replicateDataSource(this.h, sourceSystem, datasource, tasks, options)
+  }
+
+  /**
+   * Replicate DataSource (full) - 一站式: 预检 → 触发复制
+   *
+   * @param sourceSystem - 源系统逻辑名
+   * @param datasource - DataSource 技术名
+   * @param options - activate 策略 / 是否后台执行
+   */
+  public async replicateDataSourceFull(
+    sourceSystem: string,
+    datasource: string,
+    options?: { activate?: string; background?: boolean }
+  ) {
+    const { replicateDataSourceFull } = await import("./api/replication")
+    return replicateDataSourceFull(this.h, sourceSystem, datasource, options)
   }
 
   // ========================================

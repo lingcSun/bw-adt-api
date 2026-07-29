@@ -169,8 +169,9 @@ const versions = await adso.getVersions()
 |------|-----------|------|------|
 | 获取 DTP | GET | `/sap/bw/modeling/dtpa/{id}/m` | 获取 DTP 详细信息 |
 | 获取 DTP 版本 | GET | `/sap/bw/modeling/dtpa/{id}/versions` | 获取 DTP 版本历史 |
-| 锁定 DTP | POST | `/sap/bw/modeling/dtpa/{id}?action=lock` | 锁定 DTP 以便编辑 |
-| 解锁 DTP | POST | `/sap/bw/modeling/dtpa/{id}?action=unlock` | 解锁 DTP |
+| 锁定 DTP | POST | `/sap/bw/modeling/dtpa/{id}?action=lock` | 锁定 DTP (stateful 会话, 见下方会话模型) |
+| 解锁 DTP | POST | `/sap/bw/modeling/dtpa/{id}?action=unlock` | 解锁 DTP (回到持锁 stateful 会话) |
+| **更新 DTP** | **PUT** | **`/sap/bw/modeling/dtpa/{id}/m?lockHandle={h}[&corrNr={tr}]`** | **保存修改后的 DTP XML (stateless, 已实测)** |
 | 激活 DTP | POST | `/sap/bw/modeling/activation` | 激活 DTP |
 | 检查 DTP | POST | `/sap/bw/modeling/activation` | 检查 DTP 一致性 |
 | 执行 DTP | POST | `/sap/bw/modeling/dtpa/{id}?action=execute` | 执行数据加载 |
@@ -178,6 +179,33 @@ const versions = await adso.getVersions()
 | **验证新 DTP 名称** | **POST** | **`/sap/bw/modeling/validation`** | **验证新名称是否可用** |
 | **验证 DTP 可删除** | **POST** | **`/sap/bw/modeling/validation`** | **验证是否可删除** |
 | **验证 DTP 可激活** | **POST** | **`/sap/bw/modeling/validation`** | **验证是否可激活** |
+
+> **写操作会话模型 (2026-07-15 实测)**: lock/unlock 发送 `X-sap-adt-sessiontype: stateful`
+> (服务端通过 `sap-contextid` 保持持锁会话; **不要**发 `stateful;enqueue`,该头会销毁会话);
+> PUT/activation 走 stateless 且不携带 contextid,服务端通过 enqueue 锁表验证 lockHandle。
+> 一站式封装: `client.saveAndActivateDTP(id, xml, options)`。详见 `VERIFIED_APIS.md` 第 10 节。
+
+### 7. DataSource (RSDS) 操作 (`datasource.ts`, `replication.ts`) ✅
+
+> ⚠️ **双段标识**: DataSource URL 同时带 datasource 名和源系统名
+> (`/rsds/{datasource}/{sourceSystem}/...`), 与 ADSO/DTP 的单段 id 不同。
+> `bwObject.ts` 里 `DATA_SOURCE` 端点已从猜测的 `/datasource` 修正为实测的 `/rsds`。
+
+| 功能 | HTTP 方法 | 端点 | 描述 |
+|------|-----------|------|------|
+| 获取 DataSource | GET | `/sap/bw/modeling/rsds/{ds}/{src}/m` | DataSource 元数据 (rsds-v1_1_0) |
+| 获取版本历史 | GET | `/sap/bw/modeling/rsds/{ds}/{src}/versions` | 版本历史 (版本字符在 `<atom:id>`, 大写 A/M/D) |
+| 锁定 DataSource | POST | `/sap/bw/modeling/rsds/{ds}/{src}?action=lock` | stateful 会话 |
+| 解锁 DataSource | POST | `/sap/bw/modeling/rsds/{ds}/{src}?action=unlock` | stateful 会话 |
+| **更新 DataSource** | **PUT** | **`/sap/bw/modeling/rsds/{ds}/{src}/m?lockHandle={h}`** | **stateless (实测不带 corrNr, TR 走 Transport-Lock-Holder header)** |
+| 激活 DataSource | POST | `/sap/bw/modeling/activation` | stateless |
+| **复制预检** | **GET** | **`/sap/bw/modeling/lsysint/replication/{src}?datasource={ds}`** | **返回 replicationTask (datasource 自动补 30 字符定长)** |
+| **触发复制** | **POST** | **`/sap/bw/modeling/lsysint/replication/{src}?datasource={ds}&activate=changed&background=true`** | **请求体回传 replicationTask, 响应返回 job** |
+| ODP proposal/merge | POST | `/sap/bw/modeling/rsdsint/proposal/{ds}/{src}?action=merge` | **改 ODP 后字段同步** (请求 `rsds+xml` → 响应 `rsdsint+xml`, 响应可直接作 PUT body) |
+
+> Content-Type: `application/vnd.sap.bw.modeling.rsds-v1_1_0+xml`
+> 一站式封装: `client.saveAndActivateDataSource(ds, src, xml, options)` / `client.replicateDataSourceFull(...)`
+> 详见 `VERIFIED_APIS.md` 第 15-17 节。
 
 ## 使用示例
 

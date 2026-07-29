@@ -3,10 +3,15 @@
 // Core modules
 export * from "./abapClass"
 export * from "./common"
+export * from "./dataflow"
+export * from "./datasource"
 export * from "./ddic"
+export * from "./replication"
 export * from "./repository"
 export * from "./systemInfo"
 export * from "./search"
+export * from "./transport"
+// search.ts 通过 export * 已导出 getTransformationsOf / getDTPsOf
 
 // Generic BW Object base class and unified types
 export * from "./bwObject"
@@ -21,7 +26,8 @@ export type {
   ADSOConfiguration,
   NodePathEntry,
   CreateADSOOptions,
-  UpdateADSOOptions
+  UpdateADSOOptions,
+  ADSOFieldDefinition
 } from "./adso"
 
 export type {
@@ -57,6 +63,45 @@ export type {
   GetInfoObjectOptions
 } from "./infoobject"
 
+export type {
+  DataSourceDetails,
+  DataSourceField,
+  DataSourceVersion,
+  ReplicationTask,
+  ReplicationResult
+} from "./types"
+
+// Export all functions (using wildcard for functions only)
+export {
+  getDataSource,
+  getDataSourceXml,
+  getDataSourceDetails,
+  getDataSourceVersions,
+  getDataSourceFields,
+  lockDataSource,
+  unlockDataSource,
+  updateDataSource,
+  activateDataSource,
+  mergeDataSourceProposal,
+  parseDataSourceDetails,
+  parseDataSourceFields,
+  parseDataSourceVersions,
+  extractDataSourceTimestamp,
+  RSDS_CONTENT_TYPE,
+  RSDS_ACCEPT,
+  RSDS_PROPOSAL_REQUEST_CONTENT_TYPE,
+  RSDS_PROPOSAL_RESPONSE_CONTENT_TYPE
+} from "./datasource"
+
+export {
+  getReplicationInfo,
+  replicateDataSource,
+  replicateDataSourceFull,
+  buildReplicationRequestBody,
+  parseReplicationTasks,
+  parseReplicationResult
+} from "./replication"
+
 // Export all functions (using wildcard for functions only)
 export {
   lockADSO,
@@ -68,6 +113,7 @@ export {
   getADSOVersions,
   getADSOConfiguration,
   getADSOTables,
+  getADSOXml,
   updateADSO,
   createADSO,
   getADSONodePath,
@@ -77,13 +123,18 @@ export {
   validateADSOExists,
   validateADSONewName,
   validateADSOCanDelete,
-  validateADSOCanActivate
+  validateADSOCanActivate,
+  buildADSOFieldElementXml,
+  addADSOFieldToXml,
+  removeADSOFieldFromXml,
+  extractADSOTimestamp
 } from "./adso"
 
 export {
   lockTransformation,
   unlockTransformation,
   getTransformation,
+  getTransformationXml,
   getTransformationDetails,
   getTransformationVersions,
   checkTransformation,
@@ -92,6 +143,12 @@ export {
   parseTransformationSettings,
   extractAbapClassName,
   extractRoutineMethodName,
+  extractTransformationTimestamp,
+  addFieldToEndRoutine,
+  removeFieldFromEndRoutine,
+  isEndRoutineFieldSelected,
+  addTransformationRule,
+  autoMapTransformationFields,
   switchTransformationRuntime,
   hasStartRoutine,
   hasEndRoutine,

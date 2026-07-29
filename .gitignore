@@ -13,5 +13,6 @@ coverage
 .vscode/launch.json
 
 .claude/
-communation logs/
+.zcode/
+Communication Logs/
 

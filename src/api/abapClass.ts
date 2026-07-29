@@ -1,6 +1,6 @@
 import * as t from "io-ts"
 import { fullParse, xmlNodeAttr, xmlArray, xmlNode, orUndefined } from "../utilities"
-import { AdtHTTP } from "../AdtHTTP"
+import { AdtHTTP, session_types } from "../AdtHTTP"
 
 // ============================================================================
 // Types and Codecs for ABAP Classes
@@ -135,10 +135,12 @@ export async function getAbapClassMetadata(
  * @param version - 版本 (active, inactive)
  * @returns ABAP 类源代码信息
  */
+export type AbapClassSourceVersion = "active" | "inactive" | "workingArea"
+
 export async function getAbapClassSource(
   client: AdtHTTP,
   className: string,
-  version?: "active" | "inactive"
+  version?: AbapClassSourceVersion
 ): Promise<AbapClassSourceInfo> {
   const encodedName = encodeURIComponent(className)
   const qs: Record<string, string> = {}
@@ -170,12 +172,7 @@ export async function getAbapClassSource(
  * Update ABAP Class Source Code - 更新 ABAP 类源代码
  *
  * 对应请求: PUT /sap/bc/adt/oo/classes/{classname}/source/main?lockHandle={lockHandle}
- *
- * @param client - ADT HTTP 客户端
- * @param className - 类名
- * @param sourceCode - ABAP 源代码
- * @param lockHandle - 锁定句柄
- * @returns 更新结果（包含 etag 和 lastModified）
+ * Session: stateless (Eclipse 实测)
  */
 export async function updateAbapClassSource(
   client: AdtHTTP,
@@ -190,6 +187,7 @@ export async function updateAbapClassSource(
     {
       method: "PUT",
       qs: { lockHandle },
+      sessionType: session_types.stateless,
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "Accept": "text/plain"
@@ -207,24 +205,25 @@ export async function updateAbapClassSource(
 /**
  * Lock ABAP Class - 锁定 ABAP 类
  *
- * 对应请求: POST /sap/bc/adt/oo/classes/{classname}?action=lock
- *
- * @param client - ADT HTTP 客户端
- * @param className - 类名
- * @returns 锁定结果
+ * 对应请求: POST /sap/bc/adt/oo/classes/{classname}?_action=LOCK&accessMode=MODIFY
+ * Session: stateful (与 abap-adt-api / Eclipse 一致)
  */
 export async function lockAbapClass(
   client: AdtHTTP,
-  className: string
+  className: string,
+  accessMode: string = "MODIFY"
 ): Promise<AbapClassLockResult> {
   const encodedName = encodeURIComponent(className)
 
   const response = await client.request(
-    `/sap/bc/adt/oo/classes/${encodedName}?action=lock`,
+    `/sap/bc/adt/oo/classes/${encodedName}`,
     {
       method: "POST",
+      qs: { _action: "LOCK", accessMode },
+      sessionType: session_types.stateful,
       headers: {
-        "Accept": "application/vnd.sap.as+xml; charset=utf-8; dataname=com.sap.adt.lock.Result"
+        Accept:
+          "application/*,application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.lock.result"
       }
     }
   )
@@ -235,11 +234,8 @@ export async function lockAbapClass(
 /**
  * Unlock ABAP Class - 解锁 ABAP 类
  *
- * 对应请求: POST /sap/bc/adt/oo/classes/{classname}?action=unlock
- *
- * @param client - ADT HTTP 客户端
- * @param className - 类名
- * @param lockHandle - 锁定句柄
+ * 对应请求: POST /sap/bc/adt/oo/classes/{classname}?_action=UNLOCK&lockHandle=...
+ * Session: stateful
  */
 export async function unlockAbapClass(
   client: AdtHTTP,
@@ -248,16 +244,143 @@ export async function unlockAbapClass(
 ): Promise<void> {
   const encodedName = encodeURIComponent(className)
 
-  await client.request(
-    `/sap/bc/adt/oo/classes/${encodedName}?action=unlock`,
-    {
-      method: "POST",
-      qs: { lockHandle },
-      headers: {
-        "Accept": "application/vnd.sap.as+xml; charset=utf-8; dataname=com.sap.adt.lock.Result"
-      }
+  await client.request(`/sap/bc/adt/oo/classes/${encodedName}`, {
+    method: "POST",
+    qs: { _action: "UNLOCK", lockHandle },
+    sessionType: session_types.stateful,
+    headers: {
+      Accept:
+        "application/*,application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.lock.result"
     }
+  })
+}
+
+/**
+ * ABAP Class Activation Result - ADT 标准激活结果
+ * 对应: POST /sap/bc/adt/activation?method=activate&preauditRequested=true
+ */
+export interface AbapClassActivationResult {
+  success: boolean
+  messages: Array<{
+    type?: string
+    shortText?: string
+    objDescr?: string
+    line?: number
+    href?: string
+  }>
+}
+
+/**
+ * Activate ABAP Class - 激活 ABAP 类 (ADT 通用激活, 非 BW modeling)
+ *
+ * 对应请求: POST /sap/bc/adt/activation?method=activate&preauditRequested=true
+ * Session: stateless
+ */
+export async function activateAbapClass(
+  client: AdtHTTP,
+  className: string,
+  preauditRequested: boolean = true
+): Promise<AbapClassActivationResult> {
+  const uri = `/sap/bc/adt/oo/classes/${encodeURIComponent(className)}`
+  const body =
+    `<?xml version="1.0" encoding="UTF-8"?>` +
+    `<adtcore:objectReferences xmlns:adtcore="http://www.sap.com/adt/core">` +
+    `<adtcore:objectReference adtcore:uri="${uri}" adtcore:name="${escapeXmlAttr(className)}"/>` +
+    `</adtcore:objectReferences>`
+
+  const response = await client.request("/sap/bc/adt/activation", {
+    method: "POST",
+    qs: {
+      method: "activate",
+      preauditRequested: String(preauditRequested)
+    },
+    sessionType: session_types.stateless,
+    headers: {
+      "Content-Type": "application/xml"
+    },
+    body
+  })
+
+  return parseAdtActivationResponse(response.body)
+}
+
+function escapeXmlAttr(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+}
+
+function parseAdtActivationResponse(body: string): AbapClassActivationResult {
+  if (!body || !body.trim()) {
+    return { success: true, messages: [] }
+  }
+
+  const raw = fullParse(body)
+  const messages = xmlArray(raw, "chkl:messages", "msg").map((m: any) => {
+    const attrs = xmlNodeAttr(m) || {}
+    return {
+      type: attrs.type || m["@_type"],
+      shortText:
+        (m.shortText && (m.shortText.txt || m.shortText)) ||
+        attrs.shortText ||
+        "",
+      objDescr: attrs.objDescr || m["@_objDescr"],
+      line: attrs.line ? Number(attrs.line) : undefined,
+      href: attrs.href || m["@_href"]
+    }
+  })
+
+  const hasError = messages.some((m) =>
+    String(m.type || "").match(/[EAX]/)
   )
+  return { success: !hasError, messages }
+}
+
+/**
+ * Save and Activate ABAP Class Source - 保存并激活类源码
+ *
+ * Eclipse 序列 (结束例程编辑器保存/激活):
+ *   LOCK → PUT source/main?lockHandle= → UNLOCK → POST /sap/bc/adt/activation
+ */
+export async function saveAndActivateAbapClassSource(
+  client: AdtHTTP,
+  className: string,
+  sourceCode: string,
+  options?: { autoActivate?: boolean }
+): Promise<{
+  lockHandle: string
+  update: { etag?: string; lastModified?: string }
+  activated: boolean
+  activateResult?: AbapClassActivationResult
+}> {
+  const autoActivate = options?.autoActivate ?? true
+  const lockResult = await lockAbapClass(client, className)
+
+  let update: { etag?: string; lastModified?: string }
+  try {
+    update = await updateAbapClassSource(
+      client,
+      className,
+      sourceCode,
+      lockResult.lockHandle
+    )
+  } finally {
+    await unlockAbapClass(client, className, lockResult.lockHandle)
+  }
+
+  let activateResult: AbapClassActivationResult | undefined
+  if (autoActivate) {
+    activateResult = await activateAbapClass(client, className)
+  }
+
+  return {
+    lockHandle: lockResult.lockHandle,
+    update,
+    activated: autoActivate,
+    activateResult
+  }
 }
 
 /**
@@ -307,18 +430,20 @@ export async function getAbapClassObjectStructure(
 function parseAbapClassMetadata(body: string): AbapClassMetadata {
   const parsed = fullParse(body)
   const root = parsed["class:abapClass"] || parsed
+  const pkg = root["adtcore:packageRef"]
 
+  // fast-xml-parser 将 XML 属性解析为 @_adtcore:name 形式
   const includes = xmlArray(root, "class:include").map((inc: any) => {
     return {
       includeType: inc["@_class:includeType"],
-      sourceUri: inc["abapsource:sourceUri"],
-      name: inc["adtcore:name"],
-      type: inc["adtcore:type"],
-      changedAt: inc["adtcore:changedAt"],
-      version: inc["adtcore:version"],
-      createdAt: inc["adtcore:createdAt"],
-      changedBy: inc["adtcore:changedBy"],
-      createdBy: inc["adtcore:createdBy"],
+      sourceUri: inc["@_abapsource:sourceUri"] || inc["abapsource:sourceUri"],
+      name: inc["@_adtcore:name"] || inc["adtcore:name"],
+      type: inc["@_adtcore:type"] || inc["adtcore:type"],
+      changedAt: inc["@_adtcore:changedAt"] || inc["adtcore:changedAt"],
+      version: inc["@_adtcore:version"] || inc["adtcore:version"],
+      createdAt: inc["@_adtcore:createdAt"] || inc["adtcore:createdAt"],
+      changedBy: inc["@_adtcore:changedBy"] || inc["adtcore:changedBy"],
+      createdBy: inc["@_adtcore:createdBy"] || inc["adtcore:createdBy"],
       etag: extractEtagFromInclude(inc)
     }
   })
@@ -331,17 +456,17 @@ function parseAbapClassMetadata(body: string): AbapClassMetadata {
   }))
 
   return {
-    name: root["adtcore:name"] || root["@_name"] || "",
-    description: root["adtcore:description"] || root["@_description"],
-    responsible: root["adtcore:responsible"],
-    masterLanguage: root["adtcore:masterLanguage"],
-    masterSystem: root["adtcore:masterSystem"],
-    package: root["adtcore:packageRef"]?.["@_name"],
-    version: root["adtcore:version"],
-    changedAt: root["adtcore:changedAt"],
-    changedBy: root["adtcore:changedBy"],
-    createdAt: root["adtcore:createdAt"],
-    createdBy: root["adtcore:createdBy"],
+    name: root["@_adtcore:name"] || root["adtcore:name"] || root["@_name"] || "",
+    description: root["@_adtcore:description"] || root["adtcore:description"] || root["@_description"],
+    responsible: root["@_adtcore:responsible"] || root["adtcore:responsible"],
+    masterLanguage: root["@_adtcore:masterLanguage"] || root["adtcore:masterLanguage"],
+    masterSystem: root["@_adtcore:masterSystem"] || root["adtcore:masterSystem"],
+    package: pkg?.["@_adtcore:name"] || pkg?.["@_name"] || pkg?.["adtcore:name"],
+    version: root["@_adtcore:version"] || root["adtcore:version"],
+    changedAt: root["@_adtcore:changedAt"] || root["adtcore:changedAt"],
+    changedBy: root["@_adtcore:changedBy"] || root["adtcore:changedBy"],
+    createdAt: root["@_adtcore:createdAt"] || root["adtcore:createdAt"],
+    createdBy: root["@_adtcore:createdBy"] || root["adtcore:createdBy"],
     final: root["@_class:final"] === "true" || root["@_class:final"] === true,
     abstract: root["@_class:abstract"] === "true" || root["@_class:abstract"] === true,
     visibility: root["@_class:visibility"],

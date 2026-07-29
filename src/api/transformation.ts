@@ -309,9 +309,9 @@ export async function updateTransformation(
 ): Promise<ActivationResult> {
   const { lockHandle, corrNr, timestamp } = options
 
-  const qs: Record<string, string> = {
-    lockHandle
-  }
+  // Eclipse setFields: PUT .../m?lockHandle=... + Transport-Lock-Holder
+  const qs: Record<string, string> = { lockHandle }
+  if (corrNr) qs["corrNr"] = corrNr
 
   const headers: Record<string, string> = {
     "Content-Type": "application/xml, application/vnd.sap.bw.modeling.trfn-v1_0_0+xml",
@@ -321,9 +321,12 @@ export async function updateTransformation(
   if (timestamp) {
     headers["timestamp"] = timestamp
   }
+  if (corrNr) {
+    headers["Transport-Lock-Holder"] = corrNr
+  }
 
   const response = await client.request(
-    `/sap/bw/modeling/trfn/${trfnId}/${version}`,
+    `/sap/bw/modeling/trfn/${trfnId.toLowerCase()}/${version}`,
     {
       method: "PUT",
       qs,
@@ -336,6 +339,543 @@ export async function updateTransformation(
 }
 
 /**
+ * Get Transformation Raw XML - 获取原始 XML 字符串 (供 PUT 使用)
+ */
+export async function getTransformationXml(
+  client: AdtHTTP,
+  trfnId: string,
+  version: "m" | "a" | "d" = "m",
+  options?: GetTransformationOptions
+): Promise<string> {
+  const qs: Record<string, string> = {}
+  if (options?.forceCacheUpdate) {
+    qs.forceCacheUpdate = "true"
+  }
+
+  const response = await client.request(
+    `/sap/bw/modeling/trfn/${trfnId.toLowerCase()}/${version}`,
+    {
+      method: "GET",
+      qs,
+      headers: {
+        Accept: "application/vnd.sap.bw.modeling.trfn-v1_0_0+xml"
+      }
+    }
+  )
+  return response.body
+}
+
+/**
+ * 从 tlogoProperties/@adtcore:changedAt 提取 PUT 所需 timestamp 头
+ * 例: 2026-07-15T11:59:14Z → 20260715115914
+ */
+export function extractTransformationTimestamp(trfnXml: string): string | undefined {
+  const m = trfnXml.match(
+    /adtcore:changedAt="(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/
+  )
+  if (!m) return undefined
+  return `${m[1]}${m[2]}${m[3]}${m[4]}${m[5]}${m[6]}`
+}
+
+/**
+ * 是否已在结束例程 setFields 中勾选该目标字段
+ */
+export function isEndRoutineFieldSelected(trfnXml: string, fieldName: string): boolean {
+  const endRule = extractEndRoutineRule(trfnXml)
+  if (!endRule) return false
+  return endRule.includes(`#///target/segment1/${fieldName}`)
+}
+
+/**
+ * 将目标字段勾进结束例程 setFields (对照 Eclipse SetGlobalRoutineFieldsAction)
+ *
+ * XML 变更点:
+ * 1. END rule 增加 <target id="N"><elementRef>#///target/segment1/{field}</elementRef></target>
+ * 2. Rules group (type=S) 若尚无该字段映射, 增加 StepNoUpdate 规则
+ *
+ * 前置: 字段必须已存在于 target segment (通常 ADSO 加字段后 TRFN 结构同步后已有)
+ */
+export function addFieldToEndRoutine(
+  trfnXml: string,
+  fieldName: string
+): string {
+  if (isEndRoutineFieldSelected(trfnXml, fieldName)) {
+    return trfnXml
+  }
+
+  const targetMeta = extractTargetElementMeta(trfnXml, fieldName)
+  if (!targetMeta) {
+    throw new Error(
+      `Target field "${fieldName}" not found in TRFN target segment. ` +
+        `Sync ADSO structure into TRFN first.`
+    )
+  }
+
+  let next = insertEndRoutineTarget(trfnXml, fieldName)
+  if (!hasFieldMappingRule(next, fieldName)) {
+    next = insertNoUpdateRule(next, fieldName, targetMeta)
+  }
+  return next
+}
+
+/**
+ * 从结束例程 setFields 取消勾选字段 (移除 END target + 对应 NO_UPDATE 规则)
+ */
+export function removeFieldFromEndRoutine(
+  trfnXml: string,
+  fieldName: string
+): string {
+  const endMatch = trfnXml.match(
+    /<rule\b[^>]*routinetype="END"[^>]*>[\s\S]*?<\/rule>/
+  )
+  let next = trfnXml
+  if (endMatch && endMatch.index !== undefined) {
+    const cleaned = endMatch[0].replace(
+      new RegExp(
+        `\\s*<target id="\\d+">\\s*<elementRef>#///target/segment1/${fieldName}</elementRef>\\s*</target>`,
+        "g"
+      ),
+      ""
+    )
+    next =
+      trfnXml.slice(0, endMatch.index) +
+      cleaned +
+      trfnXml.slice(endMatch.index + endMatch[0].length)
+  }
+
+  // 移除专指该字段的 NO_UPDATE 规则 (属性顺序不固定: id/description 可能互换)
+  return next.replace(
+    new RegExp(
+      `\\s*<rule\\b[^>]*>\\s*` +
+        `<target\\b[^>]*>\\s*` +
+        `<output>[^<]*</output>\\s*` +
+        `<elementRef>#///target/segment1/${fieldName}</elementRef>\\s*` +
+        `</target>\\s*` +
+        `<step\\b[^>]*type="NO_UPDATE"[\\s\\S]*?</step>\\s*` +
+        `</rule>`,
+      "g"
+    ),
+    ""
+  )
+}
+
+interface TargetElementMeta {
+  name: string
+  label: string
+  dataType: string
+  length?: string
+  precision?: string
+  scale?: string
+  dimension: string
+  semanticType: string
+}
+
+function extractEndRoutineRule(trfnXml: string): string | undefined {
+  const m = trfnXml.match(
+    /<rule\b[^>]*routinetype="END"[^>]*>[\s\S]*?<\/rule>/
+  )
+  return m?.[0]
+}
+
+function extractTargetElementMeta(
+  trfnXml: string,
+  fieldName: string
+): TargetElementMeta | undefined {
+  // 只在 <target ...> ... </target> 大段内找 (避免命中 source)
+  const targetBlock = trfnXml.match(
+    /<target\b[^>]*type="ADSO"[^>]*>[\s\S]*?<\/target>\s*<group/
+  )
+  const scope = targetBlock?.[0] || trfnXml
+
+  const el = scope.match(
+    new RegExp(
+      `<element\\b[^>]*\\sname="${fieldName}"[^>]*>[\\s\\S]*?</element>`
+    )
+  )
+  if (!el) return undefined
+
+  const block = el[0]
+  const label =
+    block.match(/<endUserTexts[^>]*\slabel="([^"]*)"/)?.[1] || fieldName
+  const inline = block.match(/<inlineType\b([^/]*)\/>/)?.[1] || ""
+  const dataType = inline.match(/\sname="([^"]+)"/)?.[1] || "CHAR"
+  const length = inline.match(/\slength="([^"]+)"/)?.[1]
+  const precision = inline.match(/\sprecision="([^"]+)"/)?.[1]
+  const scale = inline.match(/\sscale="([^"]+)"/)?.[1]
+  const semanticType =
+    inline.match(/\ssemanticType="([^"]+)"/)?.[1] || "empty"
+  const dimension =
+    block.match(/\sdimension="([^"]+)"/)?.[1] ||
+    "#///target/segment1/CHA§"
+
+  return {
+    name: fieldName,
+    label,
+    dataType,
+    length,
+    precision,
+    scale,
+    dimension,
+    semanticType
+  }
+}
+
+function insertEndRoutineTarget(trfnXml: string, fieldName: string): string {
+  const endRuleMatch = trfnXml.match(
+    /<rule\b([^>]*)\sroutinetype="END"([^>]*)>([\s\S]*?)<step\b/
+  )
+  if (!endRuleMatch) {
+    throw new Error("END routine rule not found in TRFN XML")
+  }
+
+  const ruleBody = endRuleMatch[3]
+  const ids = [...ruleBody.matchAll(/<target id="(\d+)"/g)].map((m) =>
+    parseInt(m[1], 10)
+  )
+  const nextId = (ids.length ? Math.max(...ids) : 0) + 1
+
+  const insert = `      <target id="${nextId}">
+        <elementRef>#///target/segment1/${fieldName}</elementRef>
+      </target>
+`
+  // 插在 END rule 的第一个 <step 之前
+  return trfnXml.replace(
+    /(<rule\b[^>]*routinetype="END"[^>]*>)([\s\S]*?)(\s*<step\b)/,
+    (_m, open, body, step) => open + body + insert + step
+  )
+}
+
+function hasFieldMappingRule(trfnXml: string, fieldName: string): boolean {
+  // Rules group 中是否已有指向该字段的 elementRef (任意规则类型)
+  const rulesGroup = trfnXml.match(
+    /<group\b[^>]*\stype="S"[^>]*>[\s\S]*?<\/group>/
+  )
+  if (!rulesGroup) return false
+  return rulesGroup[0].includes(`#///target/segment1/${fieldName}`)
+}
+
+function insertNoUpdateRule(
+  trfnXml: string,
+  fieldName: string,
+  meta: TargetElementMeta
+): string {
+  const allIds = [...trfnXml.matchAll(/<rule id="(\d+)"/g)].map((m) =>
+    parseInt(m[1], 10)
+  )
+  const nextId = (allIds.length ? Math.max(...allIds) : 0) + 1
+
+  let inlineAttrs = `name="${meta.dataType}"`
+  if (meta.precision) {
+    inlineAttrs += ` precision="${meta.precision}"`
+    if (meta.scale) inlineAttrs += ` scale="${meta.scale}"`
+  } else if (meta.length) {
+    inlineAttrs += ` length="${meta.length}"`
+  }
+  inlineAttrs += ` semanticType="${meta.semanticType}"`
+
+  const ruleXml = `    <rule id="${nextId}" description="">
+      <target id="1">
+        <output>#///group1/rule${nextId}/step1/output1</output>
+        <elementRef>#///target/segment1/${fieldName}</elementRef>
+      </target>
+      <step xsi:type="trfn:StepNoUpdate" id="1" rank="MAIN" type="NO_UPDATE">
+        <output id="1">
+          <input>#///group1/rule${nextId}/target1</input>
+          <element xsi:type="trfn:TransformationElement" name="${fieldName}" dimension="${meta.dimension}">
+            <endUserTexts label="${escapeXml(meta.label)}"/>
+            <inlineType ${inlineAttrs}/>
+            <localProperties xsi:type="BwCore:LocalCharacteristicProperties"/>
+            <associationType>1</associationType>
+            <associationValid>false</associationValid>
+          </element>
+        </output>
+      </step>
+    </rule>
+`
+
+  // 插在 type="S" 的 Rules group 结束前
+  const sGroupIdx = trfnXml.search(/<group\b[^>]*\stype="S"[^>]*>/)
+  if (sGroupIdx === -1) {
+    throw new Error('Rules group (type="S") not found in TRFN XML')
+  }
+
+  // 找到该 group 对应的 </group> (简单: 从 sGroupIdx 起找匹配的 </group>)
+  const afterOpen = trfnXml.indexOf(">", sGroupIdx) + 1
+  let depth = 1
+  let i = afterOpen
+  while (i < trfnXml.length && depth > 0) {
+    const nextOpen = trfnXml.indexOf("<group", i)
+    const nextClose = trfnXml.indexOf("</group>", i)
+    if (nextClose === -1) break
+    if (nextOpen !== -1 && nextOpen < nextClose) {
+      depth++
+      i = nextOpen + 6
+    } else {
+      depth--
+      if (depth === 0) {
+        return trfnXml.slice(0, nextClose) + ruleXml + trfnXml.slice(nextClose)
+      }
+      i = nextClose + 8
+    }
+  }
+  throw new Error('Failed to locate closing </group> for Rules group')
+}
+
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+}
+
+// ============================================================================
+// Field Mapping Rules (DIRECT: source → target)
+//
+// 对照 Eclipse Communication Log (2026-07-16 09:45:15 PUT body):
+// 一条 DIRECT rule 的 XML 结构:
+//   <rule id="N" description="">
+//     <source id="1">
+//       <input>#///group1/ruleN/step1/input1</input>
+//       <elementRef>#///source/segment1/{srcField}</elementRef>
+//     </source>
+//     <target id="1">
+//       <output>#///group1/ruleN/step1/output1</output>
+//       <elementRef>#///target/segment1/{tgtField}</elementRef>
+//     </target>
+//     <step xsi:type="trfn:StepDirect" id="1" rank="MAIN" type="DIRECT">
+//       <input id="1">
+//         <output>#///group1/ruleN/source1</output>
+//         <element .../>            ← source 字段 element (内联元数据)
+//       </input>
+//       <output id="1">
+//         <input>#///group1/ruleN/target1</input>
+//         <element .../>            ← target 字段 element (内联元数据)
+//       </output>
+//     </step>
+//   </rule>
+// ============================================================================
+
+/**
+ * 从 source segment 提取字段 element 的元数据 (label/inlineType/dimension 等)。
+ * 返回 element 整段 XML (含 <element>...</element>), 用于内联进 step.input.element。
+ */
+function extractSourceElementXml(trfnXml: string, fieldName: string): string | undefined {
+  // 只在 <source ...> ... </source> 大段内找 (避免命中 target/group)
+  const sourceBlock = trfnXml.match(/<source\b[^>]*>[\s\S]*?<\/source>\s*<target/)
+  const scope = sourceBlock?.[0] || trfnXml
+  const m = scope.match(new RegExp(`<element\\b[^>]*\\sname="${fieldName}"[^>]*>[\\s\\S]*?</element>`))
+  return m?.[0]
+}
+
+/**
+ * 是否已存在指向某 source 字段的映射 rule (任意 step 类型)。
+ */
+function hasSourceFieldRule(trfnXml: string, sourceField: string): boolean {
+  const sGroup = trfnXml.match(/<group\b[^>]*\stype="S"[^>]*>[\s\S]*?<\/group>/)
+  if (!sGroup) return false
+  return sGroup[0].includes(`#///source/segment1/${sourceField}`)
+}
+
+/**
+ * 计算下一条 rule 的 id (现有最大 rule id + 1)。
+ */
+function nextRuleId(trfnXml: string): number {
+  const ids = [...trfnXml.matchAll(/<rule id="(\d+)"/g)].map(m => parseInt(m[1], 10))
+  return (ids.length ? Math.max(...ids) : 0) + 1
+}
+
+/**
+ * 插入一条 DIRECT 映射 rule (sourceField → targetField)。
+ *
+ * 需要同时拿到 source 和 target 字段的 element 元数据 (label/inlineType),
+ * 这些从 TRFN 自身的 source/target segment 提取, 因此**字段必须已存在于两端结构中**
+ * (ADSO/DataSource 加字段并同步 TRFN 结构后即满足)。
+ *
+ * @param trfnXml - TRFN 完整 XML
+ * @param sourceField - source 字段名 (如 "BUDAT")
+ * @param targetField - target 字段名 (默认与 sourceField 同名, 即同名映射)
+ * @param options.targetElementXml - 已提取的 target element XML (autoMap 批量时复用, 避免重复提取)
+ * @returns 新 XML (含插入的 rule)
+ */
+export function addTransformationRule(
+  trfnXml: string,
+  sourceField: string,
+  targetField?: string,
+  options?: { targetElementXml?: string }
+): string {
+  const tgt = targetField || sourceField
+
+  // source/target 字段必须存在于 TRFN 结构
+  const sourceElement = extractSourceElementXml(trfnXml, sourceField)
+  if (!sourceElement) {
+    throw new Error(
+      `Source field "${sourceField}" not found in TRFN source segment. ` +
+        `Sync DataSource/ADSO structure into TRFN first.`
+    )
+  }
+  const targetElement =
+    options?.targetElementXml || extractTargetElementXml(trfnXml, tgt)
+  if (!targetElement) {
+    throw new Error(
+      `Target field "${tgt}" not found in TRFN target segment. ` +
+        `Sync ADSO structure into TRFN first.`
+    )
+  }
+
+  // 同名 source→target 已有映射则跳过 (幂等)
+  if (hasSourceFieldRule(trfnXml, sourceField)) {
+    return trfnXml
+  }
+
+  const ruleId = nextRuleId(trfnXml)
+
+  // source step.element 需把 xsi:type="trfn:TransformationElement" 去掉 (log 中 source step 的 element 无该属性)
+  const sourceStepElement = sourceElement.replace(/\sxsi:type="trfn:TransformationElement"/, "")
+
+  const ruleXml = buildDirectRule(ruleId, sourceField, tgt, sourceStepElement, targetElement)
+
+  return insertRuleIntoGroup(trfnXml, ruleXml)
+}
+
+/**
+ * 自动批量映射:扫描 source 和 target segment 中**同名字段**,
+ * 为每个尚未映射的同名字段生成 DIRECT rule (模拟 Eclipse "Auto Map" 功能)。
+ *
+ * @param trfnXml - TRFN 完整 XML
+ * @returns { xml, mapped } 新 XML + 已映射的字段名列表
+ */
+export function autoMapTransformationFields(
+  trfnXml: string
+): { xml: string; mapped: string[] } {
+  const sourceFields = extractSegmentFieldNames(trfnXml, "source")
+  const targetFields = new Set(extractSegmentFieldNames(trfnXml, "target"))
+
+  let xml = trfnXml
+  const mapped: string[] = []
+
+  // 预提取 target element XML 缓存, 避免重复正则
+  const targetElementCache = new Map<string, string>()
+  for (const f of targetFields) {
+    const el = extractTargetElementXml(trfnXml, f)
+    if (el) targetElementCache.set(f, el)
+  }
+
+  for (const srcField of sourceFields) {
+    if (!targetFields.has(srcField)) continue // target 无同名字段, 跳过
+    if (hasSourceFieldRule(xml, srcField)) continue // 已有映射, 跳过
+    xml = addTransformationRule(xml, srcField, srcField, {
+      targetElementXml: targetElementCache.get(srcField)
+    })
+    mapped.push(srcField)
+  }
+
+  return { xml, mapped }
+}
+
+/**
+ * 提取 target segment 中某字段的完整 element XML (含 label/inlineType/dimension)。
+ */
+function extractTargetElementXml(trfnXml: string, fieldName: string): string | undefined {
+  const targetBlock = trfnXml.match(/<target\b[^>]*>[\s\S]*?<\/target>\s*<group/)
+  const scope = targetBlock?.[0] || trfnXml
+  const m = scope.match(new RegExp(`<element\\b[^>]*\\sname="${fieldName}"[^>]*>[\\s\\S]*?</element>`))
+  return m?.[0]
+}
+
+/**
+ * 提取 source 或 target segment 中所有字段名 (按 posit 顺序)。
+ */
+function extractSegmentFieldNames(trfnXml: string, side: "source" | "target"): string[] {
+  // source block 止于 <target; target block 止于 <group
+  const blockRe =
+    side === "source"
+      ? /<source\b[^>]*>[\s\S]*?<\/source>\s*<target/
+      : /<target\b[^>]*>[\s\S]*?<\/target>\s*<group/
+  const block = trfnXml.match(blockRe)?.[0] || ""
+  const names: string[] = []
+  const re = /<element\b[^>]*\sname="([^"]+)"[^>]*\sposit="(\d+)"/g
+  let m: RegExpExecArray | null
+  const found: { name: string; posit: number }[] = []
+  while ((m = re.exec(block)) !== null) {
+    found.push({ name: m[1], posit: parseInt(m[2], 10) })
+  }
+  found.sort((a, b) => a.posit - b.posit)
+  return found.map(f => f.name)
+}
+
+/**
+ * 构造一条 DIRECT rule XML (对照 Eclipse PUT body)。
+ */
+function buildDirectRule(
+  ruleId: number,
+  sourceField: string,
+  targetField: string,
+  sourceElementXml: string,
+  targetElementXml: string
+): string {
+  return `    <rule id="${ruleId}" description="">
+      <source id="1">
+        <input>#///group1/rule${ruleId}/step1/input1</input>
+        <elementRef>#///source/segment1/${sourceField}</elementRef>
+      </source>
+      <target id="1">
+        <output>#///group1/rule${ruleId}/step1/output1</output>
+        <elementRef>#///target/segment1/${targetField}</elementRef>
+      </target>
+      <step xsi:type="trfn:StepDirect" id="1" rank="MAIN" type="DIRECT">
+        <input id="1">
+          <output>#///group1/rule${ruleId}/source1</output>
+${indent(sourceElementXml, 10)}
+        </input>
+        <output id="1">
+          <input>#///group1/rule${ruleId}/target1</input>
+${indent(targetElementXml, 10)}
+        </output>
+      </step>
+    </rule>
+`
+}
+
+/** 把多行 XML 缩进到指定空格数 */
+function indent(xml: string, spaces: number): string {
+  const pad = " ".repeat(spaces)
+  return xml
+    .split(/\r?\n/)
+    .map(line => pad + line)
+    .join("\n")
+}
+
+/**
+ * 把一条 rule XML 插入到 Rules group (type="S") 的 </group> 之前。
+ */
+function insertRuleIntoGroup(trfnXml: string, ruleXml: string): string {
+  const sGroupIdx = trfnXml.search(/<group\b[^>]*\stype="S"[^>]*>/)
+  if (sGroupIdx === -1) {
+    throw new Error('Rules group (type="S") not found in TRFN XML')
+  }
+  const afterOpen = trfnXml.indexOf(">", sGroupIdx) + 1
+  let depth = 1
+  let i = afterOpen
+  while (i < trfnXml.length && depth > 0) {
+    const nextOpen = trfnXml.indexOf("<group", i)
+    const nextClose = trfnXml.indexOf("</group>", i)
+    if (nextClose === -1) break
+    if (nextOpen !== -1 && nextOpen < nextClose) {
+      depth++
+      i = nextOpen + 6
+    } else {
+      depth--
+      if (depth === 0) {
+        return trfnXml.slice(0, nextClose) + ruleXml + trfnXml.slice(nextClose)
+      }
+      i = nextClose + 8
+    }
+  }
+  throw new Error('Failed to locate closing </group> for Rules group')
+}
+
+/**
  * Activate Transformation - 激活转换
  *
  * @param client - ADT HTTP 客户端
@@ -344,10 +884,11 @@ export async function updateTransformation(
  */
 export async function activateTransformation(
   client: AdtHTTP,
-  trfnId: string
+  trfnId: string,
+  lockHandle: string = ""
 ): Promise<ActivationResult> {
   const obj = new BWObject(client, BWObjectType.TRANSFORMATION, trfnId)
-  return obj.activate()
+  return obj.activate(lockHandle)
 }
 
 /**

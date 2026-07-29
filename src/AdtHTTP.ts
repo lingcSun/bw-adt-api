@@ -44,7 +44,13 @@ let lastClientId = 0
 export enum session_types {
   stateful = "stateful",
   stateless = "stateless",
-  stateful_enqueue = "stateful;enqueue",  // 用于需要锁定的操作
+  /**
+   * @deprecated 不要使用。实测 (BW/4HANA) 发送 "stateful;enqueue" 头会导致服务端
+   * 返回 sap-contextid=0 并销毁会话上下文, enqueue 锁随之丢失。
+   * Eclipse 日志里的 "stateful, enqueue" 是服务端会话的展示标签, 不是协议头值。
+   * 锁定操作应使用 session_types.stateful。
+   */
+  stateful_enqueue = "stateful;enqueue",
   keep = ""
 }
 
@@ -238,8 +244,20 @@ export class AdtHTTP {
     }
   }
   private cookie = new Map<string, string>()
-  ascookies(): string {
-    return [...this.cookie.values()].join("; ")
+  /**
+   * sap-contextid: 服务端 stateful 会话的标识, 与普通 cookie 分开管理。
+   *
+   * 实测 (BW/4HANA):
+   * - 只有 stateful 请求携带 contextid 才会路由进已建立的会话 (锁在该会话中保持,
+   *   重复 lock 返回相同 lockHandle, 对应 Eclipse 的固定 handle 现象)
+   * - stateless 请求携带 contextid 会把请求路由进 stateful 会话并销毁它
+   *   (enqueue 锁随之释放), 因此 stateless 请求绝不能带 contextid
+   */
+  private contextId?: string
+  ascookies(includeContextId: boolean = false): string {
+    const cookies = [...this.cookie.values()]
+    if (includeContextId && this.contextId) cookies.push(this.contextId)
+    return cookies.join("; ")
   }
   async logout(): Promise<void> {
     this.stateful = session_types.stateless
@@ -249,12 +267,24 @@ export class AdtHTTP {
     this.bearer = undefined
     // new cookie jar
     this.cookie.clear()
+    this.contextId = undefined
     // clear token
     this.csrfToken = FETCH_CSRF_TOKEN
   }
+  /**
+   * 终止服务端 stateful 会话 (释放其持有的所有 enqueue 锁)。
+   * 实现方式: 发送一个携带 contextid 的 stateless 请求, 服务端会销毁该会话。
+   */
   async dropSession(): Promise<void> {
     this.stateful = session_types.stateless
-    await this._request("/sap/bc/adt/compatibility/graph", {})
+    if (this.contextId) {
+      await this._request("/sap/bc/adt/compatibility/graph", {
+        headers: { Cookie: this.ascookies(true) }
+      })
+      this.contextId = undefined
+    } else {
+      await this._request("/sap/bc/adt/compatibility/graph", {})
+    }
   }
   async request(
     url: string,
@@ -296,7 +326,13 @@ export class AdtHTTP {
           .replace(/path=\//g, "")
           .split(";")[0]
         const [key] = cookie.split("=", 1)
-        this.cookie.set(key, cleaned)
+        if (key === "sap-contextid") {
+          // sap-contextid=0 表示服务端已销毁会话
+          const value = cleaned.slice(cleaned.indexOf("=") + 1).trim()
+          this.contextId = value && value !== "0" ? cleaned : undefined
+        } else {
+          this.cookie.set(key, cleaned)
+        }
       })
     }
   }
@@ -324,9 +360,15 @@ export class AdtHTTP {
     this.needKeepalive = false
     const { sessionType, ...requestOptions } = options
     const headers = { ...this.commonHeaders, ...requestOptions.headers }
-    headers[SESSION_HEADER] = sessionType ?? this.stateful
+    const effectiveType = sessionType ?? this.stateful
+    headers[SESSION_HEADER] = effectiveType
+    // contextid 只随 stateful 请求发送 (stateless 携带 contextid 会销毁服务端会话)
+    const isStatefulRequest =
+      effectiveType === session_types.keep
+        ? this.currentSession !== session_types.stateless
+        : effectiveType !== session_types.stateless
     if (!headers["Cookie"] && runningInNode)
-      headers["Cookie"] = this.ascookies()
+      headers["Cookie"] = this.ascookies(isStatefulRequest)
 
     adtRequestNumber++
     const adtStartTime = new Date()

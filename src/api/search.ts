@@ -177,3 +177,58 @@ export async function searchByObjectType(
     changedOnTo: options.changedOnTo
   })
 }
+
+/**
+ * Get Transformations of an InfoProvider - 获取 InfoProvider（ADSO 等）关联的 Transformation
+ *
+ * 替代 UI 导航端点 GET /sap/bw/modeling/repo/infoproviderstructure/adso/{name}/trfn。
+ * 通过 searchBWObjects 搜索对象名实现，返回的 TRFN title 含 "SOURCE -> TARGET" 关系。
+ *
+ * 实测与专用端点结果一致（以 ZL_FID40 为例，均返回 3 个 TRFN，对象 ID 逐项匹配）。
+ *
+ * @param client - ADT HTTP 客户端
+ * @param infoProviderName - InfoProvider 名称（ADSO 技术名称，如 "ZL_FID40"）
+ * @returns 关联的 Transformation 列表
+ */
+export async function getTransformationsOf(
+  client: AdtHTTP,
+  infoProviderName: string
+): Promise<BWSearchResult[]> {
+  const results = await searchBWObjects(client, {
+    searchTerm: infoProviderName,
+    searchInName: false,   // TRFN 名称是 32 位 ID，不在名称中搜索
+    searchInDescription: true, // 关系信息在描述 "SOURCE -> TARGET" 中
+    objectType: "TRFN"
+  })
+  // 描述中包含对象名的即为关联（作为 source 或 target）
+  return results.filter(r =>
+    (r.title || "").toUpperCase().includes(infoProviderName.toUpperCase())
+  )
+}
+
+/**
+ * Get DTPs of an InfoProvider - 获取 InfoProvider（ADSO 等）关联的 DTP
+ *
+ * 替代 UI 导航端点 GET /sap/bw/modeling/repo/infoproviderstructure/adso/{name}/dtpa。
+ * 通过 searchBWObjects 搜索对象名实现，返回的 DTP title 含 "SOURCE -> TARGET" 关系。
+ *
+ * 实测与专用端点结果一致（以 ZL_FID40 为例，均返回 3 个 DTPA，对象 ID 逐项匹配）。
+ *
+ * @param client - ADT HTTP 客户端
+ * @param infoProviderName - InfoProvider 名称（ADSO 技术名称，如 "ZL_FID40"）
+ * @returns 关联的 DTP 列表
+ */
+export async function getDTPsOf(
+  client: AdtHTTP,
+  infoProviderName: string
+): Promise<BWSearchResult[]> {
+  const results = await searchBWObjects(client, {
+    searchTerm: infoProviderName,
+    searchInName: false,
+    searchInDescription: true,
+    objectType: "DTPA"
+  })
+  return results.filter(r =>
+    (r.title || "").toUpperCase().includes(infoProviderName.toUpperCase())
+  )
+}

@@ -182,6 +182,106 @@ export const InfoObjectDetails = t.type({
 export type InfoObjectDetails = t.OutputOf<typeof InfoObjectDetails>
 
 // ============================================================================
+// DataSource (RSDS)
+// ============================================================================
+
+/**
+ * DataSource Details - DataSource (RSDS) 详细信息
+ *
+ * 对应请求: GET /sap/bw/modeling/rsds/{datasource}/{sourceSystem}/m
+ * 根节点: <rsds:dataSource name="..." sourceSystemName="..." type="..." .../>
+ *
+ * 注意 RSDS 是双段标识 (datasource + sourceSystem), 与 ADSO/DTP 的单段 id 不同。
+ */
+export const DataSourceDetails = t.type({
+  name: t.string,
+  technicalName: t.string,
+  description: orUndefined(t.string),
+  /** DataSource 类型 (如 "D") */
+  type: orUndefined(t.string),
+  /** 源系统 (逻辑系统名, 如 "S4DCLNT300") */
+  sourceSystem: orUndefined(t.string),
+  /** 对象版本 (M=Active, A=Modified, D=Revised) */
+  objectVersion: orUndefined(t.string),
+  /** 对象状态 (active/inactive) */
+  objectStatus: orUndefined(t.string),
+  /** 应用组件 (如 "FI") */
+  applicationComponent: orUndefined(t.string),
+  /** 抽取适配器类型 (如 "ODP") */
+  adapterType: orUndefined(t.string)
+})
+
+export type DataSourceDetails = t.OutputOf<typeof DataSourceDetails>
+
+/**
+ * DataSource Field - DataSource 字段 (位于 <segment>/<field>)
+ */
+export const DataSourceField = t.type({
+  name: t.string,
+  dataType: orUndefined(t.string),    // CHAR/NUMC/DATS/DEC...
+  length: orUndefined(t.number),
+  label: orUndefined(t.string),
+  position: orUndefined(t.number),
+  transfer: orUndefined(t.boolean)
+})
+
+export type DataSourceField = t.OutputOf<typeof DataSourceField>
+
+/**
+ * DataSource Version - DataSource 版本信息
+ *
+ * 与通用 ObjectVersion 形状一致, 单独命名以匹配 RSDS 语义。
+ * 版本字符从 <atom:id>A</atom:id> 提取 (RSDS 特有, 非 uri 后缀)。
+ */
+export const DataSourceVersion = t.type({
+  version: t.string,           // m=Active, a=Modified, d=Revised
+  uri: t.string,
+  created: orUndefined(t.string),
+  user: orUndefined(t.string),
+  description: orUndefined(t.string)
+})
+
+export type DataSourceVersion = t.OutputOf<typeof DataSourceVersion>
+
+// ============================================================================
+// DataSource Replication
+// ============================================================================
+
+/**
+ * Replication Task - 数据源复制任务 (GET 预检返回的单个任务)
+ *
+ * 对应 XML: <dsReplication:replicationTask datasource="..." tlogo="RSDS" .../>
+ */
+export const ReplicationTask = t.type({
+  datasource: t.string,
+  tlogo: orUndefined(t.string),          // 通常 "RSDS"
+  externalObject: orUndefined(t.string), // 外部对象名
+  externalObjectDescription: orUndefined(t.string),
+  description: orUndefined(t.string),
+  /** 操作类型 (UEQ=Update if Equal) */
+  operation: orUndefined(t.string),
+  execute: orUndefined(t.boolean),
+  /** 复制后对象的 URI (如 /sap/bw/modeling/rsds/{ds}/{src}/m) */
+  uri: orUndefined(t.string)
+})
+
+export type ReplicationTask = t.OutputOf<typeof ReplicationTask>
+
+/**
+ * Replication Result - 复制触发结果 (POST 返回的后台 job 信息)
+ *
+ * 对应 XML: <dataContainer><simpleParams jobCount="..."/><simpleParams jobName="..."/></dataContainer>
+ */
+export const ReplicationResult = t.type({
+  /** 后台 job 名 (如 "RSDS_REPLICATION") */
+  jobName: orUndefined(t.string),
+  /** 后台 job 计数 (如 "09172600") */
+  jobCount: orUndefined(t.string)
+})
+
+export type ReplicationResult = t.OutputOf<typeof ReplicationResult>
+
+// ============================================================================
 // Generic Object Details
 // ============================================================================
 
