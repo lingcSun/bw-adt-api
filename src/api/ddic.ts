@@ -550,37 +550,41 @@ export async function getADSODataPreview(
 }
 
 /**
- * Get Table Data via SQL View - 通过 SQL 视图获取表数据
+ * Get Table Data via Freestyle OpenSQL - 通过 Data Preview Freestyle 执行任意 OpenSQL
  *
- * 对应请求: GET /sap/bc/adt/ddic/tables/{table_name}/sqlview
+ * 对应请求: POST /sap/bc/adt/datapreview/freestyle?rowNumber={maxRows}
+ * 请求体为纯文本 OpenSQL（与 ADT SQL Console 一致）
  *
  * @param client - ADT HTTP 客户端
- * @param tableName - 表名
- * @param sqlStatement - SQL 语句
+ * @param tableName - 结果集标签（不进 URL；可选）
+ * @param sqlStatement - OpenSQL 语句
+ * @param options - maxRows 等
  * @returns 查询结果
  */
 export async function getTableDataViaSQL(
   client: AdtHTTP,
   tableName: string,
-  sqlStatement: string
+  sqlStatement: string,
+  options?: { maxRows?: number }
 ): Promise<DDICTableDataResult> {
+  const maxRows = options?.maxRows || 100
+
   const response = await client.request(
-    `/sap/bc/adt/ddic/tables/${tableName.toLowerCase()}/sqlview`,
+    `/sap/bc/adt/datapreview/freestyle`,
     {
       method: "POST",
+      qs: { rowNumber: maxRows },
       headers: {
-        "Accept": "application/vnd.sap.adt.ddic.table.data.v1+xml",
-        "Content-Type": "application/xml"
+        Accept:
+          "application/xml, application/vnd.sap.adt.datapreview.table.v1+xml",
+        "Content-Type": "text/plain"
       },
-      body: `<?xml version="1.0" encoding="UTF-8"?>
-<sql:statement xmlns:sql="http://www.sap.com/adt/ddic/sql">
-  <sql:text>${sqlStatement}</sql:text>
-</sql:statement>`
+      body: sqlStatement
     }
   )
 
   const raw = fullParse(response.body)
-  return parseDDICTableData(raw, tableName)
+  return parseDDICDataPreview(raw, tableName || "FREESTYLE")
 }
 
 // ============================================================================

@@ -2192,16 +2192,83 @@ export class BWAdtClient {
   }
 
   /**
-   * Get Table Data via SQL - 通过 SQL 查询表数据
-   * 对应请求: POST /sap/bc/adt/ddic/tables/{table_name}/sqlview
+   * Get Table Data via Freestyle OpenSQL - 通过 Data Preview Freestyle 执行任意 OpenSQL
+   * 对应请求: POST /sap/bc/adt/datapreview/freestyle?rowNumber={maxRows}
    *
-   * @param tableName - 表名
-   * @param sqlStatement - SQL 语句
+   * @param tableName - 结果集标签（不进 URL）
+   * @param sqlStatement - OpenSQL 语句
+   * @param options - maxRows 等
    * @returns 查询结果
    */
-  public async getTableDataViaSQL(tableName: string, sqlStatement: string) {
+  public async getTableDataViaSQL(
+    tableName: string,
+    sqlStatement: string,
+    options?: { maxRows?: number }
+  ) {
     const { getTableDataViaSQL } = await import("./api/ddic")
-    return getTableDataViaSQL(this.h, tableName, sqlStatement)
+    return getTableDataViaSQL(this.h, tableName, sqlStatement, options)
+  }
+
+  // ========================================
+  // BICS Reporting / Provider Preview
+  // ========================================
+
+  /**
+   * Get Reporting Initial View - 获取 BICS 初始视图（元数据 + 默认结果）
+   * 对应请求: GET /sap/bw/modeling/comp/reporting?compid=!{name}
+   * 适用于 ADSO / 特征 / Composite Provider
+   */
+  public async getReportingInitialView(
+    compId: string,
+    options?: {
+      fromRow?: number
+      toRow?: number
+      inclMetadata?: boolean
+      inclExceptDef?: boolean
+      inclObjectValues?: boolean
+      compactMode?: boolean
+      hryLvlAbsRs?: boolean
+    }
+  ) {
+    const { getReportingInitialView } = await import("./api/reporting")
+    return getReportingInitialView(this.h, compId, options)
+  }
+
+  /**
+   * Update Reporting View - 更新轴布局并刷新 BICS 结果
+   * 对应请求: POST /sap/bw/modeling/comp/reporting?compid=!{name}
+   */
+  public async updateReportingView(
+    compId: string,
+    state: Array<{ name: string; id: string; axis: string; pos?: number }>,
+    options?: {
+      fromRow?: number
+      toRow?: number
+      inclMetadata?: boolean
+      inclExceptDef?: boolean
+      inclObjectValues?: boolean
+      hryLvlAbsRs?: boolean
+    }
+  ) {
+    const { updateReportingView } = await import("./api/reporting")
+    return updateReportingView(this.h, compId, state, options)
+  }
+
+  /**
+   * Query Provider Preview - 按特征名指定行轴后预览数据
+   * 内部：GET 元数据 → 重排 ROWS/COLUMNS/FREE → POST 刷新
+   */
+  public async queryProviderPreview(
+    providerName: string,
+    options: {
+      rows: string[]
+      columns?: string[]
+      fromRow?: number
+      toRow?: number
+    }
+  ) {
+    const { queryProviderPreview } = await import("./api/reporting")
+    return queryProviderPreview(this.h, providerName, options)
   }
 
   // ========================================

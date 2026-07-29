@@ -37,7 +37,7 @@ await client.logout()
 
 ## Implemented API Reference
 
-The `BWAdtClient` class exposes ~110 public methods, organized by domain module. All write operations follow the **lock → modify → activate → unlock** pattern with verified session management.
+The `BWAdtClient` class exposes ~113 public methods, organized by domain module. All write operations follow the **lock → modify → activate → unlock** pattern with verified session management.
 
 ### Session & Lifecycle
 
@@ -213,6 +213,28 @@ A unified base-class pattern that works across object types (ADSO, TRFN, DTPA, P
 | `getTableDataViaSQL(table, sql)` | Query via SQL view |
 | `getADSODDICLinks(id)` / `getADSODDICTableName(id)` | DDIC links / table name for an ADSO |
 | `getADSODataPreview(name, maxRows?)` | ADSO data preview |
+
+### BICS Reporting / Provider Preview
+
+Multidimensional data preview for **ADSO**, **InfoObject (characteristic)**, and **Composite Provider**. Uses the same Dashboard Preview endpoints as Eclipse ADT (`/sap/bw/modeling/comp/reporting`). Complements DDIC/`getADSODataPreview` (flat table preview) with axis-based aggregation.
+
+| Method | Description |
+|--------|-------------|
+| `getReportingInitialView(compId, options?)` | GET initial view — metadata (characteristics / key figures / ids) + default result set |
+| `updateReportingView(compId, state, options?)` | POST updated axes — refresh result set with a full `infoObject` state |
+| `queryProviderPreview(name, { rows, columns?, fromRow?, toRow? })` | Convenience: GET metadata → remap ROWS/COLUMNS → POST → returns `flatRows` |
+
+`compId` / provider name may be passed with or without the `!` prefix (e.g. `ZL_FID09` or `!ZL_FID09`).
+
+```typescript
+// Characteristic / ADSO / HCPR — same API
+const view = await client.queryProviderPreview("ZL_FID09", {
+  rows: ["0PROFIT_CTR", "0COMP_CODE"],
+  toRow: 1000
+})
+// view.flatRows: [{ "0PROFIT_CTR": "...", "0COMP_CODE": "1010", "1ROWCOUNT": 194, ... }, ...]
+// view.metaData / view.resultSet available for full BICS structure
+```
 
 ### Transport / CTS
 

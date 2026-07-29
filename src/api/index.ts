@@ -11,6 +11,7 @@ export * from "./repository"
 export * from "./systemInfo"
 export * from "./search"
 export * from "./transport"
+export * from "./reporting"
 // search.ts 通过 export * 已导出 getTransformationsOf / getDTPsOf
 
 // Generic BW Object base class and unified types
