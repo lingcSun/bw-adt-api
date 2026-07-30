@@ -247,7 +247,6 @@ Suites live in `src/__tests__/` and are checked against real Communication Logs.
 - [API_MAPPING.md](./docs/API_MAPPING.md) — ADT endpoint mapping
 - [VERIFIED_APIS.md](./docs/VERIFIED_APIS.md) — Verified behaviors & session models (required reading for writes)
 - [ROADMAP.md](./docs/ROADMAP.md) — Development roadmap
-- [CLAUDE.md](./CLAUDE.md) — Contributor / agent guidance (domain dictionary)
 
 ## Architecture
 
