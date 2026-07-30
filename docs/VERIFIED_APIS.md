@@ -154,7 +154,7 @@ cp .env.example .env   # 填入本机凭据，勿提交
 npm test -- --testPathPattern=adso-write
 ```
 
-更多端点路径见 [API_MAPPING.md](./API_MAPPING.md)；贡献约定见 [CLAUDE.md](../CLAUDE.md)。
+更多端点路径见 [API_MAPPING.md](./API_MAPPING.md)。
 
 ---
 
