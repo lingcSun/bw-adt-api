@@ -450,7 +450,7 @@ export function parseDataSourceVersions(body: string): DataSourceVersion[] {
       version,
       uri,
       description: versionMap[version] || title || version,
-      // fullParse 的 parseAttributeValue 会把 "TESTUSER" 解析为数字, 统一回字符串
+      // fullParse 的 parseAttributeValue 会把纯数字用户名解析为数字, 统一回字符串
       created: updated === undefined ? undefined : String(updated),
       user: userName === undefined ? undefined : String(userName)
     }

@@ -368,7 +368,7 @@ const createResult = await client.createADSO({
   description: "测试 ADSO",
   infoArea: "ZGLD_TEST",
   masterLanguage: "ZH",
-  responsible: "TESTUSER",
+  responsible: "<USERNAME>",
   template: {
     objectName: "ZL_ORDER",  // 模板 ADSO 名称
     type: "ADSO"             // 模板类型

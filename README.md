@@ -12,10 +12,11 @@ npm install bw-adt-api
 
 ## Quick Start
 
-```typescript
-import { BWAdtClient } from "bw-adt-api"
+Preferred entry: **domain facades** on `BWAdtClient` (`client.adso`, `client.trfn`, …). Flat methods remain available for compatibility.
 
-// Create and login
+```typescript
+import { BWAdtClient, isTransportRequiredError } from "bw-adt-api"
+
 const client = new BWAdtClient(
   "http://your-bw-server:8000",
   "developer",
@@ -25,241 +26,206 @@ const client = new BWAdtClient(
 )
 await client.login()
 
-// Search for objects
-const results = await client.quickSearch("0ASSET*", "RSDS")
+// Search / lineage
+const results = await client.repository.search({
+  objectName: "0ASSET*",
+  objectType: "RSDS"
+})
 
-// Read DataSource details + fields
-const ds = await client.getDataSourceDetails("0ASSET_ATTR_TEXT", "S4DCLNT300")
-const fields = await client.getDataSourceFields("0ASSET_ATTR_TEXT", "S4DCLNT300")
+// Read DataSource
+const ds = await client.dataSource.details("0ASSET_ATTR_TEXT", "S4DCLNT300")
+const fields = await client.dataSource.fields("0ASSET_ATTR_TEXT", "S4DCLNT300")
+
+// Write: edit XML, then save+activate (caller chooses transport)
+const xml = await client.adso.xml("ZL_FID37", true)
+try {
+  await client.adso.saveAndActivate("ZL_FID37", xml, {
+    transport: "BPDK9xxxxx"           // existing TR, or:
+    // createTransport: true,         // create a new one
+    // transportDescription: "…"
+  })
+} catch (e) {
+  if (isTransportRequiredError(e)) {
+    // e.availableTransports — pick one and retry with { transport }
+  }
+  throw e
+}
 
 await client.logout()
 ```
 
-## Implemented API Reference
+## Domain Facades (recommended)
 
-The `BWAdtClient` class exposes ~113 public methods, organized by domain module. All write operations follow the **lock → modify → activate → unlock** pattern with verified session management.
+Aligned with BW Modeling Tools Project Explorer. Facades live under `src/domains/` and are attached to the client as `client.<domain>`.
 
-### Session & Lifecycle
+| Domain | Facade | Role |
+|--------|--------|------|
+| session | `login` / `logout` / … | BW Project connection |
+| repository | `client.repository` | Search, lineage, ADSO↔TRFN/DTP |
+| infoObject | `client.infoObject` | InfoObject read / validate |
+| infoProvider | `client.adso` | ADSO only for now (no HCPR / Open ODS) |
+| dataFlow | `client.trfn` / `client.dtp` | Transformation + DTP |
+| dataSource | `client.dataSource` | RSDS + replication |
+| processChain | `client.processChain` | Ops (execute / logs) |
+| query | `client.query` | BICS / provider preview |
+| system | `client.system` | System info / capabilities |
+| ddic | `client.ddic` | Table describe / data / SQL |
+| transport | `client.transport` | CTS check / create |
 
-| Method | Description |
-|--------|-------------|
-| `login()` | Log on to the ADT server |
-| `logout()` | Log out and clear cookies |
-| `dropSession()` | Drop the current ADT session |
-| `reentranceTicket()` | Fetch a SAP reentrance ticket |
+**Not Public (out of scope):** Favorites, InfoArea tree navigation, infoSource, openHub, sourceSystem.
 
-### System Information
+### Public vs Advanced
 
-| Method | Description |
-|--------|-------------|
-| `systemInfo()` | Query BW system info and capabilities |
-| `getSystemProperty(name)` | Get a specific system property |
-| `hasCapability(name)` | Check whether the system supports a capability |
+| Tier | What | Typical use |
+|------|------|-------------|
+| **Public** | `details` / `xml` / `check` / `saveAndActivate` / domain helpers / execute & logs | Scripts, MCP, automation |
+| **Advanced** | Atomic `lock` / `unlock` / bare `update` / `activate`, raw `get*` trees | Protocol debugging; library keeps them, MCP defaults them off |
 
-### Search
+Write orchestration (`saveAndActivate*`) lives in the **API layer** (`src/api/*`), not in the client facade.
 
-| Method | Description |
-|--------|-------------|
-| `searchBWObjects(options)` | Advanced BW object search with filters (type, dates, name/desc) |
-| `quickSearch(term, type?)` | Quick name search |
-| `getADSOTransformations(adsoName)` | Get Transformations related to an ADSO |
-| `getADSODataTransferProcesses(adsoName)` | Get DTPs related to an ADSO |
+---
 
-### Data Flow / Lineage
+## Public API by Domain
 
-| Method | Description |
-|--------|-------------|
-| `getDataflow(name, type?, options?)` | Get the dataflow/lineage graph around an object |
-| `getDataflowLineage(target, source, type?)` | Query transformations and DTPs linking source → target |
-
-### Generic BW Object Operations
-
-A unified base-class pattern that works across object types (ADSO, TRFN, DTPA, ProcessChain, InfoObject, InfoArea):
+### `client.repository`
 
 | Method | Description |
 |--------|-------------|
-| `bwObject(type, name)` | Get a generic `BWObject` instance (lock/unlock/activate/check/validate) |
-| `createObject(type, name, xml, options?)` | Create any BW object |
-| `updateObject(type, name, xml, options?)` | Update any BW object |
-| `deleteObject(type, name, lockHandleOrTransport)` | Delete any BW object |
-| `getObject(type, name)` | Get a `BWObject` instance for operations |
-| `activateObject(uri, lockHandle, version?)` | Activate any object by URI |
-| `validateObjectExists(type, name)` | Validate an object exists |
-| `validateNewObjectName(type, name)` | Validate a new name is available |
+| `search(options)` | BW object search (name/type/filters) |
+| `transformationsOf(adsoName)` | TRFNs related to an ADSO |
+| `dtpsOf(adsoName)` | DTPs related to an ADSO |
+| `dataflow(name, type?, options?)` | Dataflow / lineage graph |
+| `lineage(target, source, type?, options?)` | TRFN/DTP links source → target |
 
-### ADSO (Advanced DataStore Object)
+### `client.adso` (infoProvider)
 
 | Method | Description |
 |--------|-------------|
-| `getADSO(id, forceCacheUpdate?)` | Get ADSO raw metadata |
-| `getADSODetails(id, forceCacheUpdate?)` | Get parsed ADSO metadata |
-| `getADSOVersions(id)` | Get version history |
-| `getADSOXml(id, forceCacheUpdate?)` | Get raw XML for PUT |
-| `getADSOConfiguration(id)` | Get configuration info |
-| `getADSOTables(id)` | Get associated table names |
-| `getADSONodePath(name, version?)` | Get the node path |
-| `lockADSO(id)` / `unlockADSO(id)` | Lock / unlock |
-| `activateADSO(id, lockHandle?, corrNr?)` | Activate |
-| `checkADSO(id)` | Check consistency |
-| `updateADSO(id, xml, lockHandle, options?)` | Update via PUT |
-| `createADSO(options)` | Full create flow (validate → create → optional activate) |
-| `saveAndActivateADSO(id, xml, options?)` | One-stop: lock → PUT → activate → unlock |
-| `addADSOField(id, field, options?)` | Add a local field and save+activate |
-| `validateInfoArea(name)` / `validateTemplateADSO(name)` / `validateNewADSOName(name)` | Pre-create validations |
-| `validateADSOExists(id)` / `validateADSONewName(id)` | Existence/name validations |
+| `details(id)` | Parsed ADSO + configuration / tables / DDIC name when available |
+| `xml(id)` | Raw XML for edit / PUT |
+| `versions(id)` / `check(id)` | Version history / consistency |
+| `saveAndActivate(id, xml, options?)` | lock → transport → PUT → activate → unlock |
+| `addField(id, field, options?)` | Add local field then save+activate |
+| `create(options)` | Full create (validate → create → optional activate) |
+| `validateInfoArea` / `validateTemplate` / `validateNewName` | Pre-create checks |
 
-### Transformation (TRFN)
+### `client.trfn` / `client.dtp` (dataFlow)
 
-> ⚠️ **TRFN creation is unsupported** (server-side JCo dependency — must be created via Eclipse ADT or SAP GUI). Read/update/activate/delete all work normally.
+> ⚠️ **TRFN creation is unsupported** via this library (create in Eclipse ADT / GUI). Read / update / activate / delete work.
 
-| Method | Description |
-|--------|-------------|
-| `getTransformation(id, version?, options?)` | Get raw metadata |
-| `getTransformationDetails(id, version?, options?)` | Get parsed details |
-| `getTransformationVersions(id)` | Get version history |
-| `getTransformationXml(id, version?, options?)` | Get raw XML for PUT |
-| `lockTransformation(id)` / `unlockTransformation(id)` | Lock / unlock |
-| `activateTransformation(id, lockHandle?)` | Activate |
-| `checkTransformation(id)` | Check consistency |
-| `updateTransformation(id, xml, options, version?)` | Update via PUT |
-| `saveAndActivateTransformation(id, xml, options?)` | One-stop save+activate |
-| `setEndRoutineFields(id, fields, options?)` | Check fields into end routine and save+activate |
-| `addTransformationRule(xml, src, tgt?)` | *(pure helper)* Insert a DIRECT mapping rule into XML |
-| `autoMapTransformationFields(xml)` | *(pure helper)* Auto-map same-named fields |
-| `addTransformationRulesAndSave(id, rules, options?)` | One-stop: add rules + save+activate |
-| `autoMapTransformationFieldsAndSave(id, options?)` | One-stop: auto-map + save+activate |
-| `switchTransformationRuntime(id, useHana, lockHandle, options?)` | Switch HANA/ABAP runtime |
-| `validateTransformationExists(id)` / `validateTransformationNewName(id)` | Validations |
+| Facade | Method | Description |
+|--------|--------|-------------|
+| `trfn` | `details` / `xml` / `versions` / `check` | Read & check |
+| `trfn` | `saveAndActivate(id, xml, options?)` | One-stop write |
+| `trfn` | `setEndRoutineFields(id, fields, options?)` | Check fields into end routine + save |
+| `trfn` | `switchRuntime(xml, useHana)` | Pure XML helper (HANA vs ABAP) |
+| `dtp` | `details` / `xml` / `versions` / `check` | Read & check |
+| `dtp` | `saveAndActivate(id, xml, options?)` | One-stop write |
+| `dtp` | `execute(id)` | Run DTP |
 
-#### Transformation ABAP Class (Routines)
+Flat client methods still expose TRFN rule helpers (`addTransformationRulesAndSave`, class source read/write, …) and Advanced lock/update APIs.
+
+### `client.dataSource`
 
 | Method | Description |
 |--------|-------------|
-| `getTransformationClass(id, options?)` | Get the routine's ABAP class metadata |
-| `getTransformationClassSource(id, options?)` | Get routine source (start/end/expert) |
-| `saveAndActivateTransformationClassSource(id, source, options?)` | Save+activate class source |
-| `updateTransformationClassSource(id, source, lockHandle, options?)` | Update class source |
-| `lockTransformationClass(id, options?)` / `unlockTransformationClass(id, lockHandle, options?)` | Lock / unlock the class |
+| `details` / `fields` / `xml` / `versions` | Read |
+| `saveAndActivate(ds, src, xml, options?)` | One-stop write |
+| `mergeProposal(ds, src, xml)` | Merge ODP proposal after adapter change |
+| `replicationInfo` / `replicate` / `replicateFull` | Replication |
 
-### Data Transfer Process (DTP)
-
-| Method | Description |
-|--------|-------------|
-| `getDTP(id, forceCacheUpdate?)` | Get raw metadata |
-| `getDTPDetails(id, forceCacheUpdate?)` | Get parsed details |
-| `getDTPVersions(id)` | Get version history |
-| `lockDTP(id)` / `unlockDTP(id)` | Lock / unlock |
-| `activateDTP(id, lockHandle?, corrNr?)` | Activate |
-| `checkDTP(id)` | Check consistency |
-| `executeDTP(id)` | Execute the DTP |
-| `updateDTP(id, xml, lockHandle, transport?)` | Update via PUT |
-| `saveAndActivateDTP(id, xml, options?)` | One-stop save+activate |
-| `validateDTPExists(id)` / `validateDTPNewName(id)` | Validations |
-
-### DataSource (RSDS)
+### `client.processChain`
 
 | Method | Description |
 |--------|-------------|
-| `getDataSource(ds, src, forceCacheUpdate?)` | Get raw metadata |
-| `getDataSourceXml(ds, src, forceCacheUpdate?)` | Get raw XML for PUT |
-| `getDataSourceDetails(ds, src, forceCacheUpdate?)` | Get parsed details |
-| `getDataSourceFields(ds, src, forceCacheUpdate?)` | Parse field list |
-| `getDataSourceVersions(ds, src)` | Get version history |
-| `lockDataSource(ds, src)` / `unlockDataSource(ds, src)` | Lock / unlock (stateful) |
-| `updateDataSource(ds, src, xml, options)` | Save modified XML via PUT |
-| `activateDataSource(ds, src, lockHandle?, corrNr?)` | Activate |
-| `mergeDataSourceProposal(ds, src, xml)` | Merge ODP proposal (field sync after adapter change) |
-| `saveAndActivateDataSource(ds, src, xml, options?)` | One-stop save+activate |
+| `details` / `check` | Read & check |
+| `execute` / `stop` | Run / stop |
+| `logs(id)` | Logs + status |
 
-### DataSource Replication
+### `client.infoObject`
 
 | Method | Description |
 |--------|-------------|
-| `getReplicationInfo(src, ds)` | Replication pre-check |
-| `replicateDataSource(src, ds, tasks, options?)` | Trigger replication with pre-check tasks |
-| `replicateDataSourceFull(src, ds, options?)` | One-stop: pre-check → trigger |
+| `get(name)` | Details (+ metadata when available) |
+| `validateExists` / `validateNewName` | Validations |
 
-### Process Chain
+### `client.query` (BICS / provider preview)
 
-| Method | Description |
-|--------|-------------|
-| `getProcessChain(id)` / `getProcessChainDetails(id)` | Get metadata / parsed details |
-| `getProcessChainVersions(id)` | Get version history |
-| `lockProcessChain(id)` / `unlockProcessChain(id)` | Lock / unlock |
-| `activateProcessChain(id, lockHandle?, corrNr?)` | Activate |
-| `checkProcessChain(id)` | Check consistency |
-| `executeProcessChain(id)` / `stopProcessChain(id)` | Execute / stop |
-| `getProcessChainLogs(id)` | Get execution logs |
-| `getProcessChainStatus(id)` | Get run status |
-| `validateProcessChainExists(id)` / `validateProcessChainNewName(id)` | Validations |
-
-### InfoObject
+Multidimensional preview for **ADSO**, **characteristic**, and **Composite Provider** (`/sap/bw/modeling/comp/reporting`). Complements flat DDIC / ADSO table preview.
 
 | Method | Description |
 |--------|-------------|
-| `getInfoObject(name, options?)` | Get InfoObject details |
-| `getInfoObjectMetadata(name)` | Get InfoObject metadata |
-| `validateInfoObjectExists(name)` / `validateInfoObjectNewName(name)` | Validations |
-
-### DDIC Table Operations
-
-| Method | Description |
-|--------|-------------|
-| `getDDICTableMetadata(table)` | Get table metadata (blueSource format) |
-| `getDDICTableInfo(table)` | Get table info |
-| `getDDICTableFields(table)` | Get field list |
-| `getDDICTableDataMetadata(table)` | Get data-preview metadata |
-| `getDDICTableData(table, options?)` | Query table data (maxRows/columns/where/orderBy) |
-| `getTableDataViaSQL(table, sql)` | Query via SQL view |
-| `getADSODDICLinks(id)` / `getADSODDICTableName(id)` | DDIC links / table name for an ADSO |
-| `getADSODataPreview(name, maxRows?)` | ADSO data preview |
-
-### BICS Reporting / Provider Preview
-
-Multidimensional data preview for **ADSO**, **InfoObject (characteristic)**, and **Composite Provider**. Uses the same Dashboard Preview endpoints as Eclipse ADT (`/sap/bw/modeling/comp/reporting`). Complements DDIC/`getADSODataPreview` (flat table preview) with axis-based aggregation.
-
-| Method | Description |
-|--------|-------------|
-| `getReportingInitialView(compId, options?)` | GET initial view — metadata (characteristics / key figures / ids) + default result set |
-| `updateReportingView(compId, state, options?)` | POST updated axes — refresh result set with a full `infoObject` state |
-| `queryProviderPreview(name, { rows, columns?, fromRow?, toRow? })` | Convenience: GET metadata → remap ROWS/COLUMNS → POST → returns `flatRows` |
-
-`compId` / provider name may be passed with or without the `!` prefix (e.g. `ZL_FID09` or `!ZL_FID09`).
+| `initialView(compId, options?)` | Initial metadata + default result set |
+| `updateView(compId, state, options?)` | Remap axes and refresh |
+| `preview(name, { rows, columns?, … })` | Convenience → `flatRows` |
 
 ```typescript
-// Characteristic / ADSO / HCPR — same API
-const view = await client.queryProviderPreview("ZL_FID09", {
+const view = await client.query.preview("ZL_FID09", {
   rows: ["0PROFIT_CTR", "0COMP_CODE"],
   toRow: 1000
 })
 // view.flatRows: [{ "0PROFIT_CTR": "...", "0COMP_CODE": "1010", "1ROWCOUNT": 194, ... }, ...]
-// view.metaData / view.resultSet available for full BICS structure
 ```
 
-### Transport / CTS
+### `client.ddic`
 
 | Method | Description |
 |--------|-------------|
-| `transportCheck(uri, devclass?, operation?)` | Check if saving requires a transport request |
-| `createTransport(refUri, description, devclass?)` | Create a new transport request |
+| `describe(table)` | Metadata + info + fields (+ data metadata) |
+| `getData(table, options?)` | Table data preview |
+| `querySql(table, sql, options?)` | Freestyle OpenSQL preview |
+| `adsoPreview` / `adsoDdicLinks` / `adsoDdicTableName` | ADSO ↔ DDIC helpers |
+
+### `client.system` / `client.transport`
+
+| Facade | Method | Description |
+|--------|--------|-------------|
+| `system` | `info` / `getProperty` / `hasCapability` | System capabilities |
+| `transport` | `check(uri)` / `create(refUri, description)` | CTS |
+
+### Session (on `BWAdtClient`)
+
+`login()` · `logout()` · `dropSession()` · `reentranceTicket()`
+
+### Flat / Advanced / generic APIs
+
+`BWAdtClient` still exposes the previous flat methods (`getADSODetails`, `lockADSO`, `saveAndActivateADSO`, …) and generic `bwObject` / `createObject` helpers. Prefer facades for new code; write-path flat wrappers increasingly forward to the same API-layer orchestration.
+
+---
 
 ## Key Design Notes
 
-### Write Operation Session Model (verified 2026-07-15)
+### Write session model (verified)
 
-Write operations follow the session model traced from real Eclipse ADT communication:
+`saveAndActivate*` follows the Eclipse-traced dual-channel model:
 
-- **lock / unlock** → `stateful` session (`enqueue` context). The server returns a `sap-contextid` establishing the lock-holding session.
-- **PUT update / activation** → `stateless`, no `sap-contextid` carried. The server validates the `lockHandle` in the URL via the enqueue lock table.
-- ❌ **Never send `stateful;enqueue` header** — it causes the server to destroy the session (`sap-contextid=0`) and the lock is lost immediately. `AdtHTTP` handles this automatically.
+- **lock / unlock** → `stateful` (server `sap-contextid` holds the lock)
+- **PUT / activation / transport** → `stateless`, **no** `sap-contextid`
+- ❌ Never send `stateful;enqueue` — destroys the session (`sap-contextid=0`). `AdtHTTP` handles this.
 
-### Version Identifiers
+Unlock runs in `finally` so locks are released even when update/activate fails.
 
-BW object versions use single-letter suffixes in URIs: `m` = active, `a` = modified, `d` = revised. (RSDS is a special case — its version character lives in `<atom:id>`, not the URI suffix.)
+### Transport on save (caller chooses)
+
+When recording is required and lock did not already supply `corrNr`:
+
+| Option | Behavior |
+|--------|----------|
+| `transport: "…"` | Use an existing TR |
+| `createTransport: true` | Create a new TR (`transportDescription` optional) |
+| neither | Throws `TransportRequiredError` with `availableTransports` — **no** auto-pick of `TRANSPORTS[0]` |
+
+Import `isTransportRequiredError` to branch on that case.
+
+### Version identifiers
+
+URI version suffixes: `m` = active, `a` = modified, `d` = revised. (RSDS keeps the version letter in `<atom:id>`, not the URI suffix.)
+
+---
 
 ## Testing
 
-Tests require a real SAP BW system connection. Copy `.env.example` to `.env` and configure:
+Tests need a real SAP BW connection. Copy `.env.example` to `.env`:
 
 ```bash
 BW_BASE_URL=http://your-bw-server:8000
@@ -270,27 +236,32 @@ BW_LANGUAGE=EN
 ```
 
 ```bash
-npm test                                    # run all tests
-npm test -- --testPathPattern=datasource    # run a specific suite
+npm test                                    # all tests
+npm test -- --testPathPattern=datasource    # one suite
 ```
 
-Test suites live in `src/__tests__/` and are verified against real Communication Logs.
+Suites live in `src/__tests__/` and are checked against real Communication Logs.
 
 ## Documentation
 
-Detailed design documents are in `docs/`:
-
-- [API_MAPPING.md](./docs/API_MAPPING.md) — Complete ADT endpoint mapping
-- [VERIFIED_APIS.md](./docs/VERIFIED_APIS.md) — Verified behaviors and session models
+- [API_MAPPING.md](./docs/API_MAPPING.md) — ADT endpoint mapping
+- [VERIFIED_APIS.md](./docs/VERIFIED_APIS.md) — Verified behaviors & session models (required reading for writes)
 - [ROADMAP.md](./docs/ROADMAP.md) — Development roadmap
+- [CLAUDE.md](./CLAUDE.md) — Contributor / agent guidance (domain dictionary)
 
 ## Architecture
 
-Three-layer design:
+```
+Client (BWAdtClient)
+  ├─ Domain facades   src/domains/*     ← preferred Public surface
+  ├─ Flat methods     (compat / Advanced)
+  └─ lazy import → API layer  src/api/*
+                    └─ HTTP   AdtHTTP / AxiosHttpClient
+```
 
-1. **HTTP layer** (`AdtHTTP.ts`, `AxiosHttpClient.ts`) — authentication, CSRF tokens, cookies, stateful/stateless session management, auto-login retry.
-2. **API layer** (`src/api/*.ts`) — per-domain modules with `io-ts` runtime types and XML parsing helpers.
-3. **Client layer** (`BWAdtClient.ts`) — main entry class using lazy `import()` to load domain modules on demand.
+1. **HTTP** — auth, CSRF, cookies, stateful/stateless sessions, auto-login retry  
+2. **API** — per-domain modules, `io-ts` types, XML helpers, `saveAndActivate*` orchestration  
+3. **Client / domains** — entry points; facades for Public tasks, flat methods for full surface  
 
 ## License
 
