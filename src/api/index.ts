@@ -88,6 +88,7 @@ export {
   parseDataSourceFields,
   parseDataSourceVersions,
   extractDataSourceTimestamp,
+  saveAndActivateDataSource,
   RSDS_CONTENT_TYPE,
   RSDS_ACCEPT,
   RSDS_PROPOSAL_REQUEST_CONTENT_TYPE,
@@ -128,7 +129,9 @@ export {
   buildADSOFieldElementXml,
   addADSOFieldToXml,
   removeADSOFieldFromXml,
-  extractADSOTimestamp
+  extractADSOTimestamp,
+  saveAndActivateADSO,
+  createADSOFull
 } from "./adso"
 
 export {
@@ -157,13 +160,15 @@ export {
   validateTransformationExists,
   validateTransformationNewName,
   validateTransformationCanDelete,
-  validateTransformationCanActivate
+  validateTransformationCanActivate,
+  saveAndActivateTransformation
 } from "./transformation"
 
 export {
   lockDTP,
   unlockDTP,
   getDTP,
+  getDTPXml,
   getDTPDetails,
   getDTPVersions,
   activateDTP,
@@ -172,7 +177,9 @@ export {
   validateDTPExists,
   validateDTPNewName,
   validateDTPCanDelete,
-  validateDTPCanActivate
+  validateDTPCanActivate,
+  updateDTP,
+  saveAndActivateDTP
 } from "./dtp"
 
 export {

@@ -159,6 +159,75 @@ export async function createTransport(
   return transport || ""
 }
 
+/**
+ * Thrown when a write needs a transport request but the caller has not chosen
+ * an existing TR (`transport`) nor opted to create one (`createTransport: true`).
+ */
+export class TransportRequiredError extends Error {
+  readonly code = "TRANSPORT_REQUIRED"
+  readonly objectUri: string
+  readonly transports: TransportHeader[]
+  readonly check: TransportInfo
+
+  constructor(objectUri: string, check: TransportInfo) {
+    const list = (check.TRANSPORTS || [])
+      .map(t => `${t.TRKORR}${t.AS4TEXT ? ` (${t.AS4TEXT})` : ""}`)
+      .join(", ")
+    super(
+      `Transport required for ${objectUri}. ` +
+        `Pass options.transport to use an existing request` +
+        (list ? ` (available: ${list})` : "") +
+        `, or set options.createTransport=true to create a new one.`
+    )
+    this.name = "TransportRequiredError"
+    this.objectUri = objectUri
+    this.transports = check.TRANSPORTS || []
+    this.check = check
+  }
+}
+
+export function isTransportRequiredError(e: unknown): e is TransportRequiredError {
+  return e instanceof TransportRequiredError
+}
+
+/**
+ * Resolve transport number for a locked write (shared by saveAndActivate*).
+ *
+ * Priority:
+ * 1. Explicit `transport` (caller chose an existing TR)
+ * 2. Lock `corrNr` (object already bound to a TR)
+ * 3. If RECORDING=X:
+ *    - `createTransport: true` → create a new TR
+ *    - otherwise → throw TransportRequiredError with available TRANSPORTS for the caller to choose
+ */
+export async function resolveTransportForWrite(
+  client: AdtHTTP,
+  objectUri: string,
+  options?: {
+    transport?: string
+    lockCorrNr?: string
+    /** When true and a TR is required, create a new request. Default false — caller must choose. */
+    createTransport?: boolean
+    transportDescription?: string
+  }
+): Promise<string | undefined> {
+  let transport = options?.transport || options?.lockCorrNr
+  if (transport) return transport
+
+  const check = await transportCheck(client, objectUri)
+  if (check.RECORDING !== "X") return undefined
+
+  if (options?.createTransport) {
+    return createTransport(
+      client,
+      objectUri,
+      options?.transportDescription || "API update"
+    )
+  }
+
+  throw new TransportRequiredError(objectUri, check)
+}
+
 // ============================================================================
 // Parsing helpers
 // ============================================================================

@@ -525,18 +525,25 @@ export async function getADSOConfiguration(
 /**
  * Get ADSO Tables - 获取 ADSO 关联的表名
  *
- * 对应请求: GET /sap/bw/modeling/adso/{adso_id}/sql
+ * 对应请求: GET /sap/bw/modeling/adso/{adso_id}/{version}
+ *
+ * 历史上该接口走 `/sql` 子路径且不带版本段，SAP 会把缺失的版本默认成 `S`
+ * （saved）并以「不支持对象版本 S」HTTP 500 拒绝。所有同族只读端点
+ * （getADSODDICLinks / getADSOXml / getADSODataPreview）都用 `/m` 且正常，
+ * 故这里改为版本化的 `/m`（active），默认 version="m"。
  *
  * @param client - ADT HTTP 客户端
  * @param adsoId - ADSO ID
+ * @param version - 版本段：m=active（默认）, a=modified, d=revised
  * @returns ADSO 表信息
  */
 export async function getADSOTables(
   client: AdtHTTP,
-  adsoId: string
+  adsoId: string,
+  version: "m" | "a" | "d" = "m"
 ): Promise<ADSOTables> {
   const response = await client.request(
-    `/sap/bw/modeling/adso/${adsoId.toLowerCase()}/sql`,
+    `/sap/bw/modeling/adso/${adsoId.toLowerCase()}/${version}`,
     {
       method: "GET",
       headers: {
@@ -671,6 +678,147 @@ export async function updateADSO(
 
   // 响应是 ATOM feed 格式，包含检查结果
   return parseActivationResponse(response.body)
+}
+
+export interface SaveAndActivateADSOOptions {
+  transport?: string
+  /** Create a new TR when recording is required and no transport/corrNr is set. */
+  createTransport?: boolean
+  transportDescription?: string
+  autoActivate?: boolean
+  timestamp?: string
+}
+
+export interface SaveAndActivateADSOResult {
+  lockHandle: string
+  transport?: string
+  updateResult: ActivationResult
+  activated: boolean
+  activateResult?: ActivationResult
+}
+
+/**
+ * Save and Activate ADSO - lock → transport → PUT → activate → unlock (finally).
+ * Session model: lock/unlock stateful; PUT/activation/transport stateless (no contextid).
+ */
+export async function saveAndActivateADSO(
+  client: AdtHTTP,
+  adsoId: string,
+  xmlContent: string,
+  options?: SaveAndActivateADSOOptions
+): Promise<SaveAndActivateADSOResult> {
+  const { resolveTransportForWrite } = await import("./transport")
+
+  const adsoUri = `/sap/bw/modeling/adso/${adsoId.toLowerCase()}/m`
+  const autoActivate = options?.autoActivate ?? true
+  const timestamp = options?.timestamp ?? extractADSOTimestamp(xmlContent)
+
+  const lockResult = await lockADSO(client, adsoId)
+
+  try {
+    const transport = await resolveTransportForWrite(client, adsoUri, {
+      transport: options?.transport,
+      lockCorrNr: lockResult.corrNr,
+      createTransport: options?.createTransport,
+      transportDescription: options?.transportDescription || "API ADSO update"
+    })
+
+    const updateResult = await updateADSO(client, adsoId, xmlContent, {
+      lockHandle: lockResult.lockHandle,
+      corrNr: transport,
+      timestamp
+    })
+
+    let activateResult
+    if (autoActivate) {
+      activateResult = await activateADSO(
+        client,
+        adsoId,
+        lockResult.lockHandle,
+        transport || ""
+      )
+    }
+
+    return {
+      lockHandle: lockResult.lockHandle,
+      transport,
+      updateResult,
+      activated: autoActivate,
+      activateResult
+    }
+  } finally {
+    await unlockADSO(client, adsoId)
+  }
+}
+
+/**
+ * Create ADSO with validation + lock/unlock (and optional activate).
+ * Public create entry used by domain facade and BWAdtClient.
+ */
+export async function createADSOFull(
+  client: AdtHTTP,
+  options: CreateADSOOptions & {
+    autoActivate?: boolean
+    responsible?: string
+  }
+): Promise<ADSOLockResult> {
+  const {
+    name,
+    infoArea,
+    template,
+    masterLanguage = "EN",
+    responsible = options.responsible || "",
+    masterSystem = "BPD",
+    activateData = true,
+    writeChangelog = true,
+    readOnly = false,
+    autoActivate = false
+  } = options
+
+  const areaValid = await validateInfoArea(client, infoArea)
+  if (!areaValid.valid) {
+    throw new Error(`InfoArea ${infoArea} does not exist`)
+  }
+
+  if (template) {
+    const templateValid = await validateTemplateADSO(client, template.objectName)
+    if (!templateValid.valid) {
+      throw new Error(`Template ${template.objectName} does not exist`)
+    }
+  }
+
+  const nameValid = await validateNewADSOName(client, name)
+  if (!nameValid.valid) {
+    throw new Error(`ADSO name ${name} is not available`)
+  }
+
+  const lockResult = await lockADSO(client, name)
+
+  try {
+    await createADSO(
+      client,
+      {
+        ...options,
+        masterLanguage,
+        responsible,
+        masterSystem,
+        activateData,
+        writeChangelog,
+        readOnly,
+        parentName: infoArea,
+        parentType: "AREA"
+      },
+      lockResult.lockHandle
+    )
+
+    if (autoActivate) {
+      await activateADSO(client, name, lockResult.lockHandle)
+    }
+
+    return lockResult
+  } finally {
+    await unlockADSO(client, name)
+  }
 }
 
 /**

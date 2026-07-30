@@ -41,6 +41,21 @@ export {
 // Main client
 export { BWAdtClient, createSSLConfig } from "./BWAdtClient"
 
+// Domain facades (preferred Public entry)
+export {
+  AdsoDomain,
+  TrfnDomain,
+  DtpDomain,
+  DataSourceDomain,
+  ProcessChainDomain,
+  InfoObjectDomain,
+  RepositoryDomain,
+  QueryDomain,
+  SystemDomain,
+  DdicDomain,
+  TransportDomain
+} from "./domains"
+
 // Logging
 export { LogCallback, LogData } from "./requestLogger"
 
@@ -84,3 +99,13 @@ export {
 
 // Re-export axios client
 export { AxiosHttpClient } from "./AxiosHttpClient"
+
+// Transport choice helpers (saveAndActivate)
+export {
+  TransportRequiredError,
+  isTransportRequiredError,
+  resolveTransportForWrite,
+  transportCheck,
+  createTransport
+} from "./api/transport"
+export type { TransportHeader, TransportInfo } from "./api/transport"

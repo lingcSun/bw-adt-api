@@ -517,6 +517,77 @@ export async function mergeDataSourceProposal(
   return response.body
 }
 
+export interface SaveAndActivateDataSourceOptions {
+  transport?: string
+  createTransport?: boolean
+  transportDescription?: string
+  autoActivate?: boolean
+}
+
+export interface SaveAndActivateDataSourceResult {
+  lockHandle: string
+  transport?: string
+  activated: boolean
+  activateResult?: ActivationResult
+}
+
+/**
+ * Save and Activate DataSource - lock → transport → PUT → activate → unlock.
+ * Session model: lock/unlock stateful; PUT/activation/transport stateless (no contextid).
+ * RSDS transport/timestamp quirks stay in updateDataSource.
+ */
+export async function saveAndActivateDataSource(
+  client: AdtHTTP,
+  datasource: string,
+  sourceSystem: string,
+  xmlContent: string,
+  options?: SaveAndActivateDataSourceOptions
+): Promise<SaveAndActivateDataSourceResult> {
+  const { resolveTransportForWrite } = await import("./transport")
+
+  const dsUri = `/sap/bw/modeling/rsds/${datasource.toLowerCase()}/${sourceSystem.toLowerCase()}/m`
+  const autoActivate = options?.autoActivate ?? true
+
+  const lockResult = await lockDataSource(client, datasource, sourceSystem)
+
+  try {
+    const transport = await resolveTransportForWrite(client, dsUri, {
+      transport: options?.transport,
+      lockCorrNr: lockResult.corrNr,
+      createTransport: options?.createTransport,
+      transportDescription:
+        options?.transportDescription || "API update DataSource"
+    })
+
+    const timestamp = extractDataSourceTimestamp(xmlContent)
+    await updateDataSource(client, datasource, sourceSystem, xmlContent, {
+      lockHandle: lockResult.lockHandle,
+      transport,
+      timestamp
+    })
+
+    let activateResult
+    if (autoActivate) {
+      activateResult = await activateDataSource(
+        client,
+        datasource,
+        sourceSystem,
+        lockResult.lockHandle,
+        transport || ""
+      )
+    }
+
+    return {
+      lockHandle: lockResult.lockHandle,
+      transport,
+      activated: autoActivate,
+      activateResult
+    }
+  } finally {
+    await unlockDataSource(client, datasource, sourceSystem)
+  }
+}
+
 /**
  * Extract DataSource Timestamp - 从 DataSource XML 提取 PUT timestamp 头
  *

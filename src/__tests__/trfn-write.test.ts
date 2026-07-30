@@ -73,6 +73,7 @@ describe("TRFN 写操作 / 结束例程 setFields", () => {
     })
 
     const result = await client.saveAndActivateTransformation(TEST_TRFN, xml, {
+      createTransport: true,
       transportDescription: "API TRFN round-trip"
     })
 
@@ -113,6 +114,7 @@ describe("TRFN 写操作 / 结束例程 setFields", () => {
       TEST_TRFN,
       without,
       {
+        createTransport: true,
         transportDescription: `API unset end field ${TEST_FIELD} (no activate)`,
         autoActivate: false
       }
@@ -128,6 +130,7 @@ describe("TRFN 写操作 / 结束例程 setFields", () => {
 
     // 2) setEndRoutineFields 勾选并激活
     const addResult = await client.setEndRoutineFields(TEST_TRFN, [TEST_FIELD], {
+      createTransport: true,
       transportDescription: `API set end field ${TEST_FIELD}`
     })
     console.log(`=== Set ${TEST_FIELD} ===`)

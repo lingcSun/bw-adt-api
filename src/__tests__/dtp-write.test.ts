@@ -122,6 +122,7 @@ describe("DTP 写操作流程", () => {
     let result
     try {
       result = await client.saveAndActivateDTP(TEST_DTP, originalXml, {
+        createTransport: true,
         transportDescription: `API test save ${new Date().toISOString()}`,
         autoActivate: true
       })

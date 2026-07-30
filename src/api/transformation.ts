@@ -338,6 +338,76 @@ export async function updateTransformation(
   return parseActivationResponse(response.body)
 }
 
+export interface SaveAndActivateTransformationOptions {
+  transport?: string
+  createTransport?: boolean
+  transportDescription?: string
+  autoActivate?: boolean
+  timestamp?: string
+}
+
+export interface SaveAndActivateTransformationResult {
+  lockHandle: string
+  transport?: string
+  updateResult: ActivationResult
+  activated: boolean
+  activateResult?: ActivationResult
+}
+
+/**
+ * Save and Activate Transformation - lock → transport → PUT → activate → unlock.
+ * Session model: lock/unlock stateful; PUT/activation/transport stateless (no contextid).
+ */
+export async function saveAndActivateTransformation(
+  client: AdtHTTP,
+  trfnId: string,
+  xmlContent: string,
+  options?: SaveAndActivateTransformationOptions
+): Promise<SaveAndActivateTransformationResult> {
+  const { resolveTransportForWrite } = await import("./transport")
+
+  const trfnUri = `/sap/bw/modeling/trfn/${trfnId.toLowerCase()}/m`
+  const autoActivate = options?.autoActivate ?? true
+  const timestamp =
+    options?.timestamp ?? extractTransformationTimestamp(xmlContent)
+
+  const lockResult = await lockTransformation(client, trfnId)
+
+  try {
+    const transport = await resolveTransportForWrite(client, trfnUri, {
+      transport: options?.transport,
+      lockCorrNr: lockResult.corrNr,
+      createTransport: options?.createTransport,
+      transportDescription: options?.transportDescription || "API TRFN update"
+    })
+
+    const updateResult = await updateTransformation(client, trfnId, xmlContent, {
+      lockHandle: lockResult.lockHandle,
+      corrNr: transport,
+      timestamp
+    })
+
+    let activateResult
+    if (autoActivate) {
+      activateResult = await activateTransformation(
+        client,
+        trfnId,
+        lockResult.lockHandle
+      )
+    }
+
+    return {
+      lockHandle: lockResult.lockHandle,
+      transport,
+      updateResult,
+      activated: autoActivate,
+      activateResult
+    }
+  } finally {
+    await unlockTransformation(client, trfnId)
+  }
+}
+
 /**
  * Get Transformation Raw XML - 获取原始 XML 字符串 (供 PUT 使用)
  */

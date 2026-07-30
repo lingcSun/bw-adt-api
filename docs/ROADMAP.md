@@ -90,10 +90,12 @@
 |------|------|------|--------|
 | **核心对象验证** | - | ADSO/InfoArea/DTP/Transformation 全流程验证 | **P0** 🔥 |
 | **Query** | `/sap/bw/modeling/query` | BW 查询设计器、查询执行、变量管理 | P1 |
-| **DataSource** | `/sap/bw/modeling/repo/datasourcestructure` | 数据源结构查询、源系统数据源 | P1 |
-| **InfoArea** | `/sap/bw/modeling/area` | InfoArea 管理 | P1 |
-| **Open Hub** | `/sap/bw/modeling/dest` | Open Hub Destination（数据分发） | P2 |
+| **DataSource** | `/sap/bw/modeling/rsds` | RSDS 读/写/复制 | ✅（见 api/datasource、replication） |
+| **InfoArea** | `/sap/bw/modeling/area` | InfoArea 管理 | ⏸ 不做 UI 树；validate exists 仅 ADSO create 用 |
+| **Open Hub** | `/sap/bw/modeling/dest` | Open Hub Destination | ❌ 不做 |
 | **InfoObject CRUD** | `/sap/bw/modeling/iobj` | InfoObject 创建/更新/删除（当前仅读取） | P2 |
+| **InfoSource** | — | — | ❌ 不做 |
+| **Source System** | — | — | ❌ 不做（replication 挂在 dataSource） |
 
 ## 📋 中优先级（高级功能）
 

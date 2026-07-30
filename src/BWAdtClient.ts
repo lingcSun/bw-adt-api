@@ -8,6 +8,19 @@ import {
 } from "./AdtHTTP"
 import { followUrl, isString } from "./utilities"
 import https from "https"
+import {
+  AdsoDomain,
+  TrfnDomain,
+  DtpDomain,
+  DataSourceDomain,
+  ProcessChainDomain,
+  InfoObjectDomain,
+  RepositoryDomain,
+  QueryDomain,
+  SystemDomain,
+  DdicDomain,
+  TransportDomain
+} from "./domains"
 
 export function createSSLConfig(
   allowUnauthorized: boolean,
@@ -35,6 +48,11 @@ export class BWAdtClient {
   private discovery?: any[]
   private fetcher?: () => Promise<string>
 
+  /**
+   * Preferred Public API: use domain facades (`client.adso`, `client.trfn`, …).
+   * Flat methods below remain for compatibility and are progressively deprecated.
+   */
+
   public get httpClient() {
     return this.h
   }
@@ -46,6 +64,19 @@ export class BWAdtClient {
   private h: AdtHTTP
   private pClone?: BWAdtClient
   private options: HttpOptions
+
+  /** Public domain facades (preferred entry). */
+  readonly adso: AdsoDomain
+  readonly trfn: TrfnDomain
+  readonly dtp: DtpDomain
+  readonly dataSource: DataSourceDomain
+  readonly processChain: ProcessChainDomain
+  readonly infoObject: InfoObjectDomain
+  readonly repository: RepositoryDomain
+  readonly query: QueryDomain
+  readonly system: SystemDomain
+  readonly ddic: DdicDomain
+  readonly transport: TransportDomain
 
   /**
    * Create a BW ADT client
@@ -80,6 +111,17 @@ export class BWAdtClient {
       options
     }
     this.h = this.createHttp()
+    this.adso = new AdsoDomain(this.h)
+    this.trfn = new TrfnDomain(this.h)
+    this.dtp = new DtpDomain(this.h)
+    this.dataSource = new DataSourceDomain(this.h)
+    this.processChain = new ProcessChainDomain(this.h)
+    this.infoObject = new InfoObjectDomain(this.h)
+    this.repository = new RepositoryDomain(this.h)
+    this.query = new QueryDomain(this.h)
+    this.system = new SystemDomain(this.h)
+    this.ddic = new DdicDomain(this.h)
+    this.transport = new TransportDomain(this.h)
   }
 
   private createHttp() {
@@ -629,68 +671,20 @@ export class BWAdtClient {
    *   4. activation (stateless)
    *   5. unlock (stateful)
    */
+  /** @deprecated Prefer `client.adso.saveAndActivate` */
   public async saveAndActivateADSO(
     adsoId: string,
     xmlContent: string,
     options?: {
       transport?: string
+      createTransport?: boolean
       transportDescription?: string
       autoActivate?: boolean
       timestamp?: string
     }
   ) {
-    const {
-      lockADSO,
-      unlockADSO,
-      activateADSO,
-      updateADSO,
-      extractADSOTimestamp
-    } = await import("./api/adso")
-
-    const adsoUri = `/sap/bw/modeling/adso/${adsoId.toLowerCase()}/m`
-    const autoActivate = options?.autoActivate ?? true
-    const timestamp = options?.timestamp ?? extractADSOTimestamp(xmlContent)
-
-    const lockResult = await lockADSO(this.h, adsoId)
-
-    try {
-      let transport = options?.transport || lockResult.corrNr
-      if (!transport) {
-        const check = await this.transportCheck(adsoUri)
-        if (check.RECORDING === "X") {
-          transport = await this.createTransport(
-            adsoUri,
-            options?.transportDescription || "API ADSO update"
-          )
-        }
-      }
-
-      const updateResult = await updateADSO(this.h, adsoId, xmlContent, {
-        lockHandle: lockResult.lockHandle,
-        corrNr: transport,
-        timestamp
-      })
-
-      let activateResult
-      if (autoActivate) {
-        activateResult = await activateADSO(
-          this.h,
-          adsoId,
-          lockResult.lockHandle,
-          transport || ""
-        )
-      }
-
-      return {
-        lockHandle: lockResult.lockHandle,
-        transport,
-        updateResult,
-        activated: autoActivate,
-        activateResult
-      }
-    } finally {
-      await unlockADSO(this.h, adsoId)
-    }
+    const { saveAndActivateADSO } = await import("./api/adso")
+    return saveAndActivateADSO(this.h, adsoId, xmlContent, options)
   }
 
   /**
@@ -714,6 +708,7 @@ export class BWAdtClient {
     },
     options?: {
       transport?: string
+      createTransport?: boolean
       transportDescription?: string
       autoActivate?: boolean
     }
@@ -805,76 +800,13 @@ export class BWAdtClient {
     readOnly?: boolean                    // 只读 (默认: false)
     autoActivate?: boolean                // 创建后自动激活 (默认: false)
   }) {
-    const {
-      validateInfoArea,
-      validateTemplateADSO,
-      validateNewADSOName,
-      lockADSO,
-      createADSO: createADSOFn,
-      unlockADSO,
-      activateADSO
-    } = await import("./api/adso")
-
-    const {
-      name,
-      infoArea,
-      template,
-      masterLanguage = "EN",
-      responsible = this.username,
-      masterSystem = "BPD",
-      activateData = true,
-      writeChangelog = true,
-      readOnly = false,
-      autoActivate = false
-    } = options
-
-    // 1. 验证 InfoArea 存在
-    const areaValid = await validateInfoArea(this.h, infoArea)
-    if (!areaValid.valid) {
-      throw new Error(`InfoArea ${infoArea} does not exist`)
-    }
-
-    // 2. 验证模板存在 (如果提供)
-    if (template) {
-      const templateValid = await validateTemplateADSO(this.h, template.objectName)
-      if (!templateValid.valid) {
-        throw new Error(`Template ${template.objectName} does not exist`)
-      }
-    }
-
-    // 3. 验证新名称可用
-    const nameValid = await validateNewADSOName(this.h, name)
-    if (!nameValid.valid) {
-      throw new Error(`ADSO name ${name} is not available`)
-    }
-
-    // 4. 锁定对象
-    const lockResult = await lockADSO(this.h, name)
-
-    try {
-      // 5. 创建 ADSO
-      await createADSOFn(this.h, {
-        ...options,
-        masterLanguage,
-        responsible,
-        masterSystem,
-        activateData,
-        writeChangelog,
-        readOnly,
-        parentName: infoArea,
-        parentType: "AREA"
-      }, lockResult.lockHandle)
-
-      // 6. 可选：自动激活
-      if (autoActivate) {
-        await activateADSO(this.h, name, lockResult.lockHandle)
-      }
-
-      return lockResult
-    } finally {
-      // 7. 解锁对象
-      await unlockADSO(this.h, name)
-    }
+    const { createADSOFull } = await import("./api/adso")
+    return createADSOFull(this.h, {
+      ...options,
+      masterLanguage: options.masterLanguage ?? "EN",
+      responsible: options.responsible ?? this.username,
+      masterSystem: options.masterSystem ?? "BPD"
+    })
   }
 
   /**
@@ -1044,73 +976,20 @@ export class BWAdtClient {
    * 对照 Eclipse setFields Communication Log:
    *   lock → transportchecks → PUT (lockHandle + Transport-Lock-Holder + timestamp) → activation → unlock
    */
+  /** @deprecated Prefer `client.trfn.saveAndActivate` */
   public async saveAndActivateTransformation(
     trfnId: string,
     xmlContent: string,
     options?: {
       transport?: string
+      createTransport?: boolean
       transportDescription?: string
       autoActivate?: boolean
       timestamp?: string
     }
   ) {
-    const {
-      lockTransformation,
-      unlockTransformation,
-      activateTransformation,
-      updateTransformation,
-      extractTransformationTimestamp
-    } = await import("./api/transformation")
-
-    const trfnUri = `/sap/bw/modeling/trfn/${trfnId.toLowerCase()}/m`
-    const autoActivate = options?.autoActivate ?? true
-    const timestamp =
-      options?.timestamp ?? extractTransformationTimestamp(xmlContent)
-
-    const lockResult = await lockTransformation(this.h, trfnId)
-
-    try {
-      let transport = options?.transport || lockResult.corrNr
-      if (!transport) {
-        const check = await this.transportCheck(trfnUri)
-        if (check.RECORDING === "X") {
-          transport = await this.createTransport(
-            trfnUri,
-            options?.transportDescription || "API TRFN update"
-          )
-        }
-      }
-
-      const updateResult = await updateTransformation(
-        this.h,
-        trfnId,
-        xmlContent,
-        {
-          lockHandle: lockResult.lockHandle,
-          corrNr: transport,
-          timestamp
-        }
-      )
-
-      let activateResult
-      if (autoActivate) {
-        activateResult = await activateTransformation(
-          this.h,
-          trfnId,
-          lockResult.lockHandle
-        )
-      }
-
-      return {
-        lockHandle: lockResult.lockHandle,
-        transport,
-        updateResult,
-        activated: autoActivate,
-        activateResult
-      }
-    } finally {
-      await unlockTransformation(this.h, trfnId)
-    }
+    const { saveAndActivateTransformation } = await import("./api/transformation")
+    return saveAndActivateTransformation(this.h, trfnId, xmlContent, options)
   }
 
   /**
@@ -1124,6 +1003,7 @@ export class BWAdtClient {
     fieldNames: string[],
     options?: {
       transport?: string
+      createTransport?: boolean
       transportDescription?: string
       autoActivate?: boolean
     }
@@ -1193,6 +1073,7 @@ export class BWAdtClient {
     rules: Array<{ source: string; target?: string }>,
     options?: {
       transport?: string
+      createTransport?: boolean
       transportDescription?: string
       autoActivate?: boolean
     }
@@ -1227,6 +1108,7 @@ export class BWAdtClient {
     trfnId: string,
     options?: {
       transport?: string
+      createTransport?: boolean
       transportDescription?: string
       autoActivate?: boolean
     }
@@ -1327,6 +1209,7 @@ export class BWAdtClient {
     options?: {
       activateTransformation?: boolean
       transport?: string
+      createTransport?: boolean
       transportDescription?: string
     }
   ) {
@@ -1538,6 +1421,22 @@ export class BWAdtClient {
   }
 
   /**
+   * Get DTP Raw XML - 获取 DTP 原始 XML 字符串（供 PUT update 使用）
+   * 对应请求: GET /sap/bw/modeling/dtpa/{dtp_id}/m
+   *
+   * 与 getDTP 同端点，但不解析，直接返回原始 XML 字符串（对称于
+   * getADSOXml / getTransformationXml）。
+   *
+   * @param dtpId - DTP ID (格式: DTP_*)
+   * @param forceCacheUpdate - 是否强制更新缓存
+   * @returns DTP 原始 XML 字符串
+   */
+  public async getDTPXml(dtpId: string, forceCacheUpdate?: boolean) {
+    const { getDTPXml } = await import("./api/dtp")
+    return getDTPXml(this.h, dtpId, forceCacheUpdate)
+  }
+
+  /**
    * Get DTP Details (Parsed) - 获取解析后的 DTP 元数据
    *
    * @param dtpId - DTP ID
@@ -1700,64 +1599,19 @@ export class BWAdtClient {
    * @param options - 选项 (transport 已有TR号 / autoActivate 是否自动激活)
    * @returns 保存激活结果 (含使用的 transport 号)
    */
+  /** @deprecated Prefer `client.dtp.saveAndActivate` */
   public async saveAndActivateDTP(
     dtpId: string,
     xmlContent: string,
     options?: {
-      transport?: string         // 已有的 TR 号;不提供则自动新建
+      transport?: string         // 已有的 TR 号
+      createTransport?: boolean // 需要记录且未指定 transport 时新建
       transportDescription?: string // 新建 TR 的描述 (默认 "API update")
       autoActivate?: boolean     // 是否自动激活 (默认 true)
     }
   ) {
-    const { lockDTP, unlockDTP, activateDTP } = await import("./api/dtp")
-    const { BWObjectType, createBWObject } = await import("./api/bwObject")
-
-    const dtpUri = `/sap/bw/modeling/dtpa/${dtpId.toLowerCase()}/m`
-    const autoActivate = options?.autoActivate ?? true
-
-    // 1. 锁定 (lock 内部使用 stateful 会话, AdtHTTP 通过 sap-contextid 保持该会话;
-    //    后续 stateless 请求不携带 contextid, 不会破坏持锁会话)
-    const lockResult = await lockDTP(this.h, dtpId)
-
-    try {
-      // 2. 确定 TR 号 (lock 返回的 corrNr 优先: 对象已绑定的 TR)
-      let transport = options?.transport || lockResult.corrNr
-      if (!transport) {
-        // 检查是否需要 TR
-        const check = await this.transportCheck(dtpUri)
-        if (check.RECORDING === "X") {
-          // 需要记录,新建 TR
-          transport = await this.createTransport(
-            dtpUri,
-            options?.transportDescription || "API update"
-          )
-        }
-      }
-
-      // 3. 保存 (PUT update, stateless; 激活由下一步带 corrNr 统一执行)
-      const obj = createBWObject(this.h, BWObjectType.DTP, dtpId)
-      await obj.update(xmlContent, {
-        lockHandle: lockResult.lockHandle,
-        transport,
-        activate: false
-      })
-
-      // 4. 激活
-      let activateResult
-      if (autoActivate) {
-        activateResult = await activateDTP(this.h, dtpId, lockResult.lockHandle, transport || "")
-      }
-
-      return {
-        lockHandle: lockResult.lockHandle,
-        transport,
-        activated: autoActivate,
-        activateResult
-      }
-    } finally {
-      // 5. 解锁 (回到持锁的 stateful 会话)
-      await unlockDTP(this.h, dtpId)
-    }
+    const { saveAndActivateDTP } = await import("./api/dtp")
+    return saveAndActivateDTP(this.h, dtpId, xmlContent, options)
   }
 
   // ========================================
@@ -1947,73 +1801,26 @@ export class BWAdtClient {
    * @param xmlContent - 修改后的 DataSource XML 内容
    * @param options - transport 已有TR号 / transportDescription / autoActivate
    */
+  /** @deprecated Prefer `client.dataSource.saveAndActivate` */
   public async saveAndActivateDataSource(
     datasource: string,
     sourceSystem: string,
     xmlContent: string,
     options?: {
       transport?: string
+      createTransport?: boolean
       transportDescription?: string
       autoActivate?: boolean
     }
   ) {
-    const {
-      lockDataSource,
-      unlockDataSource,
-      activateDataSource,
-      updateDataSource,
-      extractDataSourceTimestamp
-    } = await import("./api/datasource")
-
-    const dsUri = `/sap/bw/modeling/rsds/${datasource.toLowerCase()}/${sourceSystem.toLowerCase()}/m`
-    const autoActivate = options?.autoActivate ?? true
-
-    // 1. 锁定
-    const lockResult = await lockDataSource(this.h, datasource, sourceSystem)
-
-    try {
-      // 2. 确定 TR 号
-      let transport = options?.transport || lockResult.corrNr
-      if (!transport) {
-        const check = await this.transportCheck(dsUri)
-        if (check.RECORDING === "X") {
-          transport = await this.createTransport(
-            dsUri,
-            options?.transportDescription || "API update DataSource"
-          )
-        }
-      }
-
-      // 3. PUT update (timestamp 自动提取)
-      const timestamp = extractDataSourceTimestamp(xmlContent)
-      await updateDataSource(this.h, datasource, sourceSystem, xmlContent, {
-        lockHandle: lockResult.lockHandle,
-        transport,
-        timestamp
-      })
-
-      // 4. 激活
-      let activateResult
-      if (autoActivate) {
-        activateResult = await activateDataSource(
-          this.h,
-          datasource,
-          sourceSystem,
-          lockResult.lockHandle,
-          transport || ""
-        )
-      }
-
-      return {
-        lockHandle: lockResult.lockHandle,
-        transport,
-        activated: autoActivate,
-        activateResult
-      }
-    } finally {
-      // 5. 解锁
-      await unlockDataSource(this.h, datasource, sourceSystem)
-    }
+    const { saveAndActivateDataSource } = await import("./api/datasource")
+    return saveAndActivateDataSource(
+      this.h,
+      datasource,
+      sourceSystem,
+      xmlContent,
+      options
+    )
   }
 
   // ========================================
@@ -2112,14 +1919,15 @@ export class BWAdtClient {
 
   /**
    * Get ADSO Tables - 获取 ADSO 关联的表名
-   * 对应请求: GET /sap/bw/modeling/adso/{adso_id}/sql
+   * 对应请求: GET /sap/bw/modeling/adso/{adso_id}/{version}
    *
    * @param adsoId - ADSO ID
+   * @param version - 版本段：m=active（默认）, a=modified, d=revised
    * @returns ADSO 表信息
    */
-  public async getADSOTables(adsoId: string) {
+  public async getADSOTables(adsoId: string, version?: "m" | "a" | "d") {
     const { getADSOTables } = await import("./api/adso")
-    return getADSOTables(this.h, adsoId)
+    return getADSOTables(this.h, adsoId, version)
   }
 
   /**
@@ -2172,6 +1980,8 @@ export class BWAdtClient {
       columns?: string[]
       whereClause?: string
       orderBy?: string
+      /** Emit literal `SELECT *` — see api/ddic.getDDICTableData. */
+      selectStar?: boolean
     }
   ) {
     const { getDDICTableData } = await import("./api/ddic")

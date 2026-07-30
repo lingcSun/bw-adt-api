@@ -412,31 +412,50 @@ export async function getDDICTableData(
     columns?: string[]
     whereClause?: string
     orderBy?: string
+    /**
+     * Emit a literal `SELECT * FROM <table>` instead of an explicit field list.
+     *
+     * SAP's data-preview engine rejects certain columns (custom /BIC/ fields,
+     * derived CURR/QUAN, generated MANDT, ...) from an explicit field list with
+     * "until runtime, you cannot specify a field list" — that message literally
+     * means the column is selectable at runtime via `SELECT *` (no field list)
+     * but not via `SELECT a, b, ...`. Setting this flag skips column discovery
+     * and explicit-list construction, taking the runtime path that resolves
+     * such columns. Caller then projects the desired columns client-side.
+     */
+    selectStar?: boolean
   }
 ): Promise<DDICTableDataResult> {
   const maxRows = options?.maxRows || 100
 
-  // 如果未指定 columns，先从元数据获取所有列名（模拟 SAP ADT 行为）
-  let columnNames = options?.columns
-  if (!columnNames || columnNames.length === 0) {
-    const metadata = await getDDICTableDataMetadata(client, tableName)
-    const root = metadata["dataPreview:tableData"] || metadata
-    const columnsRaw = xmlArray(root, "dataPreview:columns")
-    columnNames = columnsRaw
-      .map((colNode: any) => {
-        const colMeta = colNode["dataPreview:metadata"] || colNode
-        return colMeta["@_dataPreview:name"] ||
-               colMeta["dataPreview:name"] ||
-               colMeta["@_name"]
-      })
-      .filter((name: string | undefined) => name)
+  let selectStatement: string
+
+  if (options?.selectStar) {
+    // Literal SELECT * — no field list. See option docstring for rationale.
+    selectStatement = `SELECT * FROM ${tableName.toUpperCase()}`
+  } else {
+    // 如果未指定 columns，先从元数据获取所有列名（模拟 SAP ADT 行为）
+    let columnNames = options?.columns
+    if (!columnNames || columnNames.length === 0) {
+      const metadata = await getDDICTableDataMetadata(client, tableName)
+      const root = metadata["dataPreview:tableData"] || metadata
+      const columnsRaw = xmlArray(root, "dataPreview:columns")
+      columnNames = columnsRaw
+        .map((colNode: any) => {
+          const colMeta = colNode["dataPreview:metadata"] || colNode
+          return colMeta["@_dataPreview:name"] ||
+                 colMeta["dataPreview:name"] ||
+                 colMeta["@_name"]
+        })
+        .filter((name: string | undefined) => name)
+    }
+
+    const columns = columnNames
+      .map((col: string) => `${tableName.toUpperCase()}~${col}`)
+      .join(", ")
+
+    selectStatement = `SELECT ${columns} FROM ${tableName.toUpperCase()}`
   }
-
-  const columns = columnNames
-    .map((col: string) => `${tableName.toUpperCase()}~${col}`)
-    .join(", ")
-
-  let selectStatement = `SELECT ${columns} FROM ${tableName.toUpperCase()}`
 
   if (options?.whereClause) {
     selectStatement += ` WHERE ${options.whereClause}`

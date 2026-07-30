@@ -98,7 +98,7 @@ describe("TRFN 结束例程源码写操作", () => {
     const result = await client.saveAndActivateTransformationClassSource(
       TEST_TRFN,
       src.sourceCode,
-      { transportDescription: "API routine round-trip activate" }
+      { createTransport: true, transportDescription: "API routine round-trip activate" }
     )
 
     console.log(`className: ${result.className}`)

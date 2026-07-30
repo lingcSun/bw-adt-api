@@ -2,7 +2,7 @@ import * as t from "io-ts"
 import { fullParse, xmlNodeAttr, xmlArray, xmlNode, orUndefined } from "../utilities"
 import { AdtHTTP } from "../AdtHTTP"
 import { ActivationResult, LockResult, ValidationAction, ValidationResult } from "./common"
-import { BWObject, BWObjectType } from "./bwObject"
+import { BWObject, BWObjectType, createBWObject } from "./bwObject"
 import { DTPDetails } from "./types"
 
 // ============================================================================
@@ -116,6 +116,37 @@ export async function getDTP(
   })
 
   return fullParse(response.body)
+}
+
+/**
+ * Get DTP Raw XML - 获取 DTP 原始 XML 字符串（供 PUT update 使用）
+ *
+ * 对应请求: GET /sap/bw/modeling/dtpa/{dtp_id}/m
+ *
+ * 与 getDTP 命中同一个端点，但不做 fullParse，直接返回原始 XML 字符串。
+ * 对称于 getADSOXml / getTransformationXml，便于写入文件做字符串处理。
+ *
+ * @param client - ADT HTTP 客户端
+ * @param dtpId - DTP ID (格式: DTP_*)
+ * @param forceCacheUpdate - 是否强制更新缓存
+ * @returns DTP 原始 XML 字符串
+ */
+export async function getDTPXml(
+  client: AdtHTTP,
+  dtpId: string,
+  forceCacheUpdate: boolean = false
+): Promise<string> {
+  const qs = forceCacheUpdate ? { forceCacheUpdate: "true" } : undefined
+
+  const response = await client.request(`/sap/bw/modeling/dtpa/${dtpId.toLowerCase()}/m`, {
+    method: "GET",
+    qs,
+    headers: {
+      "Accept": "application/vnd.sap.bw.modeling.dtpa-v1_0_0+xml"
+    }
+  })
+
+  return response.body
 }
 
 /**
@@ -329,6 +360,88 @@ export async function executeDTP(
   )
 
   return parseDTPExecutionResponse(response.body)
+}
+
+/**
+ * Update DTP XML via BWObject PUT (stateless; caller must already hold lock).
+ */
+export async function updateDTP(
+  client: AdtHTTP,
+  dtpId: string,
+  xmlContent: string,
+  options: { lockHandle: string; transport?: string }
+): Promise<void> {
+  const obj = createBWObject(client, BWObjectType.DTP, dtpId)
+  await obj.update(xmlContent, {
+    lockHandle: options.lockHandle,
+    transport: options.transport,
+    activate: false
+  })
+}
+
+export interface SaveAndActivateDTPOptions {
+  transport?: string
+  createTransport?: boolean
+  transportDescription?: string
+  autoActivate?: boolean
+}
+
+export interface SaveAndActivateDTPResult {
+  lockHandle: string
+  transport?: string
+  activated: boolean
+  activateResult?: ActivationResult
+}
+
+/**
+ * Save and Activate DTP - lock → transport → PUT → activate → unlock.
+ * Session model: lock/unlock stateful; PUT/activation/transport stateless (no contextid).
+ */
+export async function saveAndActivateDTP(
+  client: AdtHTTP,
+  dtpId: string,
+  xmlContent: string,
+  options?: SaveAndActivateDTPOptions
+): Promise<SaveAndActivateDTPResult> {
+  const { resolveTransportForWrite } = await import("./transport")
+
+  const dtpUri = `/sap/bw/modeling/dtpa/${dtpId.toLowerCase()}/m`
+  const autoActivate = options?.autoActivate ?? true
+
+  const lockResult = await lockDTP(client, dtpId)
+
+  try {
+    const transport = await resolveTransportForWrite(client, dtpUri, {
+      transport: options?.transport,
+      lockCorrNr: lockResult.corrNr,
+      createTransport: options?.createTransport,
+      transportDescription: options?.transportDescription || "API update"
+    })
+
+    await updateDTP(client, dtpId, xmlContent, {
+      lockHandle: lockResult.lockHandle,
+      transport
+    })
+
+    let activateResult
+    if (autoActivate) {
+      activateResult = await activateDTP(
+        client,
+        dtpId,
+        lockResult.lockHandle,
+        transport || ""
+      )
+    }
+
+    return {
+      lockHandle: lockResult.lockHandle,
+      transport,
+      activated: autoActivate,
+      activateResult
+    }
+  } finally {
+    await unlockDTP(client, dtpId)
+  }
 }
 
 // ============================================================================

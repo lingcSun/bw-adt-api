@@ -81,6 +81,7 @@ describe("ADSO 写操作流程", () => {
     console.log(`XML length: ${originalXml.length}`)
 
     const result = await client.saveAndActivateADSO(TEST_ADSO, originalXml, {
+      createTransport: true,
       transportDescription: "API ADSO round-trip verify"
     })
 
@@ -112,6 +113,7 @@ describe("ADSO 写操作流程", () => {
     if (xml.includes(`name="${TMP_FIELD}"`)) {
       xml = removeADSOFieldFromXml(xml, TMP_FIELD)
       await client.saveAndActivateADSO(TEST_ADSO, xml, {
+        createTransport: true,
         transportDescription: "API cleanup residual ZADT_TMP_F"
       })
       xml = await client.getADSOXml(TEST_ADSO, true)
@@ -126,6 +128,7 @@ describe("ADSO 写操作流程", () => {
 
     console.log(`\n=== Add field ${TMP_FIELD} to ${TEST_ADSO} ===`)
     const addResult = await client.saveAndActivateADSO(TEST_ADSO, withField, {
+      createTransport: true,
       transportDescription: `API add field ${TMP_FIELD}`
     })
     console.log(`add transport: ${addResult.transport || "(none)"}`)
@@ -142,6 +145,7 @@ describe("ADSO 写操作流程", () => {
     // 清理: 移除临时字段
     const cleaned = removeADSOFieldFromXml(afterAdd, TMP_FIELD)
     const removeResult = await client.saveAndActivateADSO(TEST_ADSO, cleaned, {
+      createTransport: true,
       transportDescription: `API remove field ${TMP_FIELD}`
     })
     console.log(`remove update: ${removeResult.updateResult?.success}`)
