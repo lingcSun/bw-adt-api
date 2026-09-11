@@ -111,15 +111,15 @@ Write orchestration (`saveAndActivate*`) lives in the **API layer** (`src/api/*`
 
 ### `client.trfn` / `client.dtp` (dataFlow)
 
-> ⚠️ **TRFN creation is unsupported** via this library (create in Eclipse ADT / GUI). Read / update / activate / delete work.
-
 | Facade | Method | Description |
 |--------|--------|-------------|
 | `trfn` | `details` / `xml` / `versions` / `check` | Read & check |
+| `trfn` | `create(options)` via `client.createTransformation` | 8TRANSIENT create flow |
 | `trfn` | `saveAndActivate(id, xml, options?)` | One-stop write |
 | `trfn` | `setEndRoutineFields(id, fields, options?)` | Check fields into end routine + save |
 | `trfn` | `switchRuntime(xml, useHana)` | Pure XML helper (HANA vs ABAP) |
 | `dtp` | `details` / `xml` / `versions` / `check` | Read & check |
+| `dtp` | `create(options)` via `client.createDTP` | Minimal-body POST create |
 | `dtp` | `saveAndActivate(id, xml, options?)` | One-stop write |
 | `dtp` | `execute(id)` | Run DTP |
 
@@ -174,7 +174,7 @@ const view = await client.query.preview("ZL_FID09", {
 | `describe(table)` | Metadata + info + fields (+ data metadata) |
 | `getData(table, options?)` | Table data preview |
 | `querySql(table, sql, options?)` | Freestyle OpenSQL preview |
-| `adsoPreview` / `adsoDdicLinks` / `adsoDdicTableName` | ADSO ↔ DDIC helpers |
+| `adsoDdicLinks` / `adsoDdicTableName` | ADSO ↔ DDIC helpers |
 
 ### `client.system` / `client.transport`
 

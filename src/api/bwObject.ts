@@ -7,6 +7,7 @@ import {
   ValidationAction,
   validateObject,
   activateObject,
+  checkObject,
   parseLockResponse,
   parseObjectVersions
 } from "./common"
@@ -126,7 +127,8 @@ const BW_OBJECT_CONFIGS: Record<BWObjectType, BWObjectConfig> = {
   [BWObjectType.INFO_AREA]: {
     endpoint: "/sap/bw/modeling/area",
     contentType: "application/vnd.sap.bw.modeling.area-v1_1_0+xml",
-    versionSuffix: false,
+    // true so buildUri("a") → /area/{name}/a (Eclipse GET/PUT/DELETE active)
+    versionSuffix: true,
     needsActivate: false,  // InfoArea 不需要激活
     versionChar: "a"       // InfoArea 使用 /a 表示 active 版本
   }
@@ -238,16 +240,17 @@ export class BWObject<T extends BWObjectType> {
   }
 
   /**
-   * Check Object - 检查对象一致性
+   * Check Object - 检查对象一致性（只读，不激活）
+   *
+   * 发到 /sap/bw/modeling/checkruns，只检查不激活。
+   * 激活用 activate()（POST /sap/bw/modeling/activation）。
    *
    * @returns 检查结果
    */
   async check(): Promise<ActivationResult> {
-    return activateObject(
+    return checkObject(
       this.client,
       this.buildUri("m"),
-      "",
-      "inactive",
       this.config.contentType
     )
   }
@@ -398,6 +401,16 @@ export class BWObject<T extends BWObjectType> {
     }
 
     await this.unlock()
+
+    // InfoArea create 后若仍持有 stateful context，同会话内紧接着 lock+delete
+    // 会报「active version 不存在」。dropSession 清掉 create 会话再交还调用方。
+    if (this.objectType === BWObjectType.INFO_AREA) {
+      try {
+        await this.client.dropSession()
+      } catch {
+        // 会话已失效时忽略
+      }
+    }
   }
 
   /**
@@ -496,13 +509,27 @@ export class BWObject<T extends BWObjectType> {
       ? { lockHandle: lockHandleOrTransport }
       : { transport: lockHandleOrTransport }
 
-    await this.client.request(uri, { method: "DELETE", qs })
+    await this.client.request(uri, {
+      method: "DELETE",
+      qs,
+      sessionType: session_types.stateless,
+      headers: {
+        Accept: this.config.contentType,
+      },
+    })
 
     if (useLockHandleMode) {
       try {
         await this.unlock()
       } catch {
         // 删除后对象可能已不存在，unlock 失败可忽略
+      }
+      if (this.objectType === BWObjectType.INFO_AREA) {
+        try {
+          await this.client.dropSession()
+        } catch {
+          // ignore
+        }
       }
     }
   }

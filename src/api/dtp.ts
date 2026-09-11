@@ -323,7 +323,10 @@ export async function activateDTP(
 }
 
 /**
- * Check DTP - 检查 DTP 一致性
+ * Check DTP - 检查 DTP 一致性（只读，不激活）
+ *
+ * 通过 BWObject.check() 用 version="active" 做纯检查，
+ * 不再别名 activateDTP（旧实现导致 check 误触发激活）。
  *
  * @param client - ADT HTTP 客户端
  * @param dtpId - DTP ID
@@ -332,8 +335,9 @@ export async function activateDTP(
 export async function checkDTP(
   client: AdtHTTP,
   dtpId: string
-): Promise<any> {
-  return activateDTP(client, dtpId, "", "")
+): Promise<ActivationResult> {
+  const obj = new BWObject(client, BWObjectType.DTP, dtpId)
+  return obj.check()
 }
 
 /**
@@ -558,4 +562,98 @@ function parseDTPExecutionResponse(body: string): DTPExecutionResult {
     startTime: parsed["startTime"],
     endTime: parsed["endTime"]
   }
+}
+
+
+// ============================================================================
+// CREATE —— 通用对象 POST 流 (CREA lock + collection POST, 2026-09-11 实测)
+// ============================================================================
+
+export interface CreateDTPOptions {
+  /** DTP id; 缺省自动生成（DTP_ET0916OM0D + 16 位随机大写字母数字，总长 30） */
+  id?: string
+  /** 源对象名（ADSO） */
+  sourceName: string
+  /** 目标对象名（ADSO） */
+  targetName: string
+  /** 绑定的转换 TRFN id */
+  transformId: string
+  /** 抽取模式: F=全量(默认) / D=增量 */
+  extractionMode?: "F" | "D"
+  /** 目标包; 默认 "$TMP"。非 $TMP 时建议提供 transport */
+  packageName?: string
+  transport?: string
+  description?: string
+  responsible?: string
+  masterSystem?: string // default "BPD"
+}
+
+/** 生成 DTP id（DTP_ET0916OM0D 前缀为本系统实例惯用，总长 30） */
+export function generateDtpId(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  let suffix = ""
+  for (let i = 0; i < 16; i++) {
+    suffix += chars[Math.floor(Math.random() * chars.length)]
+  }
+  return `DTP_ET0916OM0D${suffix}`
+}
+
+function escapeXmlAttr(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+}
+
+/**
+ * Create DTP —— 通用对象 POST 流创建 DTP（CREA lock → collection POST）。
+ *
+ * body 为极简模型（root + tlogoProperties + extractionSettings + overview TRFN
+ * 绑定 + source/target 带 dataStoreObject 子节点）；保存后服务器水合 filter
+ * 全字段、programFlow 等。创建后 DTP 为 inactive，配置（filter/模式）完成后
+ * 再用 saveAndActivateDTP / activateDTP 激活。
+ *
+ * 对应请求: POST /sap/bw/modeling/dtpa/{dtp_id}?lockHandle=..[&transport=..]
+ */
+export async function createDTP(
+  client: AdtHTTP,
+  options: CreateDTPOptions
+): Promise<{ dtpId: string; xml: string }> {
+  const CT = "application/vnd.sap.bw.modeling.dtpa-v1_0_0+xml"
+  const dtpId = options.id || generateDtpId()
+  if (!/^DTP_[A-Z0-9]{26}$/.test(dtpId)) {
+    throw new Error(`DTP id must match DTP_ + 26 uppercase alnum chars, got: ${dtpId} (len ${dtpId.length})`)
+  }
+  const packageName = options.packageName || "$TMP"
+  const pkgUri = packageName === "$TMP" ? "/sap/bc/adt/packages/%24tmp" : `/sap/bc/adt/packages/${packageName.toLowerCase()}`
+  const extractionMode = options.extractionMode || "F"
+  const description = escapeXmlAttr(options.description || `ADSO ${options.sourceName} -> ADSO ${options.targetName}`)
+  const responsible = escapeXmlAttr(options.responsible || (client as unknown as { username?: string }).username || "")
+  const masterSystem = options.masterSystem || "BPD"
+
+  const body = `<?xml version="1.0" encoding="UTF-8"?>
+<dtpa:dataTransferProcess name="${dtpId}" description="${description}" type="_" xmlns:dtpa="http://www.sap.com/bw/modeling/DataTransferProcess.ecore" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:adtcore="http://www.sap.com/adt/core" xmlns:atom="http://www.w3.org/2005/Atom"><generalInformation><tlogoProperties adtcore:responsible="${responsible}" adtcore:masterLanguage="ZH" adtcore:masterSystem="${masterSystem}" adtcore:name="${dtpId}" adtcore:type="DTPA" adtcore:language="ZH"><atom:link href="/sap/bw/modeling/dtpa/${dtpId.toLowerCase()}/m" rel="self" type="application/vnd.sap.bw.modeling.dtpa+xml"/><adtcore:packageRef adtcore:uri="${pkgUri}" adtcore:type="DEVC/K" adtcore:name="${escapeXmlAttr(packageName)}"/></tlogoProperties></generalInformation><extractionSettings extractionMode="${extractionMode}" allowedExtractionModes="${extractionMode === "F" ? "1" : "0"}" packageSize="100000" parallelExtraction="true" deltaSettingStatus="${extractionMode === "F" ? "0" : "3"}"/><overview><object name="${escapeXmlAttr(options.transformId)}" tlogo="TRFN"/></overview><source type="ADSO" name="${escapeXmlAttr(options.sourceName)}" tlogo="ADSO" reference="adso:DataStore ${escapeXmlAttr(options.sourceName)}.adso#//"><dataStoreObject/></source><target type="ADSO" name="${escapeXmlAttr(options.targetName)}" tlogo="ADSO" reference="adso:DataStore ${escapeXmlAttr(options.targetName)}.adso#//"><dataStoreObject triggerDatabaseMerge="true"/></target></dtpa:dataTransferProcess>`
+
+  const obj = new BWObject(client, BWObjectType.DTP, dtpId)
+  const lock = await obj.lock({ headers: { "activity_context": "CREA" } })
+  try {
+    await client.request(`/sap/bw/modeling/dtpa/${dtpId.toLowerCase()}/m`, {
+      method: "POST",
+      qs: {
+        lockHandle: lock.lockHandle,
+        ...(options.transport ? { transport: options.transport } : {})
+      },
+      headers: {
+        "Content-Type": CT,
+        "Accept": CT
+      },
+      body
+    })
+  } finally {
+    await obj.unlock()
+  }
+
+  const xml = await getDTPXml(client, dtpId)
+  return { dtpId, xml }
 }

@@ -529,7 +529,7 @@ export async function getADSOConfiguration(
  *
  * 历史上该接口走 `/sql` 子路径且不带版本段，SAP 会把缺失的版本默认成 `S`
  * （saved）并以「不支持对象版本 S」HTTP 500 拒绝。所有同族只读端点
- * （getADSODDICLinks / getADSOXml / getADSODataPreview）都用 `/m` 且正常，
+ * （getADSODDICLinks / getADSOXml）都用 `/m` 且正常，
  * 故这里改为版本化的 `/m`（active），默认 version="m"。
  *
  * @param client - ADT HTTP 客户端

@@ -1,10 +1,27 @@
-src
-test
-*.ts
-!build/*.d.ts
+# Local / secrets — never publish
+.env
+.env.*
+.local
+.claude/
+.zcode/
+Communication Logs/
+scripts/
+src/
+src/scripts/
+src/__tests__/
+
+# Dev tooling
 tsconfig.json
 jest.config.js
+jest.setup.js
 .eslintrc.*
-.vscode
+.vscode/
 .DS_Store
 *.log
+*.map
+coverage/
+.github/
+
+# Compiled tests / one-off scripts under build/
+build/__tests__/
+build/scripts/

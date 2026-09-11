@@ -538,37 +538,6 @@ function parseDDICDataPreview(raw: any, tableName: string): DDICTableDataResult 
 }
 
 /**
- * Get ADSO Table Data Preview - 获取 ADSO 表数据预览
- *
- * 对应请求: GET /sap/bw/modeling/adso/{adso_name}/data
- * 或通过 Link header 中的 defaultDataPreview 链接
- *
- * @param client - ADT HTTP 客户端
- * @param adsoName - ADSO 名称
- * @param maxRows - 最大行数
- * @returns ADSO 表数据
- */
-export async function getADSODataPreview(
-  client: AdtHTTP,
-  adsoName: string,
-  maxRows: number = 100
-): Promise<DDICTableDataResult> {
-  const response = await client.request(
-    `/sap/bw/modeling/adso/${adsoName.toLowerCase()}/data`,
-    {
-      method: "GET",
-      qs: { maxRows },
-      headers: {
-        "Accept": "application/vnd.sap.bw.modeling.adso-v1_5_0+xml"
-      }
-    }
-  )
-
-  const raw = fullParse(response.body)
-  return parseADSODataPreview(raw, adsoName)
-}
-
-/**
  * Get Table Data via Freestyle OpenSQL - 通过 Data Preview Freestyle 执行任意 OpenSQL
  *
  * 对应请求: POST /sap/bc/adt/datapreview/freestyle?rowNumber={maxRows}
@@ -640,50 +609,6 @@ function parseDDICTableDataRow(row: any): DDICTableDataRow {
   })
 
   const cells = xmlArray(row, "table:cells", "table:cell") ||
-                xmlArray(row, "cell")
-
-  cells.forEach((cell: any) => {
-    const cellAttrs = xmlNodeAttr(cell) || {}
-    const name = cellAttrs.name || cellAttrs.column || ""
-    const value = cell["#text"] || cell["_"] || cellAttrs.value || null
-    if (name) {
-      result[name] = value
-    }
-  })
-
-  return result
-}
-
-/**
- * Parse ADSO Data Preview Response - 解析 ADSO 数据预览响应
- */
-function parseADSODataPreview(raw: any, adsoName: string): DDICTableDataResult {
-  const root = raw["adso:data"] || raw["data"] || raw
-  const rows = xmlArray(root, "adso:rows", "adso:row")
-    .map((row: any) => parseADSODataRow(row))
-
-  const columns = rows.length > 0 ? Object.keys(rows[0]) : []
-
-  return {
-    tableName: adsoName,
-    totalRows: parseInt(root["adso:totalRows"] || rows.length.toString(), 10),
-    rows,
-    columns
-  }
-}
-
-/**
- * Parse ADSO Data Row - 解析 ADSO 数据行
- */
-function parseADSODataRow(row: any): DDICTableDataRow {
-  const result: DDICTableDataRow = {}
-  const attrs = xmlNodeAttr(row) || {}
-
-  Object.keys(attrs).forEach(key => {
-    result[key] = attrs[key]
-  })
-
-  const cells = xmlArray(row, "adso:cells", "adso:cell") ||
                 xmlArray(row, "cell")
 
   cells.forEach((cell: any) => {

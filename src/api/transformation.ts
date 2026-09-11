@@ -1,38 +1,21 @@
 import * as t from "io-ts"
 import { fullParse, xmlNodeAttr, xmlArray, xmlNode, orUndefined } from "../utilities"
-import { AdtHTTP } from "../AdtHTTP"
+import { AdtHTTP, session_types } from "../AdtHTTP"
 import { ActivationResult, ActivationMessage, LockResult, activateObject, parseActivationResponse, parseLockResponse, parseObjectVersions, ValidationAction, ValidationResult } from "./common"
 import { BWObject, BWObjectType } from "./bwObject"
 import { TransformationDetails } from "./types"
 
 // ============================================================================
-// KNOWN LIMITATION: Transformation CREATE is NOT supported via API.
-//
-// 技术原因：
-// --------
-// SAP BW ADT 使用 JCo (Java Connector) 的特殊机制来实现 TRFN 创建，
-// 包括 ModalContext 执行上下文和 JCoEnqueueSystemSession (enqueue 模式)。
-// 这些机制超出了纯 HTTP/REST 客户端的能力范围。
-//
-// 具体限制：
-// ---------
-// 1. JCo Enqueue 机制：
-//    - 锁定操作需要在 "stateful,enqueue" 会话中执行
-//    - 更新操作需要在特定的 ModalContext 上下文中进行
-//    - lockHandle 在不同会话类型间的绑定由 JCo 底层维护
-//
-// 2. ModalContext 执行上下文：
-//    - Eclipse ADT 在 ModalContext 线程中执行创建操作
-//    - 该上下文维护了跨会话的状态（lockHandle、临时对象引用等）
-//    - 纯 HTTP 客户端无法模拟这种执行模式
-//
-// 3. 8TRANSIENT 端点的限制：
-//    - 返回的 XML 缺少部分必需属性
-//    - 即使手动补全，服务端仍会在 CL_RSTRAN_TRFN->GET_PROGID
-//      抛出 CX_SY_REF_IS_INITIAL dump
+// CREATE: 已支持 —— createTransformation() 走 Eclipse 同款 8TRANSIENT 瞬态流
+// （铸 id → stateful+CREA lock → POST 极简 XML → 服务器按源/目标提供者水合）。
+// 旧结论"创建必须 JCo/ModalContext、8TRANSIENT 手动补全仍 dump"已被证伪
+// （2026-09-11 ZL_FID44 变更 REST 全程创建成功）。彼时失败的根因是保存体未与
+// Eclipse 序列化对齐：缺 createdAt/createdBy、packageRef 属性不全（需
+// name/type/uri 三属性）、source/target 带了 segment/element（应自闭合空节点）。
 //
 // 支持的操作：
 // -----------
+// - create (8TRANSIENT 瞬态流创建，见 createTransformation)
 // - read (读取 TRFN 详情、字段映射)
 // - update (修改 TRFN 内容，需先 lock)
 // - activate (激活 TRFN)
@@ -40,12 +23,6 @@ import { TransformationDetails } from "./types"
 // - lock/unlock (锁定/解锁 TRFN)
 // - check (检查 TRFN 一致性)
 // - getVersions (获取版本历史)
-//
-// 替代方案：
-// ---------
-// - 使用 SAP GUI 手动创建 TRFN
-// - 使用 ABAP 程序批量创建
-// - 创建后可使用本 API 进行其他操作
 // ============================================================================
 
 // ============================================================================
@@ -406,6 +383,169 @@ export async function saveAndActivateTransformation(
   } finally {
     await unlockTransformation(client, trfnId)
   }
+}
+
+// ============================================================================
+// CREATE —— 8TRANSIENT 瞬态流 (Eclipse 新建转换向导同款, 2026-09-11 实测)
+// ============================================================================
+
+export interface CreateTransformationOptions {
+  sourceObjName: string
+  targetObjName: string
+  sourceObjType?: string // default "ADSO"
+  targetObjType?: string // default "ADSO"
+  /** 目标包; 默认 "$TMP"。非 $TMP 时必须提供 transport（创建后 PUT 改包并登记请求） */
+  packageName?: string
+  transport?: string
+  description?: string
+  responsible?: string // 缺省取登录用户
+  masterSystem?: string // default "BPD"
+  masterLanguage?: string // default "ZH"
+}
+
+export interface CreateTransformationResult {
+  trfnId: string
+  /** 水合后的完整 XML（packageName 非 $TMP 时已改包并登记 transport） */
+  xml: string
+}
+
+function escapeXmlAttr(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+}
+
+/**
+ * Create Transformation —— 8TRANSIENT 瞬态流创建转换（Eclipse 新建向导同款）。
+ *
+ * 流程: GET 8TRANSIENT 铸 id → stateful+CREA lock → POST 极简创建体
+ * （source/target 自闭合空节点，服务器按源/目标提供者水合全部元素与默认规则）
+ * → unlock →（packageName 非 $TMP 时）PUT 改包并登记 transport。
+ *
+ * ⚠️ 创建体必须与 Eclipse 序列化逐属性对齐：createdAt/createdBy 必带、
+ * packageRef 需 name/type/uri 三属性、root description 建议为空串；
+ * 带segment/element 的骨架会反序列化失败。
+ *
+ * 对应请求:
+ * - GET  /sap/bw/modeling/trfn/8TRANSIENT?GetIdOnly=true&sourceobjecttype=..&targetobjecttype=..&sourceobjectname=..&targetobjectname=..
+ * - POST /sap/bw/modeling/trfn/{id}?action=lock            (stateful + activity_context:CREA)
+ * - POST /sap/bw/modeling/trfn/{id}?lockHandle=..           (Development-Class 头)
+ * - POST /sap/bw/modeling/trfn/{id}?action=unlock
+ */
+export async function createTransformation(
+  client: AdtHTTP,
+  options: CreateTransformationOptions
+): Promise<CreateTransformationResult> {
+  const CT = "application/vnd.sap.bw.modeling.trfn-v1_0_0+xml"
+  const sourceType = options.sourceObjType || "ADSO"
+  const targetType = options.targetObjType || "ADSO"
+  const packageName = options.packageName || "$TMP"
+  const masterSystem = options.masterSystem || "BPD"
+  const masterLanguage = options.masterLanguage || "ZH"
+  const username =
+    (client as unknown as { username?: string }).username || options.responsible || ""
+
+  // 1) 铸 id（瞬态壳，不落库）
+  const transientResp = await client.request("/sap/bw/modeling/trfn/8TRANSIENT", {
+    method: "GET",
+    qs: {
+      GetIdOnly: "true",
+      sourceobjecttype: sourceType,
+      targetobjecttype: targetType,
+      sourceobjectname: options.sourceObjName,
+      targetobjectname: options.targetObjName
+    },
+    headers: { Accept: CT }
+  })
+  const transientParsed = fullParse(transientResp.body)
+  const transientRoot = transientParsed["trfn:transformation"] || transientParsed
+  const trfnId = transientRoot["@_name"] || transientRoot["name"]
+  if (!trfnId) {
+    throw new Error(`8TRANSIENT did not return an id: ${String(transientResp.body).slice(0, 300)}`)
+  }
+  const idLower = trfnId.toLowerCase()
+
+  // 2) CREA lock（stateful）
+  const lockResp = await client.request(`/sap/bw/modeling/trfn/${idLower}`, {
+    method: "POST",
+    qs: { action: "lock" },
+    sessionType: session_types.stateful,
+    headers: { Accept: CT, "activity_context": "CREA" }
+  })
+  const lockParsed = fullParse(lockResp.body)
+  const lockData = xmlNode(lockParsed, "asx:abap", "asx:values", "DATA")
+  const lockHandle =
+    (lockData as Record<string, string> | undefined)?.["LOCK_HANDLE"] ||
+    String(lockResp.body || "").match(/<LOCK_HANDLE>([^<]+)/)?.[1] ||
+    ""
+  if (!lockHandle) throw new Error(`lock failed: ${String(lockResp.body).slice(0, 300)}`)
+  const timestamp = lockResp.headers["timestamp"] as string | undefined
+
+  try {
+    // 3) POST 极简创建体（先落 $TMP；服务器水合元素与默认规则）
+    const today = new Date().toISOString().slice(0, 10) + "T00:00:00Z"
+    const saveXml = `<?xml version="1.0" encoding="UTF-8"?>
+<trfn:transformation xmlns:adtcore="http://www.sap.com/adt/core" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:trfn="http://www.sap.com/bw/modeling/Trfn.ecore" description="" endRoutine="" expertRoutine="" name="${trfnId}" startRoutine="">
+  <tlogoProperties adtcore:createdAt="${today}" adtcore:createdBy="${escapeXmlAttr(username)}" adtcore:language="${masterLanguage}" adtcore:name="${trfnId}" adtcore:type="TRFN" adtcore:version="inactive" adtcore:masterLanguage="${masterLanguage}" adtcore:masterSystem="${masterSystem}" adtcore:responsible="${escapeXmlAttr(username)}">
+    <atom:link href="/sap/bw/modeling/trfn/${idLower}/m" rel="self" type="application/vnd.sap-bw-modeling.trfn+xml"/>
+    <adtcore:packageRef adtcore:name="$TMP" adtcore:type="DEVC/K" adtcore:uri="/sap/bc/adt/packages/%24tmp"/>
+    <objectVersion>M</objectVersion>
+    <objectStatus>inactive</objectStatus>
+    <contentState>NEW</contentState>
+  </tlogoProperties>
+  <source description="" id="0" name="${escapeXmlAttr(options.sourceObjName)}" type="${sourceType}"/>
+  <target description="" id="0" name="${escapeXmlAttr(options.targetObjName)}" type="${targetType}"/>
+</trfn:transformation>`
+    await client.request(`/sap/bw/modeling/trfn/${idLower}`, {
+      method: "POST",
+      qs: { lockHandle },
+      sessionType: session_types.stateful,
+      headers: {
+        "Content-Type": CT,
+        "Accept": CT,
+        "Development-Class": "$TMP",
+        ...(timestamp ? { timestamp } : {})
+      },
+      body: saveXml
+    })
+  } finally {
+    await client.request(`/sap/bw/modeling/trfn/${idLower}`, {
+      method: "POST",
+      qs: { action: "unlock" },
+      sessionType: session_types.stateful,
+      headers: { Accept: CT }
+    })
+  }
+
+  // 4) 水合读回
+  let xml = await getTransformationXml(client, trfnId, "m", { forceCacheUpdate: true })
+
+  // 5) 非 $TMP 包: PUT 改 packageRef 并登记 transport
+  if (packageName !== "$TMP") {
+    if (!options.transport) {
+      throw new Error(`transport is required when packageName="${packageName}"`)
+    }
+    const pkgRef = `<adtcore:packageRef adtcore:uri="/sap/bc/adt/packages/${packageName.toLowerCase() === "zbw" ? "zbw" : encodeURIComponent(packageName)}" adtcore:type="DEVC/K" adtcore:name="${escapeXmlAttr(packageName)}"/>`
+    if (xml.includes("packageRef")) {
+      xml = xml.replace(/<adtcore:packageRef[\s\S]*?\/>/, pkgRef)
+    } else {
+      const m = xml.match(/<tlogoProperties[^>]*>/)
+      if (m) xml = xml.replace(m[0], m[0] + pkgRef)
+    }
+    const lock2 = await lockTransformation(client, trfnId)
+    try {
+      await updateTransformation(client, trfnId, xml, {
+        lockHandle: lock2.lockHandle,
+        corrNr: options.transport
+      })
+    } finally {
+      await unlockTransformation(client, trfnId)
+    }
+  }
+
+  return { trfnId, xml }
 }
 
 /**
@@ -1216,12 +1356,12 @@ export function extractAbapClassName(raw: any): string | undefined {
     }
   }
 
-  // 方法2: 通过命名约定推导
+  // 方法2: 通过命名约定推导 —— /BIC/ + TRFN id 第 13-32 位 + _M
+  // 已验证实例: 0F30KPOAZK07TIY86JBGVAO9XHWIVIBT → TIY86JBGVAO9XHWIVIBT_M
+  //             0BE9X06HU3MN3FB1TO6MNLEGQI6XIJEO → 3FB1TO6MNLEGQI6XIJEO_M
   const trfnName = root["@_name"] || root["name"]
-  if (trfnName && typeof trfnName === "string") {
-    // 去掉前导 "0"，添加 /BIC/3M 前缀和 _M 后缀
-    const suffix = trfnName.startsWith("0") ? trfnName.substring(1) : trfnName
-    return `/BIC/3M${suffix}_M`
+  if (trfnName && typeof trfnName === "string" && trfnName.length >= 20) {
+    return `/BIC/${trfnName.slice(12)}_M`
   }
 
   return undefined

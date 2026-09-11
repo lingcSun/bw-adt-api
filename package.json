@@ -1,6 +1,6 @@
 {
   "name": "bw-adt-api",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Interface to SAP BW/4HANA ADT (Abap Developer Tools) webservice",
   "outDir": "build",
   "main": "build/index.js",
@@ -22,8 +22,28 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/lingcSun/bw-adt-api.git"
   },
+  "files": [
+    "build/AdtException.js",
+    "build/AdtException.d.ts",
+    "build/AdtHTTP.js",
+    "build/AdtHTTP.d.ts",
+    "build/AxiosHttpClient.js",
+    "build/AxiosHttpClient.d.ts",
+    "build/BWAdtClient.js",
+    "build/BWAdtClient.d.ts",
+    "build/index.js",
+    "build/index.d.ts",
+    "build/requestLogger.js",
+    "build/requestLogger.d.ts",
+    "build/utilities.js",
+    "build/utilities.d.ts",
+    "build/api",
+    "build/domains",
+    "README.md",
+    "docs"
+  ],
   "dependencies": {
     "axios": "^1.7.2",
     "fast-xml-parser": "^4.4.0",

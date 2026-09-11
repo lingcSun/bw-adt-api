@@ -24,10 +24,6 @@ export class DdicDomain {
     return ddic.getTableDataViaSQL(this.h, tableName, sqlStatement, options)
   }
 
-  adsoPreview(adsoName: string, maxRows?: number) {
-    return ddic.getADSODataPreview(this.h, adsoName, maxRows)
-  }
-
   adsoDdicLinks(adsoId: string) {
     return ddic.getADSODDICLinks(this.h, adsoId)
   }

@@ -21,6 +21,20 @@ export class DtpDomain {
     return dtp.checkDTP(this.h, dtpId)
   }
 
+  /**
+   * Activate DTP with lock/unlock - 独立激活（锁→激活→解锁）。
+   * 用于转换修改后 DTP 被取消激活的场景，无需改动 DTP 内容。
+   */
+  async activate(dtpId: string) {
+    const lockResult = await dtp.lockDTP(this.h, dtpId)
+    try {
+      const result = await dtp.activateDTP(this.h, dtpId, lockResult.lockHandle)
+      return { lockHandle: lockResult.lockHandle, ...result }
+    } finally {
+      await dtp.unlockDTP(this.h, dtpId)
+    }
+  }
+
   saveAndActivate(
     dtpId: string,
     xmlContent: string,

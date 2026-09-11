@@ -7,8 +7,7 @@ import {
   getDDICTableInfo,
   getDDICTableFields,
   getDDICTableDataMetadata,
-  getDDICTableData,
-  getADSODataPreview
+  getDDICTableData
 } from "../api/ddic"
 import * as dotenv from "dotenv"
 
@@ -235,35 +234,6 @@ describe("DDIC API Tests", () => {
       console.log(`Requested Columns: ${columnNames.join(", ")}`)
       console.log(`Returned Columns: ${data.columns?.join(", ") || "N/A"}`)
       console.log(`=====================================================================\n`)
-    }, 30000)
-  })
-
-  describe("ADSO Data Preview", () => {
-    test("should get ADSO data preview", async () => {
-      try {
-        const data = await getADSODataPreview(client.httpClient, TEST_ADSO, 10)
-
-        expect(data).toBeDefined()
-        expect(data.tableName).toBe(TEST_ADSO)
-
-        console.log(`\n========== ADSO Data Preview: ${TEST_ADSO} ==========`)
-        console.log(`ADSO: ${data.tableName}`)
-        console.log(`Total Rows: ${data.totalRows || "N/A"}`)
-        console.log(`Columns: ${data.columns?.join(", ") || "N/A"}`)
-
-        if (data.rows && data.rows.length > 0) {
-          console.log(`\nFirst ${Math.min(3, data.rows.length)} rows:`)
-          data.rows.slice(0, 3).forEach((row, idx) => {
-            console.log(`  Row ${idx + 1}: ${JSON.stringify(row)}`)
-          })
-        } else {
-          console.log("No data rows returned")
-        }
-        console.log(`=================================================\n`)
-      } catch (error: any) {
-        console.log(`\nNote: ADSO data preview not available: ${error.message}`)
-        console.log(`This may be due to ADSO version or configuration issues.\n`)
-      }
     }, 30000)
   })
 })

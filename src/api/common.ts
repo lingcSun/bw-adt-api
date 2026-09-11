@@ -252,7 +252,11 @@ export async function validateObject(
 }
 
 /**
- * Check Object - 通用检查函数（使用 activateObject 的检查模式）
+ * Check Object - 通用检查函数（只读一致性检查，不激活）
+ *
+ * 对应请求: POST /sap/bw/modeling/checkruns
+ * 注意: 检查端点与激活端点不同。旧的实现误用 /activation 导致 check 触发激活。
+ * 激活用 activateObject()（POST /sap/bw/modeling/activation）。
  *
  * @param client - ADT HTTP 客户端
  * @param objectUri - 对象 URI
@@ -264,11 +268,23 @@ export async function checkObject(
   objectUri: string,
   contentType: string
 ): Promise<ActivationResult> {
-  return activateObject(
-    client,
-    objectUri,
-    "",  // lockHandle 为空表示只检查不修改
-    "inactive",
-    contentType
-  )
+  const body = `<?xml version="1.0" encoding="UTF-8"?>
+<atom:feed xmlns:atom="http://www.w3.org/2005/Atom" xmlns:bwModel="http://www.sap.com/bw/modeling">
+  <atom:entry>
+    <atom:content type="${contentType}">
+      <bwModel:checkProperties version="inactive" modelContent="" lockHandle=""></bwModel:checkProperties>
+    </atom:content>
+    <atom:link href="${objectUri}" rel="self" type="application/*"></atom:link>
+  </atom:entry>
+</atom:feed>`
+
+  const response = await client.request("/sap/bw/modeling/checkruns", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/atom+xml;type=entry"
+    },
+    body
+  })
+
+  return parseActivationResponse(response.body)
 }

@@ -824,9 +824,7 @@ export class BWAdtClient {
 
   // ========================================
   // Transformation Operations
-  // NOTE: Creating TRFN via API is NOT supported (SAP server-side limitation).
-  //       Use createObject("trfn", ...) will fail with CX_SY_REF_IS_INITIAL.
-  //       Read, update, activate, delete operations work normally.
+  // CREATE: createTransformation() —— 8TRANSIENT 瞬态流（Eclipse 新建向导同款）
   // ========================================
 
   /**
@@ -977,6 +975,46 @@ export class BWAdtClient {
    *   lock → transportchecks → PUT (lockHandle + Transport-Lock-Holder + timestamp) → activation → unlock
    */
   /** @deprecated Prefer `client.trfn.saveAndActivate` */
+  /**
+   * Create Transformation —— 8TRANSIENT 瞬态流创建转换（Eclipse 新建向导同款）。
+   * 返回服务器生成的 trfnId 与水合后 XML；packageName 非 $TMP 时需 transport。
+   */
+  public async createTransformation(options: {
+    sourceObjName: string
+    targetObjName: string
+    sourceObjType?: string
+    targetObjType?: string
+    packageName?: string
+    transport?: string
+    description?: string
+    responsible?: string
+    masterSystem?: string
+    masterLanguage?: string
+  }) {
+    const { createTransformation } = await import("./api/transformation")
+    return createTransformation(this.h, options)
+  }
+
+  /**
+   * Create DTP —— 通用对象 POST 流创建 DTP（CREA lock + collection POST）。
+   * 创建后为 inactive，配置 filter/抽取模式后再 saveAndActivateDTP。
+   */
+  public async createDTP(options: {
+    id?: string
+    sourceName: string
+    targetName: string
+    transformId: string
+    extractionMode?: "F" | "D"
+    packageName?: string
+    transport?: string
+    description?: string
+    responsible?: string
+    masterSystem?: string
+  }) {
+    const { createDTP } = await import("./api/dtp")
+    return createDTP(this.h, options)
+  }
+
   public async saveAndActivateTransformation(
     trfnId: string,
     xmlContent: string,
@@ -1498,7 +1536,19 @@ export class BWAdtClient {
   }
 
   /**
-   * Check DTP - 检查 DTP 一致性
+   * Activate DTP with lock/unlock - 独立激活 DTP（锁→激活→解锁）
+   *
+   * 用于转换修改后 DTP 被取消激活、需要重新激活且不改变内容的场景。
+   *
+   * @param dtpId - DTP ID
+   * @returns 激活结果 + lockHandle
+   */
+  public async activateDTPWithLock(dtpId: string) {
+    return this.dtp.activate(dtpId)
+  }
+
+  /**
+   * Check DTP - 检查 DTP 一致性（只读，不激活）
    *
    * @param dtpId - DTP ID
    * @returns 检查结果
@@ -1986,19 +2036,6 @@ export class BWAdtClient {
   ) {
     const { getDDICTableData } = await import("./api/ddic")
     return getDDICTableData(this.h, tableName, options)
-  }
-
-  /**
-   * Get ADSO Data Preview - 获取 ADSO 数据预览
-   * 对应请求: GET /sap/bw/modeling/adso/{adso_name}/data
-   *
-   * @param adsoName - ADSO 名称
-   * @param maxRows - 最大行数
-   * @returns ADSO 表数据
-   */
-  public async getADSODataPreview(adsoName: string, maxRows?: number) {
-    const { getADSODataPreview } = await import("./api/ddic")
-    return getADSODataPreview(this.h, adsoName, maxRows)
   }
 
   /**
