@@ -17,3 +17,6 @@ coverage
 Communication Logs/
 CLAUDE.md
 
+
+# local ad-hoc analysis scripts (kept out of the repo)
+scripts/
