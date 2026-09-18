@@ -172,9 +172,20 @@ export class BWObject<T extends BWObjectType> {
 
   /**
    * Get object configuration
+   *
+   * 未登记的类型（如调用方把参数顺序写反，传了对象名当类型）会让 config 变成
+   * undefined，后续读 `.endpoint` 只会抛出 "Cannot read properties of undefined"。
+   * 这里提前给出可操作的报错。
    */
   protected get config(): BWObjectConfig {
-    return BW_OBJECT_CONFIGS[this.objectType]
+    const config = BW_OBJECT_CONFIGS[this.objectType]
+    if (!config) {
+      throw new Error(
+        `Unknown BW object type ${JSON.stringify(this.objectType)} for object ` +
+        `${JSON.stringify(this.objectName)}. Valid types: ${Object.keys(BW_OBJECT_CONFIGS).join(", ")}.`
+      )
+    }
+    return config
   }
 
   /**
@@ -492,22 +503,47 @@ export class BWObject<T extends BWObjectType> {
    * Delete Object - 删除对象
    *
    * InfoArea: DELETE /sap/bw/modeling/area/{name}/a?lockHandle={lockHandle}
-   * ADSO: DELETE /sap/bw/modeling/adso/{name}/m?lockHandle={lockHandle}
+   * ADSO: DELETE /sap/bw/modeling/adso/{name}/m?lockHandle={lockHandle}[&corrNr={tr}]
    * 其他对象: DELETE /sap/bw/modeling/{endpoint}/{name}?transport={transport}
    *
-   * @param lockHandleOrTransport - 锁定句柄 或 传输请求号
+   * 参数按类型二选一，**不再共用一个位置参数**——原先 ADSO/InfoArea 要 lockHandle、
+   * 其余要 transport，同一个位置参数语义随类型漂移，极易传错：
+   * - ADSO / InfoArea：必须 `{ lockHandle }`（先 lock 再删），可选 `transport` 带 corrNr
+   * - TRFN / DTP / PC / InfoObject：必须 `{ transport }`
+   *
+   * @param options.lockHandle - ADSO/InfoArea 的锁定句柄
+   * @param options.transport - TRFN/DTP/PC/IObj 的传输请求号；
+   *   ADSO/InfoArea 上传则为 corrNr。必须是**请求号**而非任务号——传任务号服务端报
+   *   「请求 xxx 不是更改请求」。
+   *   注意: 实测带 corrNr 删除后，E071 中该对象的历史登记项**不会**随之消失
+   *   （登记项属于传输记录器，需在 SE10/SE01 删除或释放该请求才会清除）。
    * @returns 删除结果
    */
-  async delete(lockHandleOrTransport: string): Promise<void> {
+  async delete(
+    options: { lockHandle?: string; transport?: string } = {}
+  ): Promise<void> {
     const useLockHandleMode =
       this.objectType === BWObjectType.INFO_AREA ||
       this.objectType === BWObjectType.ADSO
 
+    // 类型决定必填项，且拒绝走错分支（比静默拼出错误查询串好）。
+    if (useLockHandleMode && !options.lockHandle) {
+      throw new Error(
+        `delete: ${this.objectType} requires options.lockHandle (obtain one via lock() first).`
+      )
+    }
+    if (!useLockHandleMode && !options.transport) {
+      throw new Error(
+        `delete: ${this.objectType} requires options.transport (a workbench request number).`
+      )
+    }
+
     const lockVersion: "m" | "a" = this.objectType === BWObjectType.INFO_AREA ? "a" : "m"
     const uri = useLockHandleMode ? this.buildUri(lockVersion) : this.buildUri()
-    const qs = useLockHandleMode
-      ? { lockHandle: lockHandleOrTransport }
-      : { transport: lockHandleOrTransport }
+    const qs: Record<string, string> = useLockHandleMode
+      ? { lockHandle: options.lockHandle! }
+      : { transport: options.transport! }
+    if (useLockHandleMode && options.transport) qs["corrNr"] = options.transport
 
     await this.client.request(uri, {
       method: "DELETE",

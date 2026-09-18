@@ -74,7 +74,24 @@ export const InfoObjectDetails = t.type({
   sidTable: orUndefined(t.string),
   textTable: orUndefined(t.string),
   masterDataTable: orUndefined(t.string),
-  attributeSIDTable: orUndefined(t.string)
+  attributeSIDTable: orUndefined(t.string),
+  // 主数据/文本/层次 的存在性标志与附加表
+  withMasterData: orUndefined(t.boolean),
+  masterDataView: orUndefined(t.string),
+  timeDependentMasterDataTable: orUndefined(t.string),
+  withTexts: orUndefined(t.boolean),
+  longTextAvailable: orUndefined(t.boolean),
+  withHierarchies: orUndefined(t.boolean),
+  hierarchyTable: orUndefined(t.string),
+  // 单位/货币语义 —— 判定该 IOBJ 能否作为金额/数量的单位或货币字段
+  unitsOfMeasureForCharacteristic: orUndefined(t.string),
+  currencyAttribute: orUndefined(t.string),
+  // 其他常用元数据
+  displayProperties: orUndefined(t.unknown),
+  runtimeProperties: orUndefined(t.unknown),
+  numberRangeObjects: orUndefined(t.array(t.unknown)),
+  attributeN: orUndefined(t.array(t.unknown)),
+  hanaAttributeMapping: orUndefined(t.array(t.unknown))
 })
 
 export type InfoObjectDetails = t.OutputOf<typeof InfoObjectDetails>
@@ -115,12 +132,15 @@ export async function getInfoObject(
   }
 
   const response = await client.request(
-    `/sap/bw/modeling/iobj/${iobjName.toLowerCase()}/a`,
+    `/sap/bw/modeling/iobj/${encodeURIComponent(iobjName.toLowerCase())}/a`,
     {
       method: "GET",
       qs,
       headers: {
-        "Accept": "application/vnd.sap-bw-modeling.iobj-v2_1_0+xml, " +
+        "Accept": "application/vnd.sap-bw-modeling.iobj-v2_4_0+xml, " +
+                 "application/vnd.sap-bw-modeling.iobj-v2_3_0+xml, " +
+                 "application/vnd.sap-bw-modeling.iobj-v2_2_0+xml, " +
+                 "application/vnd.sap-bw-modeling.iobj-v2_1_0+xml, " +
                  "application/vnd.sap-bw-modeling.iobj-v2_0_0+xml, " +
                  "application/vnd.sap-bw-modeling.iobj-v1_9_0+xml, " +
                  "application/vnd.sap-bw-modeling.iobj-v1_8_0+xml, " +
@@ -153,11 +173,12 @@ export async function getInfoObjectMetadata(
   iobjName: string
 ): Promise<any> {
   const response = await client.request(
-    `/sap/bw/modeling/iobj/${iobjName.toLowerCase()}/m`,
+    `/sap/bw/modeling/iobj/${encodeURIComponent(iobjName.toLowerCase())}/m`,
     {
       method: "GET",
       headers: {
-        "Accept": "application/vnd.sap-bw-modeling.iobj-v2_1_0+xml"
+        "Accept": "application/vnd.sap-bw-modeling.iobj-v2_4_0+xml, " +
+                 "application/vnd.sap-bw-modeling.iobj-v2_1_0+xml"
       }
     }
   )
@@ -171,9 +192,13 @@ export async function getInfoObjectMetadata(
 
 /**
  * Parse InfoObject Details Response - 解析 InfoObject 详细信息响应
+ *
+ * `raw` 可能已经是解析后的树，也可能是原始 XML 字符串（/a 端点直接返回字符串）。
+ * 两种输入都要支持，否则整个解析会静默失败（所有字段 undefined）。
  */
-function parseInfoObjectDetails(raw: any): InfoObjectDetails {
-  const root = raw["iobj:infoObject"] || raw
+export function parseInfoObjectDetails(raw: any): InfoObjectDetails {
+  const parsed = typeof raw === "string" ? fullParse(raw) : raw
+  const root = parsed?.["iobj:infoObject"] || parsed || {}
   const tlogoProps = root["tlogoProperties"] || {}
   const attrs = xmlNodeAttr(root)
 
@@ -203,6 +228,29 @@ function parseInfoObjectDetails(raw: any): InfoObjectDetails {
   // 解析 DDIC 表信息
   const masterDataProps = root["masterDataProperties"]
   const textProps = root["textProperties"]
+  const hierarchyProps = root["hierarchyProperties"]
+
+  /** 读 `<x status="A"/>` 形式节点的 name 属性 */
+  const tableName = (node: any): string | undefined =>
+    node?.["@_name"] || node?.name
+
+  /** 属性可能是 "@_x" 也可能是裸 "x"，统一取值 */
+  const attr = (node: any, key: string): string | undefined =>
+    node?.[`@_${key}`] ?? node?.[key]
+
+  /** 把 true/false（可能是布尔或字符串）安全转成 boolean */
+  const bool = (v: unknown): boolean | undefined =>
+    typeof v === "boolean" ? v
+      : v === "true" ? true
+        : v === "false" ? false
+          : undefined
+
+  /**
+   * 转数字但保留 0 —— 用 `!= null` 而非真值判断。
+   * （KEY 指标的 <length> 可能缺省，但 0 是合法值，不能被真值判断吞掉。）
+   */
+  const toNum = (v: unknown): number | undefined =>
+    v === undefined || v === null || v === "" ? undefined : Number(v)
 
   return {
     name: attrs?.["@_name"] || root.name || "",
@@ -210,12 +258,12 @@ function parseInfoObjectDetails(raw: any): InfoObjectDetails {
     description: root.longDescription || root.shortDescription || tlogoProps["@_description"],
     infoObjectType: root.infoObjectType || attrs?.["@_xsi:type"],
     dataType: dataType || root.dataType,
-    length: length ? Number(length) : root.length ? Number(root.length) : undefined,
-    decimals: decimals ? Number(decimals) : undefined,
+    length: toNum(length) ?? toNum(root.length),
+    decimals: toNum(decimals),
     shortDescription: root.shortDescription,
     longDescription: root.longDescription,
     attributeOnly: attrs?.["@_attributeOnly"] === "true",
-    outputLength: attrs?.["@_outputLength"] ? Number(attrs?.["@_outputLength"]) : undefined,
+    outputLength: toNum(attrs?.["@_outputLength"]),
     fieldName: attrs?.["@_fieldName"],
     dataElement: root.dataElement?.["@_name"] || root.dataElement?.name,
     infoArea: tlogoProps.infoArea,
@@ -240,10 +288,27 @@ function parseInfoObjectDetails(raw: any): InfoObjectDetails {
       contentState: tlogoProps.contentState,
       package: tlogoProps.packageRef?.["@_name"]
     },
-    sidTable: root.sidTable?.["@_name"] || root.sidTable?.name,
-    textTable: textProps?.textTable?.["@_name"] || textProps?.textTable?.name,
-    masterDataTable: masterDataProps?.masterDataTable?.["@_name"] || masterDataProps?.masterDataTable?.name,
-    attributeSIDTable: masterDataProps?.attributeSIDTable?.["@_name"] || masterDataProps?.attributeSIDTable?.name
+    sidTable: tableName(root.sidTable),
+    textTable: tableName(textProps?.textTable),
+    masterDataTable: tableName(masterDataProps?.masterDataTable),
+    attributeSIDTable: tableName(masterDataProps?.attributeSIDTable),
+    // 存在性标志 + 附加表（原先被丢弃）
+    withMasterData: bool(attr(masterDataProps, "withMasterData")),
+    masterDataView: tableName(masterDataProps?.masterDataView),
+    timeDependentMasterDataTable: tableName(masterDataProps?.timeDependentMasterDataTable),
+    withTexts: bool(attr(textProps, "withTexts")),
+    longTextAvailable: bool(attr(textProps, "longTextAvailable")),
+    withHierarchies: bool(attr(hierarchyProps, "withHierarchies")),
+    hierarchyTable: tableName(hierarchyProps?.hierarchyTable),
+    // 单位/货币语义：决定该 IOBJ 能否作为金额/数量的单位字段
+    unitsOfMeasureForCharacteristic: attr(root.unitsOfMeasureForCharacteristic, "status"),
+    currencyAttribute: attr(root.currencyAttribute, "infoObjectType"),
+    // 其他常用元数据（原样透传，供调用方自行检查）
+    displayProperties: root.displayProperties,
+    runtimeProperties: root.runtimeProperties,
+    numberRangeObjects: xmlArray(root, "numberRangeObject"),
+    attributeN: xmlArray(root, "attributeN"),
+    hanaAttributeMapping: xmlArray(root, "hanaAttributeMapping")
   }
 }
 

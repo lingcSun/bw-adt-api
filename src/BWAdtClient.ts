@@ -497,10 +497,22 @@ export class BWAdtClient {
    * @param lockHandleOrTransport - 锁定句柄（InfoArea）或传输请求号（其他对象）
    * @returns 删除结果
    */
+  /**
+   * Delete BW Object - 删除 BW 对象（泛型方法）
+   *
+   * ADSO / InfoArea 需要先 lock，并把 lockHandle 传进来；
+   * TRFN / DTP / PC / InfoObject 传 transport 请求号。
+   *
+   * @param objectType - 对象类型
+   * @param objectName - 对象名称
+   * @param options.lockHandle - ADSO/InfoArea 的锁定句柄
+   * @param options.transport - 其余类型的请求号（ADSO/InfoArea 上传则为 corrNr）
+   * @returns 删除结果
+   */
   public async deleteObject(
     objectType: "adso" | "trfn" | "dtpa" | "pc" | "iobj" | "area",
     objectName: string,
-    lockHandleOrTransport: string
+    options: { lockHandle?: string; transport?: string } = {}
   ) {
     const { BWObjectType, createBWObject } = await import("./api/bwObject")
     const typeMap: Record<string, keyof typeof BWObjectType> = {
@@ -511,8 +523,17 @@ export class BWAdtClient {
       iobj: "INFO_OBJECT",
       area: "INFO_AREA"
     }
-    const obj = createBWObject(this.h, BWObjectType[typeMap[objectType]], objectName)
-    return obj.delete(lockHandleOrTransport)
+    // 参数写反（把对象名当类型传）时，这里会拿到 undefined 并最终抛出
+    // 难以理解的 "reading 'endpoint'"；提前给出明确报错。
+    const enumKey = typeMap[objectType]
+    if (!enumKey) {
+      throw new Error(
+        `deleteObject: unknown objectType ${JSON.stringify(objectType)} for object ` +
+        `${JSON.stringify(objectName)}. Expected one of: ${Object.keys(typeMap).join(", ")}.`
+      )
+    }
+    const obj = createBWObject(this.h, BWObjectType[enumKey], objectName)
+    return obj.delete(options)
   }
 
   /**
@@ -799,6 +820,16 @@ export class BWAdtClient {
     writeChangelog?: boolean              // 写入变更日志 (默认: true)
     readOnly?: boolean                    // 只读 (默认: false)
     autoActivate?: boolean                // 创建后自动激活 (默认: false)
+    /**
+     * 开发包. 缺省 "$TMP"（本地对象，不入传输）。
+     * 传真实包（如 "ZBW"）时必须同时给 transport，否则对象会落 $TMP。
+     */
+    packageName?: string
+    /**
+     * 工作台请求号. 传入后创建请求带上 corrNr，对象登记进该请求。
+     * 不带 transport 时会退化为 $TMP（本地对象），且 E071 中查不到该对象。
+     */
+    transport?: string
   }) {
     const { createADSOFull } = await import("./api/adso")
     return createADSOFull(this.h, {

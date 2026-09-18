@@ -493,7 +493,7 @@ describe("BW InfoArea Tests (Generic CRUD)", () => {
 
         // Step 3: 删除
         console.log(`Step 3: Deleting...`)
-        await obj.delete(lockResult.lockHandle)
+        await obj.delete({ lockHandle: lockResult.lockHandle })
         console.log(`Deleted successfully!`)
 
         // Step 4: 验证已删除

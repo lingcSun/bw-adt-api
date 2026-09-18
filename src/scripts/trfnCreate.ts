@@ -282,7 +282,7 @@ async function deleteTrfn(client: BWAdtClient, trfnId: string): Promise<void> {
   console.log("   删除 TRFN...")
   const obj = await client.getObject("trfn", trfnId)
   const lockResult = await obj.lock()
-  await obj.delete(lockResult.lockHandle)
+  await obj.delete({ lockHandle: lockResult.lockHandle })
   console.log("   ✓ 删除成功")
 }
 

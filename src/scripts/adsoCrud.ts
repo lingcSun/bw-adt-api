@@ -53,7 +53,7 @@ async function existsAdso(client: BWAdtClient, adsoName: string): Promise<boolea
 async function deleteAdso(client: BWAdtClient, adsoName: string): Promise<void> {
   const obj = await client.getObject("adso", adsoName)
   const lockResult = await obj.lock()
-  await obj.delete(lockResult.lockHandle)
+  await obj.delete({ lockHandle: lockResult.lockHandle })
 }
 
 async function main() {

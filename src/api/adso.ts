@@ -48,6 +48,16 @@ export interface CreateADSOOptions {
   // 父级信息
   parentName?: string                   // 父级名称 (InfoArea)
   parentType?: string                   // 父级类型 (如: AREA)
+  /**
+   * 开发包. 缺省 "$TMP"（本地对象，不入传输）。
+   * 传真实包（如 "ZBW"）时必须同时给 transport，否则对象会落 $TMP 而无法挂请求。
+   */
+  packageName?: string
+  /**
+   * 工作台请求号. 传入后创建请求会带上 corrNr，对象登记进该请求。
+   * 只用 packageName 而不给 transport 会退化成 $TMP（服务器行为），故两者建议成对传。
+   */
+  transport?: string
 }
 
 /**
@@ -256,7 +266,9 @@ export async function createADSO(
     writeChangelog = true,
     readOnly = false,
     parentName,
-    parentType = "AREA"
+    parentType = "AREA",
+    packageName = "$TMP",
+    transport
   } = options
 
   // 构建模板 XML (如果提供)
@@ -268,6 +280,19 @@ export async function createADSO(
   const dimensionXml = `  <dimension name="GROUP1">
     <descriptions/>
   </dimension>`
+
+  // 非 $TMP 包必须有 transport：否则服务器会静默落回 $TMP，对象不进任何请求。
+  // 显式要了真实包却没给请求号是调用方错误，宁可报错也不要静默降级
+  // （实测：packageName="ZBW" 无 transport 时对象落 $TMP 且不报错）。
+  if (packageName && packageName !== "$TMP" && !transport) {
+    throw new Error(
+      `createADSO: packageName "${packageName}" requires a transport request number — ` +
+      `without it the object would silently become a $TMP local object. ` +
+      `Pass transport=<TRKORR> (create one with createTransport), or set packageName="$TMP" explicitly.`
+    )
+  }
+
+  const devClass = transport ? packageName : "$TMP"
 
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <adso:dataStore xmlns:adso="http://www.sap.com/bw/modeling/adso.ecore" xmlns:adtcore="http://www.sap.com/adt/core" schemaVersion="1.0" name="${name}" readOnly="${readOnly}" activateData="${activateData}" writeChangelog="${writeChangelog}">
@@ -282,7 +307,7 @@ ${templateXml}
   const headers: Record<string, string> = {
     "Content-Type": "application/vnd.sap.bw.modeling.adso-v1_5_0+xml",
     "Accept": "application/vnd.sap.bw.modeling.adso-v1_5_0+xml",
-    "Development-Class": "$TMP"
+    "Development-Class": devClass
   }
 
   // 如果是创建新对象，添加父级信息
@@ -292,8 +317,11 @@ ${templateXml}
     headers["activity_context"] = "CREA"
   }
 
+  // 非 $TMP 包时把请求号带进 URL，否则对象即使有包也不登记进请求
+  const corrNr = transport ? `&corrNr=${encodeURIComponent(transport)}` : ""
+
   const response = await client.request(
-    `/sap/bw/modeling/adso/${name.toLowerCase()}?lockHandle=${lockHandle}`,
+    `/sap/bw/modeling/adso/${encodeURIComponent(name.toLowerCase())}?lockHandle=${encodeURIComponent(lockHandle)}${corrNr}`,
     {
       method: "POST",
       headers,
@@ -772,7 +800,9 @@ export async function createADSOFull(
     activateData = true,
     writeChangelog = true,
     readOnly = false,
-    autoActivate = false
+    autoActivate = false,
+    packageName = "$TMP",
+    transport
   } = options
 
   const areaValid = await validateInfoArea(client, infoArea)
@@ -787,9 +817,23 @@ export async function createADSOFull(
     }
   }
 
-  const nameValid = await validateNewADSOName(client, name)
+  // validateObject 在服务端拒绝时直接抛错（带服务端原文，如「长度必须在 3 个和 9 个字符之间」），
+  // 只有 200 才会返回 valid:true。这里补上调用方最需要的那条约束说明，避免只有服务端原文。
+  let nameValid
+  try {
+    nameValid = await validateNewADSOName(client, name)
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    throw new Error(
+      `ADSO name ${JSON.stringify(name)} was rejected: ${detail} ` +
+      `Note: an ADSO name must be 3-9 characters excluding any /namespace/ prefix.`
+    )
+  }
   if (!nameValid.valid) {
-    throw new Error(`ADSO name ${name} is not available`)
+    throw new Error(
+      `ADSO name ${JSON.stringify(name)} is not available. ` +
+      `Note: an ADSO name must be 3-9 characters excluding any /namespace/ prefix.`
+    )
   }
 
   const lockResult = await lockADSO(client, name)
@@ -806,7 +850,9 @@ export async function createADSOFull(
         writeChangelog,
         readOnly,
         parentName: infoArea,
-        parentType: "AREA"
+        parentType: "AREA",
+        packageName,
+        transport
       },
       lockResult.lockHandle
     )

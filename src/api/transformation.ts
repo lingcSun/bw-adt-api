@@ -527,7 +527,10 @@ export async function createTransformation(
     if (!options.transport) {
       throw new Error(`transport is required when packageName="${packageName}"`)
     }
-    const pkgRef = `<adtcore:packageRef adtcore:uri="/sap/bc/adt/packages/${packageName.toLowerCase() === "zbw" ? "zbw" : encodeURIComponent(packageName)}" adtcore:type="DEVC/K" adtcore:name="${escapeXmlAttr(packageName)}"/>`
+    // 包 URI 大小写不敏感（实测 /packages/zbw 与 /packages/ZBW 均返回 200），
+    // 统一小写即可，无需对 ZBW 做特判。
+    const pkgUri = `/sap/bc/adt/packages/${encodeURIComponent(packageName.toLowerCase())}`
+    const pkgRef = `<adtcore:packageRef adtcore:uri="${pkgUri}" adtcore:type="DEVC/K" adtcore:name="${escapeXmlAttr(packageName)}"/>`
     if (xml.includes("packageRef")) {
       xml = xml.replace(/<adtcore:packageRef[\s\S]*?\/>/, pkgRef)
     } else {

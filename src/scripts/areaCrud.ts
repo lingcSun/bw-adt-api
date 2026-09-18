@@ -91,7 +91,7 @@ async function main() {
     if (existsBefore && CLEAN_BEFORE) {
       console.log("   - CLEAN_BEFORE=true，先删除已有对象...")
       const lockResult = await areaObj.lock()
-      await areaObj.delete(lockResult.lockHandle)
+      await areaObj.delete({ lockHandle: lockResult.lockHandle })
       console.log("   ✓ 已清理旧对象")
     } else if (existsBefore) {
       throw new Error("目标区域已存在。可设置 CLEAN_BEFORE=true 自动清理后继续。")
@@ -156,7 +156,7 @@ async function main() {
 
     console.log("7. 删除 InfoArea...")
     const deleteLockResult = await areaObj.lock()
-    await areaObj.delete(deleteLockResult.lockHandle)
+    await areaObj.delete({ lockHandle: deleteLockResult.lockHandle })
     console.log("   ✓ 删除成功\n")
 
     console.log("8. 校验删除结果...")

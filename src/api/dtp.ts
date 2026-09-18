@@ -626,7 +626,17 @@ export async function createDTP(
     throw new Error(`DTP id must match DTP_ + 26 uppercase alnum chars, got: ${dtpId} (len ${dtpId.length})`)
   }
   const packageName = options.packageName || "$TMP"
-  const pkgUri = packageName === "$TMP" ? "/sap/bc/adt/packages/%24tmp" : `/sap/bc/adt/packages/${packageName.toLowerCase()}`
+  // 显式要了真实包却没给请求号是调用方错误：对象会落 $TMP 且不报错（与 createADSO 同类坑）。
+  if (packageName !== "$TMP" && !options.transport) {
+    throw new Error(
+      `createDTP: packageName "${packageName}" requires a transport request number — ` +
+      `without it the object would silently become a $TMP local object. ` +
+      `Pass transport=<TRKORR> (create one with createTransport), or set packageName="$TMP" explicitly.`
+    )
+  }
+  const pkgUri = packageName === "$TMP"
+    ? "/sap/bc/adt/packages/%24tmp"
+    : `/sap/bc/adt/packages/${encodeURIComponent(packageName.toLowerCase())}`
   const extractionMode = options.extractionMode || "F"
   const description = escapeXmlAttr(options.description || `ADSO ${options.sourceName} -> ADSO ${options.targetName}`)
   const responsible = escapeXmlAttr(options.responsible || (client as unknown as { username?: string }).username || "")
