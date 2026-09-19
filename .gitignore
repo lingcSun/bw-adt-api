@@ -20,4 +20,5 @@ CLAUDE.md
 
 
 # local ad-hoc analysis scripts (kept out of the repo)
-scripts/
+scripts/*
+!scripts/verify-agents.mjs

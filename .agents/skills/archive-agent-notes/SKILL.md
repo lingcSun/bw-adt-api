@@ -42,8 +42,9 @@ rejected 笔记：合并两个包的诱惑仍然存在时保留"拒绝拆包"；
 1. 把文件从 `implemented/<class>/` 移动到 `archived/<class>/`；归档路径刻意不含 `implemented`。
 2. 正文不编辑。仅在 `Status: implemented` 下一行插入 `Archived: YYYY-MM-DD`（归档当日日期）。
 3. 检索活动文档中的入站链接：重定向到当前权威；仅当有意引用历史时才指向归档路径；否则删除该链接。不验证、不修复归档笔记的出站链接。
-4. 提交即封存：此后永不编辑、移动、翻译、重排格式或删除该文件。归档笔记仍是合法的入站链接目标，但只是历史快照，不是当前行为的权威。
+4. 运行 `npm run verify:agents -- --write` 把新归档计入 `.archive-manifest.json`；清单 append-only，脚本拒绝覆盖任何已封存哈希。
+5. 提交即封存：此后永不编辑、移动、翻译、重排格式或删除该文件。归档笔记仍是合法的入站链接目标，但只是历史快照，不是当前行为的权威。
 
 ## 验证与汇报
 
-跑仓库常规校验（构建/测试），`git diff --check`，重读完整 diff 的正确性与简洁性。汇报：保持活动的 implemented 笔记数、归档数、rejected 保留/删除数、如有被拒的 proposed 也一并汇报，以及每个真正的边界 case 及其处置理由。不声称归档笔记的出站链接有效。
+跑 `npm run verify:agents`、仓库常规校验（构建/测试）、`git diff --check`，重读完整 diff 的正确性与简洁性。汇报：保持活动的 implemented 笔记数、归档数、rejected 保留/删除数、如有被拒的 proposed 也一并汇报，以及每个真正的边界 case 及其处置理由。不声称归档笔记的出站链接有效。

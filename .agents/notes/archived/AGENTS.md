@@ -4,4 +4,4 @@
 
 归档变更只允许：整体移动文件、在 `Status: implemented` 下一行插入同一 `Archived: YYYY-MM-DD`、修复或删除指向它的入站链接。不检查、不修复归档笔记的出站链接。
 
-归档操作走 [archive-agent-notes](../../skills/archive-agent-notes/SKILL.md) 工作流；git 提交历史即封存凭据。
+归档操作走 [archive-agent-notes](../../skills/archive-agent-notes/SKILL.md) 工作流；封存凭据为同目录 `.archive-manifest.json`（SHA-256，append-only），回改即 `npm run verify:agents` 失败。

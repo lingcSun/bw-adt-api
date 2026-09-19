@@ -39,7 +39,7 @@
 
 当一篇 implemented 笔记对应的发布决策已完整、且其 rationale 不太可能再指导未来工作时，将它归档。当它的替代方案、所有权边界、负面保证、持久/线上语义、安全规则或重新引入条件仍然有用时，保持活动。**永不归档 proposed 笔记**：过时的提案应改为 rejected。rejected 笔记仅在其仍能阻止一个可信的错误时保留；否则整个文件删除。
 
-归档路径为 `archived/{class}/yyyy-mm-dd-topic-title.md`；刻意不含 `implemented`，因为只有 implemented 笔记能进入归档。归档变更只允许：移动整个文件、保持 `Status: implemented`、紧贴该行下方插入同一 `Archived: YYYY-MM-DD` 行、修复或删除入站链接。
+归档路径为 `archived/{class}/yyyy-mm-dd-topic-title.md`；刻意不含 `implemented`，因为只有 implemented 笔记能进入归档。归档变更只允许：移动整个文件、保持 `Status: implemented`、紧贴该行下方插入同一 `Archived: YYYY-MM-DD` 行、修复或删除入站链接。封存由同目录 `.archive-manifest.json`（SHA-256，append-only）机械强制：清单与文件一一对应，回改或删除即 `npm run verify:agents` 失败；新归档用 `npm run verify:agents -- --write` 计入，清单只增不改。
 
 封存之后，归档笔记永久冻结：不编辑、不重排格式、不翻译、不更新、不移动、不删除，也不将其视为当前行为的权威。活动文档可以在有意引用历史时链接进归档笔记，但不检查、不修复归档笔记的出站链接。使用校准过的 [archive-agent-notes](../skills/archive-agent-notes/SKILL.md) 工作流判断，而不是字数、年龄或配额。
 
@@ -53,7 +53,7 @@
 
 ## 文件格式
 
-每篇活动的 Agent Note 遵循统一的文件内格式；格式由评审与归档技能人工把关。正文用中文；文件头与段落标题的机读 token 保持英文（与原版 verify 脚本兼容，便于未来接入门禁）。
+每篇活动的 Agent Note 遵循统一的文件内格式；机械格式由 `npm run verify:agents` 门禁校验（文件头、骨架段、Status 与目录一致），语义由评审与技能把关。正文用中文；文件头与段落标题的机读 token 保持英文。
 
 ### 文件头
 
@@ -119,6 +119,6 @@ Status: <状态>
 | 原版机制 | 本仓库采用 | 原因 |
 |---|---|---|
 | 英文正文 + `.zh.md` 中文对照 + `.i18n.yaml` blob-hash sidecar，机器校验配对 | 单语中文正文；文件头与段落标题 token 保持英文 | 没有配对校验机器的双语对必然漂移；token 英文保留未来接入原版 verify 脚本的可能 |
-| `verify-agent-note-format` / `verify-archived-agent-notes` 等 CI 门禁；类别封闭集由 `scripts/agent-note-tree.ts` 定义 | 封闭集由本 README 定义；格式与目录由评审 + [archive-agent-notes](../skills/archive-agent-notes/SKILL.md) 技能把关 | 小型仓库，脚本门禁的维护成本高于收益 |
-| 归档 append-only 清单 + sidecar hash 校验 | 冻结靠约定；git 历史即不可变凭据 | 同上 |
+| `verify-agent-note-format` / `verify-archived-agent-notes` 等 CI 门禁；类别封闭集由 `scripts/agent-note-tree.ts` 定义 | 封闭集由本 README 定义；`npm run verify:agents` 单脚本校验预算、笔记格式、链接三类机械不变量，语义判断仍由评审 + [archive-agent-notes](../skills/archive-agent-notes/SKILL.md) 技能把关 | 一个小脚本覆盖三类高频校验，不搬运全套工具链 |
+| 归档 append-only 清单 + 哈希校验（`verify-archived-agent-notes`） | `verify-agents` 的 `.archive-manifest.json`（SHA-256、append-only，`--write` 仅新增）机械强制归档冻结 | 同上 |
 | 每篇新笔记强制触发全语料 supersession 审计（同一 PR 内完成） | 保留，但scope限定为"覆盖同一决策或机制"的检索式检查 | 语料规模小，全量审计无必要；检索式检查已防止最常见的重复 |
