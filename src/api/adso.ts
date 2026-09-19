@@ -273,7 +273,7 @@ export async function createADSO(
 
   // 构建模板 XML (如果提供)
   const templateXml = template
-    ? `  <template objectName="${template.objectName}" tlogo="${template.type}"/>`
+    ? `  <template objectName="${escapeXmlAttr(template.objectName)}" tlogo="${template.type}"/>`
     : ""
 
   // 构建 dimension XML
@@ -293,12 +293,11 @@ export async function createADSO(
   }
 
   const devClass = transport ? packageName : "$TMP"
-
   const body = `<?xml version="1.0" encoding="UTF-8"?>
-<adso:dataStore xmlns:adso="http://www.sap.com/bw/modeling/adso.ecore" xmlns:adtcore="http://www.sap.com/adt/core" schemaVersion="1.0" name="${name}" readOnly="${readOnly}" activateData="${activateData}" writeChangelog="${writeChangelog}">
-  <endUserTexts label="${description}"/>
-  <tlogoProperties adtcore:language="${masterLanguage}" adtcore:name="${name}" adtcore:type="ADSO" adtcore:masterLanguage="${masterLanguage}" adtcore:masterSystem="${masterSystem}" adtcore:responsible="${responsible}">
-    <infoArea>${infoArea}</infoArea>
+<adso:dataStore xmlns:adso="http://www.sap.com/bw/modeling/adso.ecore" xmlns:adtcore="http://www.sap.com/adt/core" schemaVersion="1.0" name="${escapeXmlAttr(name)}" readOnly="${readOnly}" activateData="${activateData}" writeChangelog="${writeChangelog}">
+  <endUserTexts label="${escapeXmlAttr(description)}"/>
+  <tlogoProperties adtcore:language="${masterLanguage}" adtcore:name="${escapeXmlAttr(name)}" adtcore:type="ADSO" adtcore:masterLanguage="${masterLanguage}" adtcore:masterSystem="${escapeXmlAttr(masterSystem)}" adtcore:responsible="${escapeXmlAttr(responsible)}">
+    <infoArea>${escapeXmlAttr(infoArea)}</infoArea>
   </tlogoProperties>
 ${dimensionXml}
 ${templateXml}
@@ -328,10 +327,6 @@ ${templateXml}
       body
     }
   )
-
-  if (response.status !== 200) {
-    throw new Error(`Failed to create ADSO ${name}: ${response.status}`)
-  }
 }
 
 /**
@@ -635,7 +630,7 @@ export async function activateADSO(
   corrNr: string = ""
 ): Promise<ActivationResult> {
   const obj = new BWObject(client, BWObjectType.ADSO, adsoId)
-  return obj.activate(lockHandle)
+  return obj.activate(lockHandle, corrNr || undefined)
 }
 
 /**
@@ -1143,25 +1138,6 @@ function parseADSOVersions(body: string): ADSOVersion[] {
       user: userName
     }
   })
-}
-
-/**
- * Parse ADSO Lock Response - 解析 ADSO 锁定响应
- */
-function parseADSOLockResponse(body: string): ADSOLockResult {
-  const parsed = fullParse(body)
-  const data = xmlNode(parsed, "asx:abap", "asx:values", "DATA")
-
-  if (!data) {
-    throw new Error("Invalid ADSO lock response format")
-  }
-
-  return {
-    lockHandle: data["LOCK_HANDLE"] || "",
-    corrNr: data["CORRNR"],
-    corrUser: data["CORRUSER"],
-    corrText: data["CORRTEXT"]
-  }
 }
 
 /**

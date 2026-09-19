@@ -310,7 +310,7 @@ export async function activateProcessChain(
   corrNr?: string
 ): Promise<ActivationResult> {
   const obj = new BWObject(client, BWObjectType.PROCESS_CHAIN, chainId)
-  return obj.activate(lockHandle)
+  return obj.activate(lockHandle, corrNr)
 }
 
 /**

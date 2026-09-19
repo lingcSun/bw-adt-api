@@ -436,9 +436,9 @@ export class BWAdtClient {
   ) {
     if (objectType === "trfn") {
       throw new Error(
-        "Creating Transformation (TRFN) via API is not supported. " +
-        "SAP BW server throws CX_SY_REF_IS_INITIAL in CL_RSTRAN_TRFN->GET_PROGID. " +
-        "Please create Transformations manually via Eclipse ADT."
+        "Creating Transformation (TRFN) via the generic object POST flow is not supported " +
+        "(SAP BW server throws CX_SY_REF_IS_INITIAL in CL_RSTRAN_TRFN->GET_PROGID). " +
+        "Use createTransformation() instead — it follows the Eclipse 8TRANSIENT transient flow."
       )
     }
     const { BWObjectType, createBWObject } = await import("./api/bwObject")
@@ -1005,7 +1005,6 @@ export class BWAdtClient {
    * 对照 Eclipse setFields Communication Log:
    *   lock → transportchecks → PUT (lockHandle + Transport-Lock-Holder + timestamp) → activation → unlock
    */
-  /** @deprecated Prefer `client.trfn.saveAndActivate` */
   /**
    * Create Transformation —— 8TRANSIENT 瞬态流创建转换（Eclipse 新建向导同款）。
    * 返回服务器生成的 trfnId 与水合后 XML；packageName 非 $TMP 时需 transport。
@@ -1046,6 +1045,14 @@ export class BWAdtClient {
     return createDTP(this.h, options)
   }
 
+  /**
+   * Save and Activate Transformation - 完整的 TRFN 修改保存激活流程
+   *
+   * 对照 Eclipse setFields Communication Log:
+   *   lock → transportchecks → PUT (lockHandle + Transport-Lock-Holder + timestamp) → activation → unlock
+   *
+   * @deprecated Prefer `client.trfn.saveAndActivate`
+   */
   public async saveAndActivateTransformation(
     trfnId: string,
     xmlContent: string,
@@ -1354,37 +1361,40 @@ export class BWAdtClient {
   }
 
   /**
-   * Switch Transformation Runtime - 切换转换运行时模式
+   * Switch Transformation Runtime - 切换转换运行时模式（独立一站式）
    *
-   * 在 HANA 运行时和 ABAP 运行时之间切换
-   * 注意：切换到 ABAP 运行时后才能使用 start/end/expert routines
+   * 在 HANA 运行时和 ABAP 运行时之间切换并保存激活，锁生命周期内部管理
+   * （lock → transport → PUT → activate → unlock，见 saveAndActivateTransformation）。
+   * 注意：切换到 ABAP 运行时后才能使用 start/end/expert routines。
    *
    * @param trfnId - Transformation ID
    * @param useHanaRuntime - 是否使用 HANA 运行时 (true=HANA, false=ABAP)
-   * @param lockHandle - 锁定句柄
-   * @param options - 选项
-   * @returns 更新结果
+   * @param options - transport / autoActivate 等保存选项
+   * @returns 保存激活结果
    */
-  public async switchTransformationRuntime(
+  public async switchRuntimeAndSave(
     trfnId: string,
     useHanaRuntime: boolean,
-    lockHandle: string,
-    options?: { version?: "m" | "a" | "d"; corrNr?: string; timestamp?: string }
+    options?: {
+      transport?: string
+      createTransport?: boolean
+      transportDescription?: string
+      autoActivate?: boolean
+    }
   ) {
-    const { getTransformation, switchTransformationRuntime, updateTransformation } = await import("./api/transformation")
-
-    // Get current transformation XML
-    const trfnRaw = await getTransformation(this.h, trfnId, options?.version)
-    const xmlContent = switchTransformationRuntime(
-      typeof trfnRaw === "string" ? trfnRaw : JSON.stringify(trfnRaw),
-      useHanaRuntime
+    const { getTransformationXml, switchTransformationRuntime } = await import(
+      "./api/transformation"
     )
-
-    return updateTransformation(this.h, trfnId, xmlContent, {
-      lockHandle,
-      corrNr: options?.corrNr,
-      timestamp: options?.timestamp
-    }, options?.version)
+    const xml = await getTransformationXml(this.h, trfnId, "m", {
+      forceCacheUpdate: true
+    })
+    const nextXml = switchTransformationRuntime(xml, useHanaRuntime)
+    return this.saveAndActivateTransformation(trfnId, nextXml, {
+      ...options,
+      transportDescription:
+        options?.transportDescription ||
+        `API switch runtime: ${useHanaRuntime ? "HANA" : "ABAP"}`
+    })
   }
 
   /**

@@ -94,7 +94,8 @@ export async function activateObject(
   objectUri: string,
   lockHandle: string,
   version: "active" | "inactive" = "inactive",
-  contentType: string = "application/vnd.sap.bw.modeling.trfn-v1_0_0+xml"
+  contentType: string = "application/vnd.sap.bw.modeling.trfn-v1_0_0+xml",
+  corrNr?: string
 ): Promise<ActivationResult> {
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <atom:feed xmlns:atom="http://www.w3.org/2005/Atom" xmlns:bwModel="http://www.sap.com/bw/modeling">
@@ -108,6 +109,9 @@ export async function activateObject(
 
   const response = await client.request("/sap/bw/modeling/activation", {
     method: "POST",
+    // 激活携带 corrNr 与 activateDTP / activateDataSource 的实测用法一致
+    // （DTP/RSDS 已验证）；ADSO/PC 侧待真机复核后正式记入 VERIFIED_APIS。
+    qs: corrNr ? { corrNr } : undefined,
     headers: {
       "Content-Type": "application/atom+xml;type=entry"
     },

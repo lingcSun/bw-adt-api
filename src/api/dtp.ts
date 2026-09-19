@@ -75,16 +75,19 @@ export type DTPVersion = t.OutputOf<typeof DTPVersion>
 /**
  * DTP Execution Result - DTP 执行结果
  */
-export const DTPExecutionResult = t.type({
-  success: t.boolean,
-  requestID: orUndefined(t.string),
-  message: orUndefined(t.string),
-  recordsProcessed: orUndefined(t.number),
-  startTime: orUndefined(t.string),
-  endTime: orUndefined(t.string)
-})
-
-export type DTPExecutionResult = t.OutputOf<typeof DTPExecutionResult>
+/**
+ * DTP Execution Result - DTP 执行触发结果
+ *
+ * DTP 执行是异步的：HTTP 2xx 只代表服务端接受了触发请求，加载结果
+ * （成败、记录数）需通过 DTP 监控/日志确认。`?action=execute` 的真实
+ * 响应格式尚未采集入 VERIFIED_APIS，因此先原样返回响应体，不做虚构解析。
+ */
+export interface DTPExecutionResult {
+  /** 服务端是否接受了执行触发（请求未抛错即 true） */
+  triggered: boolean
+  /** 服务端原始响应体（格式待实测采集后解析） */
+  raw: string
+}
 
 // ============================================================================
 // API Functions
@@ -341,13 +344,16 @@ export async function checkDTP(
 }
 
 /**
- * Execute DTP - 执行 DTP
+ * Execute DTP - 触发 DTP 执行（异步）
  *
  * 对应请求: POST /sap/bw/modeling/dtpa/{dtp_id}?action=execute
  *
+ * 注意：本方法只代表"触发成功"，加载结果（成败、记录数）需通过 DTP 监控或
+ * 日志确认，不要把 triggered 当作加载成功。
+ *
  * @param client - ADT HTTP 客户端
  * @param dtpId - DTP ID
- * @returns 执行结果
+ * @returns 触发结果（含原始响应体）
  */
 export async function executeDTP(
   client: AdtHTTP,
@@ -363,7 +369,8 @@ export async function executeDTP(
     }
   )
 
-  return parseDTPExecutionResponse(response.body)
+  // 请求走到这里即 HTTP 2xx = 服务端已接受触发；加载异步执行。
+  return { triggered: true, raw: response.body }
 }
 
 /**
@@ -481,89 +488,6 @@ function parseDTPDetails(raw: any): DTPDetails {
     realTimeLoad: undefined
   }
 }
-
-/**
- * Parse DTP Versions Response - 解析 DTP 版本历史响应
- */
-function parseDTPVersions(body: string): DTPVersion[] {
-  const parsed = fullParse(body)
-  const feed = xmlNode(parsed, "atom:feed")
-
-  if (!feed) {
-    return []
-  }
-
-  const entries = xmlArray(feed, "atom:entry")
-
-  return entries.map((entry: any) => {
-    const id = xmlNode(entry, "atom:id") || ""
-    const title = xmlNode(entry, "atom:title") || ""
-    const updated = xmlNode(entry, "atom:updated") || ""
-    const author = xmlNode(entry, "atom:author")
-    const userName = author ? xmlNode(author, "atom:name") : undefined
-    const links = xmlArray(entry, "atom:link")
-
-    const selfLink = links.find((link: any) => link["@_rel"] === "self")
-    let uri = (selfLink as any)?.["@_href"] || id
-    // 确保 uri 是字符串
-    if (uri && typeof uri !== "string") {
-      uri = String(uri)
-    }
-
-    const versionMatch = uri.match(/\/([mad])$/)
-    const version = versionMatch ? versionMatch[1] : "m"
-
-    const versionMap: Record<string, string> = {
-      "m": "Active",
-      "a": "Modified",
-      "d": "Revised"
-    }
-
-    return {
-      version,
-      uri,
-      description: versionMap[version] || version,
-      created: updated,
-      user: userName
-    }
-  })
-}
-
-/**
- * Parse DTP Lock Response - 解析 DTP 锁定响应
- */
-function parseDTPLockResponse(body: string): DTPLockResult {
-  const parsed = fullParse(body)
-  const data = xmlNode(parsed, "asx:abap", "asx:values", "DATA")
-
-  if (!data) {
-    throw new Error("Invalid DTP lock response format")
-  }
-
-  return {
-    lockHandle: data["LOCK_HANDLE"] || "",
-    corrNr: data["CORRNR"],
-    corrUser: data["CORRUSER"],
-    corrText: data["CORRTEXT"]
-  }
-}
-
-/**
- * Parse DTP Execution Response - 解析 DTP 执行响应
- */
-function parseDTPExecutionResponse(body: string): DTPExecutionResult {
-  const parsed = fullParse(body)
-  // 根据实际响应格式解析
-  return {
-    success: true,
-    requestID: parsed["requestID"] || "",
-    message: parsed["message"] || "",
-    recordsProcessed: parsed["recordsProcessed"],
-    startTime: parsed["startTime"],
-    endTime: parsed["endTime"]
-  }
-}
-
 
 // ============================================================================
 // CREATE —— 通用对象 POST 流 (CREA lock + collection POST, 2026-09-11 实测)

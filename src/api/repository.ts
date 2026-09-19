@@ -85,39 +85,13 @@ export type InfoObjectCatalog = t.OutputOf<typeof InfoObjectCatalog>
 
 // ============================================================================
 // API Functions
+//
+// 注意：本模块的 /sap/bc/adt/bw/objects/* 端点均未在 docs/VERIFIED_APIS.md
+// 建立证据记录，也未暴露在 BWAdtClient 上。InfoObject 的已验证读写走
+// src/api/infoobject.ts（/sap/bw/modeling/iobj）。此处仅保留只读查询；
+// 曾有的 infoAreas / createInfoArea / createInfoObject / deleteInfoObject /
+// activateInfoObject 因未验证已移除（2026-09 审查）。
 // ============================================================================
-
-/**
- * Query InfoAreas - 查询信息区域列表
- *
- * @param client - ADT HTTP 客户端
- * @param parentName - 父信息区域名称（可选，用于层级查询）
- * @returns InfoArea 列表
- */
-export async function infoAreas(
-  client: AdtHTTP,
-  parentName?: string
-): Promise<InfoArea[]> {
-  const qs = parentName ? { parent: parentName } : {}
-  const response = await client.request("/sap/bc/adt/bw/objects/infoarea", {
-    method: "GET",
-    qs
-  })
-
-  const parsed = fullParse(response.body)
-  const root = xmlNode(parsed, "infoareas:collection") ||
-               xmlNode(parsed, "infoarea:collection")
-
-  if (!root) return []
-
-  const areas = xmlArray(root, "infoarea:infoarea", "infoarea:element")
-  return areas.map((area: any) => validateParseResult(InfoArea.decode({
-    name: xmlNodeAttr(area)?.name || area.name,
-    techName: xmlNodeAttr(area)?.techName || area.techName,
-    description: area.description || xmlNodeAttr(area)?.description,
-    links: area.links
-  })))
-}
 
 /**
  * Query InfoObjects - 查询信息对象列表
@@ -246,120 +220,5 @@ export async function infoObjectCatalogs(
       description: attrs.description || cat.description,
       infoArea: attrs.infoArea || infoArea
     }))
-  })
-}
-
-/**
- * Create InfoArea - 创建信息区域
- *
- * @param client - ADT HTTP 客户端
- * @param name - InfoArea 名称
- * @param description - 描述
- * @param transport - 传输请求号
- * @returns 创建结果
- */
-export async function createInfoArea(
-  client: AdtHTTP,
-  name: string,
-  description: string = "",
-  transport: string = ""
-): Promise<void> {
-  const qs: Record<string, string> = {}
-  if (transport) qs["transport"] = transport
-
-  const body = `<?xml version="1.0" encoding="UTF-8"?>
-<infoarea:create xmlns:infoarea="http://www.sap.com/bw/adt/infoarea">
-  <infoarea:name>${name}</infoarea:name>
-  ${description ? `<infoarea:description>${description}</infoarea:description>` : ""}
-</infoarea:create>`
-
-  await client.request("/sap/bc/adt/bw/objects/infoarea", {
-    method: "POST",
-    qs,
-    body,
-    headers: { "Content-Type": "application/xml" }
-  })
-}
-
-/**
- * Create InfoObject - 创建信息对象
- *
- * @param client - ADT HTTP 客户端
- * @param options - 创建选项
- * @returns 创建结果
- */
-export interface CreateInfoObjectOptions {
-  name: string              // 技术名称
-  infoArea: string          // 所属 InfoArea
-  type: InfoObjectType      // 对象类型
-  description: string       // 描述
-  catalog?: string          // 所属目录
-  dataType?: string         // 数据类型
-  length?: number           // 长度
-  transport?: string        // 传输请求号
-}
-
-export async function createInfoObject(
-  client: AdtHTTP,
-  options: CreateInfoObjectOptions
-): Promise<void> {
-  const qs: Record<string, string> = {}
-  if (options.transport) qs["transport"] = options.transport
-
-  const body = `<?xml version="1.0" encoding="UTF-8"?>
-<infoobject:create xmlns:infoobject="http://www.sap.com/bw/adt/infoobject">
-  <infoobject:name>${options.name}</infoobject:name>
-  <infoobject:infoarea>${options.infoArea}</infoobject:infoarea>
-  <infoobject:type>${options.type}</infoobject:type>
-  <infoobject:description>${options.description}</infoobject:description>
-  ${options.catalog ? `<infoobject:catalog>${options.catalog}</infoobject:catalog>` : ""}
-  ${options.dataType ? `<infoobject:dataType>${options.dataType}</infoobject:dataType>` : ""}
-  ${options.length ? `<infoobject:length>${options.length}</infoobject:length>` : ""}
-</infoobject:create>`
-
-  await client.request("/sap/bc/adt/bw/objects/infoobject", {
-    method: "POST",
-    qs,
-    body,
-    headers: { "Content-Type": "application/xml" }
-  })
-}
-
-/**
- * Delete InfoObject - 删除信息对象
- *
- * @param client - ADT HTTP 客户端
- * @param name - InfoObject 名称
- * @param transport - 传输请求号
- * @returns 删除结果
- */
-export async function deleteInfoObject(
-  client: AdtHTTP,
-  name: string,
-  transport: string
-): Promise<void> {
-  await client.request(`/sap/bc/adt/bw/objects/infoobject/${name}`, {
-    method: "DELETE",
-    qs: { transport }
-  })
-}
-
-/**
- * Activate InfoObject - 激活信息对象
- *
- * @param client - ADT HTTP 客户端
- * @param name - InfoObject 名称
- * @param transport - 传输请求号
- * @returns 激活结果
- */
-export async function activateInfoObject(
-  client: AdtHTTP,
-  name: string,
-  transport: string
-): Promise<void> {
-  await client.request(`/sap/bc/adt/bw/objects/infoobject/${name}/activate`, {
-    method: "POST",
-    qs: { transport },
-    headers: { "Content-Type": "application/xml" }
   })
 }

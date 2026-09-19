@@ -1105,56 +1105,6 @@ export async function activateTransformation(
 }
 
 /**
- * Parse Transformation Versions Response - 解析转换版本历史响应
- */
-function parseTransformationVersions(body: string): TransformationVersion[] {
-  const parsed = fullParse(body)
-  const feed = xmlNode(parsed, "atom:feed")
-
-  if (!feed) {
-    return []
-  }
-
-  const entries = xmlArray(feed, "atom:entry")
-
-  return entries.map((entry: any) => {
-    const id = xmlNode(entry, "atom:id") || ""
-    const title = xmlNode(entry, "atom:title") || ""
-    const updated = xmlNode(entry, "atom:updated") || ""
-    const author = xmlNode(entry, "atom:author")
-    const userName = author ? xmlNode(author, "atom:name") : undefined
-    const links = xmlArray(entry, "atom:link")
-
-    // Extract version from URI or link
-    const selfLink = links.find((link: any) => link["@_rel"] === "self")
-    let uri = (selfLink as any)?.["@_href"] || id
-    // 确保 uri 是字符串
-    if (uri && typeof uri !== "string") {
-      uri = String(uri)
-    }
-
-    // Parse version from URI (last segment like /m, /a, /d)
-    const versionMatch = uri.match(/\/([mad])$/)
-    const version = versionMatch ? versionMatch[1] : "m"
-
-    // Map version codes to descriptions
-    const versionMap: Record<string, string> = {
-      "m": "Active",
-      "a": "Modified",
-      "d": "Revised"
-    }
-
-    return {
-      version,
-      uri,
-      description: versionMap[version] || version,
-      created: updated,
-      user: userName
-    }
-  })
-}
-
-/**
  * Parse Transformation Details - 解析转换详细信息
  */
 function parseTransformationDetails(raw: any): TransformationDetails {

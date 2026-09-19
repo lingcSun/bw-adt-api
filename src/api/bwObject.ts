@@ -270,15 +270,18 @@ export class BWObject<T extends BWObjectType> {
    * Activate Object - 激活对象
    *
    * @param lockHandle - 锁定句柄
+   * @param corrNr - 传输请求号（可选，随激活请求以 corrNr query 传递，
+   *   与 activateDTP / activateDataSource 的实测用法一致）
    * @returns 激活结果
    */
-  async activate(lockHandle?: string): Promise<ActivationResult> {
+  async activate(lockHandle?: string, corrNr?: string): Promise<ActivationResult> {
     return activateObject(
       this.client,
       this.buildUri("m"),
       lockHandle || "",
       "inactive",
-      this.config.contentType
+      this.config.contentType,
+      corrNr
     )
   }
 
@@ -391,35 +394,38 @@ export class BWObject<T extends BWObjectType> {
       headers: { "activity_context": "CREA" }
     })
 
-    // Step 4: 创建对象
-    const qs: Record<string, string> = { lockHandle: lockResult.lockHandle }
-    if (transport) qs["transport"] = transport
+    // create 失败也必须释放锁（与 saveAndActivate* 的 finally 约定一致）
+    try {
+      // Step 4: 创建对象
+      const qs: Record<string, string> = { lockHandle: lockResult.lockHandle }
+      if (transport) qs["transport"] = transport
 
-    await this.client.request(this.buildUri(), {
-      method: "POST",
-      qs,
-      headers: {
-        "Content-Type": this.config.contentType,
-        "Accept": this.config.contentType,
-        ...headers
-      },
-      body: xmlBody
-    })
+      await this.client.request(this.buildUri(), {
+        method: "POST",
+        qs,
+        headers: {
+          "Content-Type": this.config.contentType,
+          "Accept": this.config.contentType,
+          ...headers
+        },
+        body: xmlBody
+      })
 
-    // Step 5: 激活（如果需要）并解锁
-    if (this.config.needsActivate) {
-      await this.activate(lockResult.lockHandle)
-    }
+      // Step 5: 激活（如果需要）
+      if (this.config.needsActivate) {
+        await this.activate(lockResult.lockHandle)
+      }
+    } finally {
+      await this.unlock()
 
-    await this.unlock()
-
-    // InfoArea create 后若仍持有 stateful context，同会话内紧接着 lock+delete
-    // 会报「active version 不存在」。dropSession 清掉 create 会话再交还调用方。
-    if (this.objectType === BWObjectType.INFO_AREA) {
-      try {
-        await this.client.dropSession()
-      } catch {
-        // 会话已失效时忽略
+      // InfoArea create 后若仍持有 stateful context，同会话内紧接着 lock+delete
+      // 会报「active version 不存在」。dropSession 清掉 create 会话再交还调用方。
+      if (this.objectType === BWObjectType.INFO_AREA) {
+        try {
+          await this.client.dropSession()
+        } catch {
+          // 会话已失效时忽略
+        }
       }
     }
   }
@@ -445,57 +451,63 @@ export class BWObject<T extends BWObjectType> {
   ): Promise<ActivationResult | void> {
     const { lockHandle: providedLockHandle, transport, timestamp, headers = {}, activate = true } = options
 
-    // Step 1: 锁定（如果未提供 lockHandle）
+    // Step 1: 锁定（如果未提供 lockHandle）。
+    // 自己加的锁在 finally 中释放；调用方传入的 lockHandle 归调用方管理，绝不代解。
+    const ownLock = !providedLockHandle
     const lockResult = providedLockHandle
       ? { lockHandle: providedLockHandle }
       : await this.lock()
 
-    // Step 2: 更新对象
-    // 实测 (Eclipse Communication Log):
-    //   DTP: PUT /sap/bw/modeling/dtpa/{id}/m?lockHandle=...   (有 /m, 用 PUT)
-    //   ADSO: PUT /sap/bw/modeling/adso/{id}/m?lockHandle=...
-    //   InfoArea: PUT /sap/bw/modeling/area/{id}/a?lockHandle=...
-    // PUT 走 stateless 会话 (Eclipse 亦如此), 不带 contextid;
-    // 服务端通过 enqueue 锁表验证 lockHandle, 锁由 lock 建立的 stateful 会话持有
-    // TR 号通过 Transport-Lock-Holder header 传递 (复用已有 TR 时)
-    // 或 corrNr query 参数 (新建 TR 时)
-    // Eclipse 实测两种传 TR 方式均可见:
-    //   ADSO: PUT .../m?corrNr={tr}&lockHandle={h}
-    //   TRFN setFields: PUT .../m?lockHandle={h} + header Transport-Lock-Holder: {tr}
-    // 同时带上两者最稳妥
-    const qs: Record<string, string> = { lockHandle: lockResult.lockHandle }
-    if (transport) qs["corrNr"] = transport
+    try {
+      // Step 2: 更新对象
+      // 实测 (Eclipse Communication Log):
+      //   DTP: PUT /sap/bw/modeling/dtpa/{id}/m?lockHandle=...   (有 /m, 用 PUT)
+      //   ADSO: PUT /sap/bw/modeling/adso/{id}/m?lockHandle=...
+      //   InfoArea: PUT /sap/bw/modeling/area/{id}/a?lockHandle=...
+      // PUT 走 stateless 会话 (Eclipse 亦如此), 不带 contextid;
+      // 服务端通过 enqueue 锁表验证 lockHandle, 锁由 lock 建立的 stateful 会话持有
+      // TR 号通过 Transport-Lock-Holder header 传递 (复用已有 TR 时)
+      // 或 corrNr query 参数 (新建 TR 时)
+      // Eclipse 实测两种传 TR 方式均可见:
+      //   ADSO: PUT .../m?corrNr={tr}&lockHandle={h}
+      //   TRFN setFields: PUT .../m?lockHandle={h} + header Transport-Lock-Holder: {tr}
+      // 同时带上两者最稳妥
+      const qs: Record<string, string> = { lockHandle: lockResult.lockHandle }
+      if (transport) qs["corrNr"] = transport
 
-    const isInfoArea = this.objectType === BWObjectType.INFO_AREA
-    // 有 versionSuffix 的对象 (ADSO/DTP/TRFN/PC/IOBJ) 用 /m, InfoArea 用 /a
-    const updateUri = isInfoArea
-      ? this.buildUri("a" as "m" | "a")
-      : this.config.versionSuffix
-        ? this.buildUri("m")
-        : this.buildUri()
-    // 所有 BW 对象 update 都用 PUT
-    const method = "PUT"
-    const contentType = `application/xml, ${this.config.contentType}`
+      const isInfoArea = this.objectType === BWObjectType.INFO_AREA
+      // 有 versionSuffix 的对象 (ADSO/DTP/TRFN/PC/IOBJ) 用 /m, InfoArea 用 /a
+      const updateUri = isInfoArea
+        ? this.buildUri("a" as "m" | "a")
+        : this.config.versionSuffix
+          ? this.buildUri("m")
+          : this.buildUri()
+      // 所有 BW 对象 update 都用 PUT
+      const method = "PUT"
+      const contentType = `application/xml, ${this.config.contentType}`
 
-    const requestHeaders: Record<string, string> = {
-      "Content-Type": contentType,
-      "Accept": this.config.contentType,
-      ...headers
-    }
-    if (timestamp) requestHeaders["timestamp"] = timestamp
-    if (transport) requestHeaders["Transport-Lock-Holder"] = transport
+      const requestHeaders: Record<string, string> = {
+        "Content-Type": contentType,
+        "Accept": this.config.contentType,
+        ...headers
+      }
+      if (timestamp) requestHeaders["timestamp"] = timestamp
+      if (transport) requestHeaders["Transport-Lock-Holder"] = transport
 
-    await this.client.request(updateUri, {
-      method,
-      qs,
-      sessionType: session_types.stateless,
-      headers: requestHeaders,
-      body: xmlBody
-    })
+      await this.client.request(updateUri, {
+        method,
+        qs,
+        sessionType: session_types.stateless,
+        headers: requestHeaders,
+        body: xmlBody
+      })
 
-    // Step 3: 激活（如果需要）
-    if (activate && this.config.needsActivate) {
-      return this.activate(lockResult.lockHandle)
+      // Step 3: 激活（如果需要）
+      if (activate && this.config.needsActivate) {
+        return this.activate(lockResult.lockHandle)
+      }
+    } finally {
+      if (ownLock) await this.unlock()
     }
   }
 
