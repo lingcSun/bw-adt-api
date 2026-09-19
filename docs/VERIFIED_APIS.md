@@ -67,6 +67,8 @@
 
 > 对象已挂在 TR 上时，lock 响应常带 `CORRNR`，PUT 可复用该号；首次进 TR 时 PUT 带 `corrNr`。
 
+> 0.4.0 起 activation 也可携带 `corrNr`（query 参数，与 DTP/RSDS 的实测用法一致）。DTP/RSDS 已验证；**ADSO/PC 侧接受该参数尚待真机复核**，复核通过后本条转为已验证记录。
+
 推荐入口：`saveAndActivate*`（api 层编排）或域 facade（如 `client.adso.saveAndActivate`）。
 
 ### Transport 解析（调用方显式选择）
@@ -125,8 +127,9 @@ RSDS 特例：版本字符在 `<atom:id>`，不在 URI 后缀。
 
 ### TRFN
 
-- **创建**经本库仍不可用（历史曾疑 JCo；创建需在修复后的会话模型下再验证）。读 / 更新 / 激活 / 删除 / check 正常。  
-- 结束例程 setFields、规则 XML 辅助、例程 ABAP 类源码读写已实测；类 lock 使用 `_action=LOCK/UNLOCK`，类激活走 `/sap/bc/adt/activation`（非 BW modeling activation）。
+- **创建**：`createTransformation()` 走 8TRANSIENT 瞬态流（GET 铸 id → stateful+CREA lock → POST 极简创建体 → unlock → 水合读回；packageName 非 $TMP 时再 PUT 改包并登记 transport）。2026-09-11 实测全程创建成功。通用的泛型 POST 流仍不可用（服务端在 CL_RSTRAN_TRFN->GET_PROGID 抛 CX_SY_REF_IS_INITIAL），`createObject("trfn")` 会显式拒绝并指引到 `createTransformation`。  
+- 读 / 更新 / 激活 / 删除 / check 正常。  
+- 结束例程 setFields、规则 XML 辅助、例程 ABAP 类源码读写已实测；类 lock 使用 `_action=LOCK/UNLOCK`，类激活走 `/sap/bc/adt/activation`（非 BW modeling activation）。**例程类是系统生成的本地对象**（不挂包、不参与 CTS 录制），保存类源码不需要 TR——Eclipse 保存例程的日志序列中本就没有 transportchecks 步骤；`saveAndActivateTransformationClassSource` 的 `transport` 参数仅作用于随后的 TRFN 重新激活。
 
 ### DataSource (RSDS)
 

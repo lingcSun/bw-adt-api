@@ -1,6 +1,6 @@
 {
   "name": "bw-adt-api",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Interface to SAP BW/4HANA ADT (Abap Developer Tools) webservice",
   "outDir": "build",
   "main": "build/index.js",
@@ -9,7 +9,8 @@
     "build": "tsc",
     "watch": "tsc -w",
     "prepublishOnly": "tsc",
-    "test": "jest"
+    "test": "jest",
+    "verify:agents": "node scripts/verify-agents.mjs"
   },
   "keywords": [
     "SAP",
