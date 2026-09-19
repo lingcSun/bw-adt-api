@@ -517,11 +517,12 @@ export class BWObject<T extends BWObjectType> {
    *   「请求 xxx 不是更改请求」。
    *   注意: 实测带 corrNr 删除后，E071 中该对象的历史登记项**不会**随之消失
    *   （登记项属于传输记录器，需在 SE10/SE01 删除或释放该请求才会清除）。
-   * @returns 删除结果
+   * @returns 删除确认。不返回 undefined——上层（如 MCP 工具）直接序列化返回值时，
+   *   undefined 会导致 content[0].text 缺失、schema 校验失败。
    */
   async delete(
     options: { lockHandle?: string; transport?: string } = {}
-  ): Promise<void> {
+  ): Promise<{ deleted: true; objectType: T; objectName: string }> {
     const useLockHandleMode =
       this.objectType === BWObjectType.INFO_AREA ||
       this.objectType === BWObjectType.ADSO
@@ -568,6 +569,8 @@ export class BWObject<T extends BWObjectType> {
         }
       }
     }
+
+    return { deleted: true, objectType: this.objectType, objectName: this.objectName }
   }
 
   /**

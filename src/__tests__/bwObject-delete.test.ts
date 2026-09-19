@@ -84,3 +84,25 @@ describe("BWObject.delete query building", () => {
     expect(cap).toHaveLength(0)
   })
 })
+
+describe("BWObject.delete confirmation", () => {
+  // delete() previously resolved undefined; MCP tool results built from it
+  // failed schema validation (content[0].text missing). It must confirm.
+  test("lockHandle-mode delete resolves to a confirmation object", async () => {
+    const obj = createBWObject(fakeClient([]), BWObjectType.ADSO, "ZS_TR01")
+    await expect(obj.delete({ lockHandle: "LOCKHANDLE1" })).resolves.toEqual({
+      deleted: true,
+      objectType: "adso",
+      objectName: "ZS_TR01"
+    })
+  })
+
+  test("transport-mode delete confirms too", async () => {
+    const obj = createBWObject(fakeClient([]), BWObjectType.TRANSFORMATION, "0ABC")
+    await expect(obj.delete({ transport: "BPDK903312" })).resolves.toEqual({
+      deleted: true,
+      objectType: "trfn",
+      objectName: "0ABC"
+    })
+  })
+})
