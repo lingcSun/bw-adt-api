@@ -12,7 +12,7 @@ Status: implemented
 
 1. **AdtHTTP 把 `sap-contextid` 与普通 cookie jar 分开管理**：stateless 请求绝不携带 contextid（唯一例外 `dropSession`——携带 contextid 的 stateless 请求显式销毁会话）。单一 cookie jar 混用会静默杀掉持锁会话，后续 PUT 报 423（lock handle could not be created）。
 2. **lock/unlock 必须 stateful**（不是 `stateful;enqueue`）：enqueue 头使服务端返回 `sap-contextid=0` 并销毁会话，锁立即丢失。Eclipse 日志里的 "stateful, enqueue" 是服务端展示标签，不是客户端 header 值。
-3. **PUT / transportchecks / activation / 多数 CTS 走 stateless**（不带 contextid）；服务端用 enqueue 表校验 URL 上的 `lockHandle`。
+3. **PUT / transportchecks / activation / 多数 CTS 走 stateless**（不带 contextid）；服务端用 enqueue 表校验 URL 上的 `lockHandle`。TRFN 8TRANSIENT 创建流的**创建 POST 同属此类**：误用 stateful 时实测稳定 500，2026-09-20 修正（证据见 [TRFN addRule 笔记](../feature/2026-09-20-trfn-addrule-generic.md)）。
 4. **标准写序列**（ADSO/DTP/TRFN/RSDS 同构）：lock（stateful）→ transportCheck（stateless）→ 需要时 createTransport（stateless）→ PUT 带 `lockHandle`（必要时 `corrNr`）（stateless）→ activate（stateless）→ unlock（stateful）；unlock 放 `finally`。
 5. **传输解析显式化**（`resolveTransportForWrite`）：显式 `transport` > 复用 lock 响应带的 `corrNr` > `createTransport: true` 新建 > 否则抛 `TransportRequiredError`（附可用 TR 列表）——**绝不自动取 `TRANSPORTS[0]`**。
 6. 版本后缀 `m`/`a`/`d` = active/modified/revised；RSDS 特例：版本字符在 `<atom:id>` 而非 URI 后缀。TRFN 例程类走 ABAP 侧端点（激活走 `/sap/bc/adt/activation` 而非 BW 的 modeling activation），是模型内已核实的特例。

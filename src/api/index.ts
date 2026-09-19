@@ -39,7 +39,9 @@ export type {
   TransformationRoutineGroup,
   TransformationSettings,
   GetTransformationOptions,
-  UpdateTransformationOptions
+  UpdateTransformationOptions,
+  TransformationRuleSpec,
+  AddRuleOptions
 } from "./transformation"
 
 export type {
@@ -152,6 +154,7 @@ export {
   removeFieldFromEndRoutine,
   isEndRoutineFieldSelected,
   addTransformationRule,
+  addRule,
   autoMapTransformationFields,
   switchTransformationRuntime,
   hasStartRoutine,
