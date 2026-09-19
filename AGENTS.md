@@ -23,6 +23,7 @@ npm test        # jest（集成测试需 .env 提供 BW_BASE_URL 等，未配置
 - **传输显式解析，绝不自动取第一个 TR**：解析次序为显式 transport > 复用 lock 的 corrNr > createTransport:true > 抛 TransportRequiredError。
 - **服务端行为断言必须先入证据账本**：对 SAP 行为的新断言先在 `docs/VERIFIED_APIS.md` 记录实测证据；凭据与系统信息不入库。写此类断言时用 [test-dont-assume](.agents/skills/test-dont-assume/SKILL.md) 技能。
 - **新增端点落在 api 函数层**：`src/api/<域>.ts` 写函数与编排；`src/domains/` 门面只做转发，不藏逻辑（[rationale](.agents/notes/implemented/architecture/2026-09-18-api-domains-two-layer.md)）。
+- **npm 版本**：API 语义 semver——新端点/新域 → minor，修复、文档 → patch，破坏性客户端 API 变更 → major；0.x 期间 minor 可携带破坏性变更，API 面稳定时升 1.0.0。release commit（`chore(release): x.y.z`）集中版本号，build+test 全绿后 publish 到 npmjs（[checklist](.agents/notes/implemented/process/2026-09-19-npm-release-versioning.md)）。
 
 本文件预算 ≤ 2000 字符（按字符计，中英文同口径）。超出先搬家（挪到笔记或 README）、再压缩；确需更多才改这个数字，并在提交说明里给理由。
 
