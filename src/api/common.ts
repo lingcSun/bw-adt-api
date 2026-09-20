@@ -2,6 +2,7 @@ import * as t from "io-ts"
 import { orUndefined } from "../utilities"
 import { AdtHTTP } from "../AdtHTTP"
 import { fullParse, xmlNodeAttr, xmlArray, xmlNode } from "../utilities"
+import { AdtErrorException, isAdtError } from "../AdtException"
 
 // ============================================================================
 // Common Types for BW Objects (Activation, Lock, Validation, etc.)
@@ -10,11 +11,12 @@ import { fullParse, xmlNodeAttr, xmlArray, xmlNode } from "../utilities"
 /**
  * Validation Action - 验证动作类型
  */
+// 2026-09-20 实测：validation 端点仅支持 exists（加可创建类型的 new）；
+// delete/activate action 被全类型拒绝（VERIFIED_APIS 第 7 节 V1），相应枚举与
+// validateXxxCanDelete/CanActivate 函数已移除。
 export enum ValidationAction {
   EXISTS = "exists",     // 验证对象是否存在
-  NEW = "new",           // 验证新名称是否可用
-  DELETE = "delete",     // 验证是否可删除
-  ACTIVATE = "activate"  // 验证是否可激活
+  NEW = "new"            // 验证新名称是否可用
 }
 
 /**
@@ -55,7 +57,9 @@ export const LockResult = t.type({
   lockHandle: t.string,
   corrNr: orUndefined(t.string),
   corrUser: orUndefined(t.string),
-  corrText: orUndefined(t.string)
+  corrText: orUndefined(t.string),
+  // 实测 (VERIFIED_APIS F8): $TMP 本地对象 lock 响应带 IS_LOCAL=X
+  isLocal: orUndefined(t.boolean)
 })
 
 export type LockResult = t.OutputOf<typeof LockResult>
@@ -170,10 +174,47 @@ export function parseLockResponse(body: string): LockResult {
   }
 
   return {
-    lockHandle: data["LOCK_HANDLE"] || "",
+    // fullParse(numberParseOptions) 会把纯数字文本转 number；锁句柄对外契约是 string
+    lockHandle: String(data["LOCK_HANDLE"] || ""),
     corrNr: data["CORRNR"],
     corrUser: data["CORRUSER"],
-    corrText: data["CORRTEXT"]
+    corrText: data["CORRTEXT"],
+    isLocal: data["IS_LOCAL"] === "X"
+  }
+}
+
+/** 判定是否为服务端错误（5xx）。会话中毒链路报 500/400/501（VERIFIED_APIS F7），这里只对 5xx 恢复。 */
+export function isServerErrorException(e: unknown): e is AdtErrorException {
+  return isAdtError(e) && e.err >= 500
+}
+
+/**
+ * 会话中毒恢复（VERIFIED_APIS F7）：任一请求 500 之后，同一 stateful 会话的后续
+ * 请求连锁失败（500/400/501），重新登录后恢复。
+ *
+ * 用法限定在编排入口的 lock 上：lock 失败时不留服务端状态，丢弃旧会话重登重试一次
+ * 是安全的。后续 PUT/activate **不要**用本助手——无法判断服务端是否已部分生效，
+ * 自动重试可能重复应用。
+ *
+ * @param client - ADT HTTP 客户端
+ * @param op - 待执行操作（通常是一次 lock 请求）
+ */
+export async function withFreshSessionOnServerError<T>(
+  client: AdtHTTP,
+  op: () => Promise<T>
+): Promise<T> {
+  try {
+    return await op()
+  } catch (e) {
+    if (!isServerErrorException(e)) throw e
+    try {
+      // 旧会话此刻没有需要保留的锁；drop 失败（会话已死）不阻碍重登
+      await client.dropSession()
+    } catch {
+      /* ignore */
+    }
+    await client.login()
+    return await op()
   }
 }
 

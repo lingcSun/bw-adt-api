@@ -244,7 +244,7 @@ Suites live in `src/__tests__/` and are checked against real Communication Logs.
 
 ## Documentation
 
-- [API_MAPPING.md](./docs/API_MAPPING.md) — ADT endpoint mapping
+- [API_REFERENCE.md](./docs/API_REFERENCE.md) — 完整 API 参考（代码生成，读/写分类与验证状态）
 - [VERIFIED_APIS.md](./docs/VERIFIED_APIS.md) — Verified behaviors & session models (required reading for writes)
 - [ROADMAP.md](./docs/ROADMAP.md) — Development roadmap
 

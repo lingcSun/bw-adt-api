@@ -10,7 +10,8 @@
     "watch": "tsc -w",
     "prepublishOnly": "tsc",
     "test": "jest",
-    "verify:agents": "node scripts/verify-agents.mjs"
+    "verify:agents": "node scripts/verify-agents.mjs",
+    "gen:api": "node scripts/gen-api-reference.mjs"
   },
   "keywords": [
     "SAP",

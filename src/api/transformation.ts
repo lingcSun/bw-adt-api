@@ -1,7 +1,7 @@
 import * as t from "io-ts"
 import { fullParse, xmlNodeAttr, xmlArray, xmlNode, orUndefined } from "../utilities"
 import { AdtHTTP, session_types } from "../AdtHTTP"
-import { ActivationResult, ActivationMessage, LockResult, activateObject, parseActivationResponse, parseLockResponse, parseObjectVersions, ValidationAction, ValidationResult } from "./common"
+import { ActivationResult, ActivationMessage, LockResult, activateObject, parseActivationResponse, parseLockResponse, parseObjectVersions, ValidationAction, ValidationResult, withFreshSessionOnServerError } from "./common"
 import { BWObject, BWObjectType } from "./bwObject"
 import { TransformationDetails } from "./types"
 
@@ -208,36 +208,6 @@ export async function validateTransformationNewName(
 ): Promise<ValidationResult> {
   const obj = new BWObject(client, BWObjectType.TRANSFORMATION, trfnId)
   return obj.isNewNameAvailable()
-}
-
-/**
- * Validate Transformation Can Delete - 验证转换是否可删除
- *
- * @param client - ADT HTTP 客户端
- * @param trfnId - Transformation ID
- * @returns 验证结果
- */
-export async function validateTransformationCanDelete(
-  client: AdtHTTP,
-  trfnId: string
-): Promise<ValidationResult> {
-  const obj = new BWObject(client, BWObjectType.TRANSFORMATION, trfnId)
-  return obj.canDelete()
-}
-
-/**
- * Validate Transformation Can Activate - 验证转换是否可激活
- *
- * @param client - ADT HTTP 客户端
- * @param trfnId - Transformation ID
- * @returns 验证结果
- */
-export async function validateTransformationCanActivate(
-  client: AdtHTTP,
-  trfnId: string
-): Promise<ValidationResult> {
-  const obj = new BWObject(client, BWObjectType.TRANSFORMATION, trfnId)
-  return obj.canActivate()
 }
 
 /**
@@ -467,13 +437,15 @@ export async function createTransformation(
   }
   const idLower = trfnId.toLowerCase()
 
-  // 2) CREA lock（stateful）
-  const lockResp = await client.request(`/sap/bw/modeling/trfn/${idLower}`, {
-    method: "POST",
-    qs: { action: "lock" },
-    sessionType: session_types.stateful,
-    headers: { Accept: CT, "activity_context": "CREA" }
-  })
+  // 2) CREA lock（stateful；5xx 时按 F7 会话中毒恢复换新会话重试一次）
+  const lockResp = await withFreshSessionOnServerError(client, () =>
+    client.request(`/sap/bw/modeling/trfn/${idLower}`, {
+      method: "POST",
+      qs: { action: "lock" },
+      sessionType: session_types.stateful,
+      headers: { Accept: CT, "activity_context": "CREA" }
+    })
+  )
   const lockParsed = fullParse(lockResp.body)
   const lockData = xmlNode(lockParsed, "asx:abap", "asx:values", "DATA")
   const lockHandle =

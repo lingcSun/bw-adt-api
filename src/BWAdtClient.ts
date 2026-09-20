@@ -2423,33 +2423,12 @@ export class BWAdtClient {
     return validateDTPExists(this.h, dtpId)
   }
 
-  /**
-   * Validate New DTP Name - 验证新 DTP 名称是否可用
-   */
-  public async validateDTPNewName(dtpId: string) {
-    const { validateDTPNewName } = await import("./api/dtp")
-    return validateDTPNewName(this.h, dtpId)
-  }
 
   // ========================================
   // ProcessChain Validation (using generic base class)
   // ========================================
 
-  /**
-   * Validate Process Chain Exists - 验证流程链是否存在
-   */
-  public async validateProcessChainExists(chainId: string) {
-    const { validateProcessChainExists } = await import("./api/processchain")
-    return validateProcessChainExists(this.h, chainId)
-  }
 
-  /**
-   * Validate New Process Chain Name - 验证新流程链名称是否可用
-   */
-  public async validateProcessChainNewName(chainId: string) {
-    const { validateProcessChainNewName } = await import("./api/processchain")
-    return validateProcessChainNewName(this.h, chainId)
-  }
 
   // ========================================
   // InfoObject Validation (using generic base class)

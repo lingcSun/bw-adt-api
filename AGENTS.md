@@ -1,6 +1,6 @@
 # bw-adt-api — Agent Instructions
 
-SAP BW/4HANA ADT webservice 接口库（TypeScript）。传输层借用 [abap-adt-api](../abap-adt-api) 的 `AdtHTTP`/`AdtException` 结构，域模型独立实现。
+SAP BW/4HANA ADT webservice 接口库（TypeScript）。传输层借用 abap-adt-api（同作者的兄弟仓库，本仓库不内嵌）的 `AdtHTTP`/`AdtException` 结构，域模型独立实现。
 
 ## Commands
 
@@ -15,7 +15,7 @@ npm test        # jest（集成测试需 .env 提供 BW_BASE_URL 等，未配置
 - `src/AdtHTTP.ts` + `AxiosHttpClient.ts` 传输层——`sap-contextid` 与 cookie jar 分开管理，是写会话模型的关键
 - `src/api/*.ts` 按域的 REST 函数与写编排（`saveAndActivate*`、`resolveTransportForWrite`）
 - `src/domains/*.ts` 域门面（`client.adso` / `client.dtp` / …），`src/BWAdtClient.ts` 组装公共入口
-- `docs/VERIFIED_APIS.md` 真实系统验证记录（证据账本）；`docs/ROADMAP.md` 模块进度；`docs/API_MAPPING.md` 端点映射
+- `docs/VERIFIED_APIS.md` 真实系统验证记录（证据账本）；`docs/ROADMAP.md` 模块进度；`docs/API_REFERENCE.md` 代码生成的完整 API 清单（读/写分类）
 
 ## Invariants
 

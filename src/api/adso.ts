@@ -226,6 +226,30 @@ export async function validateTemplateADSO(
 }
 
 /**
+ * 模板 tlogo → validation objectType 映射。
+ *
+ * 实测 (2026-09-20, 见 docs/VERIFIED_APIS.md 第 6 节): validation 端点接受的
+ * objectType 只有 ADSO / IOBJ / RSDS；tlogo 的 "DSO" 须映射为 "RSDS"，
+ * "ISRC" 无对应 token（返回 undefined，调用方应跳过预检、交给服务端裁决）。
+ */
+export function templateValidationObjectType(
+  tlogo: string | undefined
+): "ADSO" | "IOBJ" | "RSDS" | undefined {
+  switch (tlogo) {
+    case "IOBJ":
+      return "IOBJ"
+    case "DSO":
+      return "RSDS"
+    case "ADSO":
+    case "":
+    case undefined:
+      return "ADSO"
+    default:
+      return undefined
+  }
+}
+
+/**
  * Validate New ADSO Name - 验证新 ADSO 名称是否可用
  *
  * @param client - ADT HTTP 客户端
@@ -495,13 +519,6 @@ export async function validateADSONewName(
  * @param adsoId - ADSO ID
  * @returns 验证结果
  */
-export async function validateADSOCanDelete(
-  client: AdtHTTP,
-  adsoId: string
-): Promise<ValidationResult> {
-  const obj = new BWObject(client, BWObjectType.ADSO, adsoId)
-  return obj.canDelete()
-}
 
 /**
  * Validate ADSO Can Activate - 验证 ADSO 是否可激活
@@ -510,13 +527,6 @@ export async function validateADSOCanDelete(
  * @param adsoId - ADSO ID
  * @returns 验证结果
  */
-export async function validateADSOCanActivate(
-  client: AdtHTTP,
-  adsoId: string
-): Promise<ValidationResult> {
-  const obj = new BWObject(client, BWObjectType.ADSO, adsoId)
-  return obj.canActivate()
-}
 
 /**
  * Get ADSO Configuration - 获取 ADSO 配置信息
@@ -774,6 +784,39 @@ export async function saveAndActivateADSO(
   }
 }
 
+export type AddADSOKeyOptions = {
+  /** inlineType 长度，默认 40（唯一实测值） */
+  length?: number
+  /** 加键后是否立即激活。默认 false——空白 ADSO 只有键没有字段时激活会报
+   * 「需至少一个字段」；先 addKey 再 addField 的流程让 addField 负责激活。 */
+  autoActivate?: boolean
+} & SaveAndActivateADSOOptions
+
+/**
+ * Add ADSO Key - 给 ADSO 加键定义（addADSOKeyToXml 的写编排包装）。
+ *
+ * 2026-09-20 端到端实测：空白创建 → addKey(0MATERIAL, 不激活) → addField(激活)
+ * → 对象激活成功。见 VERIFIED_APIS F3。
+ *
+ * @param client - ADT HTTP 客户端
+ * @param adsoId - ADSO ID
+ * @param infoObjectName - 作为键的 InfoObject 技术名
+ */
+export async function addADSOKey(
+  client: AdtHTTP,
+  adsoId: string,
+  infoObjectName: string,
+  options?: AddADSOKeyOptions
+): Promise<SaveAndActivateADSOResult> {
+  const { length, autoActivate, ...saveOptions } = options || {}
+  const xml = await getADSOXml(client, adsoId, true)
+  const nextXml = addADSOKeyToXml(xml, infoObjectName, { length })
+  return saveAndActivateADSO(client, adsoId, nextXml, {
+    ...saveOptions,
+    autoActivate: autoActivate ?? false
+  })
+}
+
 /**
  * Create ADSO with validation + lock/unlock (and optional activate).
  * Public create entry used by domain facade and BWAdtClient.
@@ -806,9 +849,21 @@ export async function createADSOFull(
   }
 
   if (template) {
-    const templateValid = await validateTemplateADSO(client, template.objectName)
-    if (!templateValid.valid) {
-      throw new Error(`Template ${template.objectName} does not exist`)
+    // 按 tlogo 映射 validation objectType（IOBJ/RSDS 模板按 ADSO 校验会误报不存在，
+    // 见 2026-09-19 复测 F4 与 2026-09-20 实测）；ISRC 无合法 token，跳过预检。
+    const validationType = templateValidationObjectType(template.type)
+    if (validationType) {
+      const templateValid = await validateObject(
+        client,
+        validationType,
+        template.objectName,
+        ValidationAction.EXISTS
+      )
+      if (!templateValid.valid) {
+        throw new Error(
+          `Template ${template.objectName} (type ${template.type || "ADSO"}) does not exist`
+        )
+      }
     }
   }
 
@@ -870,6 +925,13 @@ export async function createADSOFull(
  */
 export interface ADSOFieldDefinition {
   name: string
+  /**
+   * 引用的 InfoObject 技术名。给定即按 IOBJ 引用字段生成元素
+   * （`<element … infoObjectName="…">`，不带 inlineType，服务器水合其余属性；
+   * 2026-09-19 复测 F11：手工拼接 PUT 链路实测可行）。
+   * 此时 dataType/length 等本地字段属性被忽略。
+   */
+  infoObjectName?: string
   /** DDIC 类型, 默认 CHAR */
   dataType?: "CHAR" | "NUMC" | "DATS" | "TIMS" | "DEC" | "CUKY" | "CURR" | "QUAN" | "INT4" | "FLTP"
   length?: number
@@ -913,6 +975,32 @@ function defaultLength(dataType: string): number {
 }
 
 /**
+ * 构建 IOBJ 引用字段 element XML 片段（F11）。
+ *
+ * 实测（2026-09-19/20）：PUT 只需最小形态——name + infoObjectName（无 inlineType），
+ * 服务器按 infoObjectName 水合 inlineType/association 等其余属性。
+ * dimension 与本地字段同规则（继承或回退）。
+ */
+export function buildADSOInfoObjectElementXml(field: ADSOFieldDefinition): string {
+  if (!field.infoObjectName) {
+    throw new Error("buildADSOInfoObjectElementXml: infoObjectName is required")
+  }
+
+  const rawDim = field.dimension || "CHA"
+  const dimension = rawDim.startsWith("#") ? rawDim : `#///${rawDim}§`
+
+  const descriptions = field.label
+    ? `<descriptions label="${escapeXmlAttr(field.label)}"/>`
+    : "<descriptions/>"
+
+  return `<element xsi:type="adso:AdsoElement" name="${field.name}" infoObjectName="${escapeXmlAttr(field.infoObjectName)}" dimension="${dimension}" sidDeterminationMode="N">
+    <localProperties xsi:type="BwCore:LocalCharacteristicProperties">
+      ${descriptions}
+    </localProperties>
+  </element>`
+}
+
+/**
  * 构建 field 类型 element XML 片段
  * 对照 AUGBL / SGTXT / ZC_MATNR 等本地字段节点
  *
@@ -921,6 +1009,11 @@ function defaultLength(dataType: string): number {
  *   - 完整 (如 "#///__NON_KEY§"): 原样使用
  */
 export function buildADSOFieldElementXml(field: ADSOFieldDefinition): string {
+  // IOBJ 引用字段（F11）走独立构建器
+  if (field.infoObjectName) {
+    return buildADSOInfoObjectElementXml(field)
+  }
+
   const dataType = field.dataType || "CHAR"
   const length = field.length ?? defaultLength(dataType)
   const semanticType = field.semanticType ?? defaultSemanticType(dataType)
@@ -958,6 +1051,52 @@ function escapeXmlAttr(value: string): string {
 }
 
 /**
+ * 向 ADSO XML 添加键定义（2026-09-20 实测闭环，VERIFIED_APIS F3）。
+ *
+ * 激活要求键 = `<keyElement>#///{iobj}</keyElement>` + 一个**同名引用元素**，
+ * 且该元素必须带 `inlineType`（含 `globalElementName`）——裸引用元素（无
+ * inlineType）会被服务器 500 拒绝。本函数发射与实测通过完全一致的形态。
+ *
+ * - 已有引用该 iobj 的 keyElement 时幂等返回原文
+ * - 已有同名元素但缺 keyElement 时仅补 keyElement
+ * - 否则在 </adso:dataStore> 前追加 元素 + keyElement（实测被接受的排布）
+ *
+ * length 仅实测过 40（0MATERIAL）；服务器是否校验长度未验证。
+ */
+export function addADSOKeyToXml(
+  adsoXml: string,
+  infoObjectName: string,
+  options?: { length?: number }
+): string {
+  const iobj = infoObjectName.toUpperCase()
+  if (!/^[A-Z0-9/]+$/.test(iobj)) {
+    throw new Error(`addADSOKeyToXml: invalid InfoObject name ${JSON.stringify(infoObjectName)}`)
+  }
+  if (new RegExp(`<keyElement[^>]*>#///${iobj}</keyElement>`).test(adsoXml)) {
+    return adsoXml
+  }
+
+  const length = options?.length ?? 40
+  const keyElementXml = `  <keyElement>#///${iobj}</keyElement>\n`
+  const elementXml =
+    `  <element xsi:type="adso:AdsoElement" name="${iobj}" infoObjectName="${iobj}" ` +
+    `dimension="#///__CHARACTERISTIC§" sidDeterminationMode="N">` +
+    `<inlineType name="CHAR" globalElementName="${iobj}" length="${length}" semanticType="empty"/>` +
+    `<localProperties xsi:type="BwCore:LocalCharacteristicProperties"/></element>\n`
+
+  const closeIdx = adsoXml.lastIndexOf("</adso:dataStore>")
+  if (closeIdx === -1) {
+    throw new Error("Invalid ADSO XML: missing </adso:dataStore>")
+  }
+
+  if (new RegExp(`<element[^>]*\\sname="${iobj}"`).test(adsoXml)) {
+    // 元素已存在，仅补 keyElement
+    return adsoXml.slice(0, closeIdx) + keyElementXml + adsoXml.slice(closeIdx)
+  }
+  return adsoXml.slice(0, closeIdx) + elementXml + keyElementXml + adsoXml.slice(closeIdx)
+}
+
+/**
  * 向 ADSO XML 插入 field 类型字段
  *
  * 插入位置: 最后一个已有 <element> 之后 (在 <dimension>/<keyElement>/<hashElements>
@@ -969,6 +1108,15 @@ function escapeXmlAttr(value: string): string {
 export function addADSOFieldToXml(adsoXml: string, field: ADSOFieldDefinition): string {
   if (new RegExp(`<element[^>]*\\sname="${field.name}"`).test(adsoXml)) {
     throw new Error(`Field "${field.name}" already exists in ADSO XML`)
+  }
+  // F3 fail-fast: 无键定义的 ADSO 能 PUT 但激活必报「Key definition missing」，
+  // 对象卡 inactive。提前给出可操作的指引。
+  if (!/<keyElement[\s>]/.test(adsoXml)) {
+    throw new Error(
+      `ADSO XML has no <keyElement> — activation would fail with "Key definition missing" ` +
+      `and leave the object inactive. Add a key first via addADSOKeyToXml() ` +
+      `(or the adso.addKey facade), then add fields.`
+    )
   }
 
   // 未指定 dimension 时, 从已有 element 继承 (优先 __NON_KEY, 否则任取一个)

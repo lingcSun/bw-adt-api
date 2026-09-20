@@ -57,11 +57,24 @@ const convertheaders = (
   return headers
 }
 
+/**
+ * Normalize an axios response payload to the string body AdtHTTP expects.
+ *
+ * axios auto-parses JSON responses (content-type …+json, e.g. the BW/4
+ * processvariant.chain payloads served under /sap/bw/modeling/rspc/*).
+ * Template-stringifying such objects silently loses the payload
+ * ("[object Object]"); re-serialize as JSON instead.
+ */
+export const responseBody = (data: unknown): string => {
+  if (isString(data)) return data
+  if (data == null) return ""
+  return JSON.stringify(data)
+}
+
 const axiosRespToHttp = (raw: AxiosResponse): HttpClientResponse => {
   const { data, status, statusText, headers } = raw
-  const body = data ? (isString(data) ? data : `${data}`) : ""
   return {
-    body,
+    body: responseBody(data),
     status,
     statusText,
     headers: convertheaders(headers)

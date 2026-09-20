@@ -98,14 +98,11 @@ export {
 } from "./utilities"
 
 // Re-export axios client
-export { AxiosHttpClient } from "./AxiosHttpClient"
+export { AxiosHttpClient, responseBody } from "./AxiosHttpClient"
 
-// Transport choice helpers (saveAndActivate)
-export {
-  TransportRequiredError,
-  isTransportRequiredError,
-  resolveTransportForWrite,
-  transportCheck,
-  createTransport
-} from "./api/transport"
-export type { TransportHeader, TransportInfo } from "./api/transport"
+// Full REST API surface (domain functions + create/transient flows).
+// 2026-09-19 复测 F5：此前 api 层只能从 build/api/* 子路径导入；
+// 根入口现在整体再导出 ./api（含 createTransformation / createDTP /
+// createBWObject / BWObjectType 等）。transport 相关名称经由 ./api 的
+// 再导出提供，不再单独从 ./api/transport 重复导出。
+export * from "./api"

@@ -9,7 +9,8 @@ import {
   activateObject,
   checkObject,
   parseLockResponse,
-  parseObjectVersions
+  parseObjectVersions,
+  withFreshSessionOnServerError
 } from "./common"
 
 // ============================================================================
@@ -66,6 +67,8 @@ interface BWObjectConfig {
   versionSuffix?: boolean   // URI 是否需要版本后缀 (/m, /a, /d)
   needsActivate?: boolean   // 创建后是否需要激活（InfoArea 为 false）
   versionChar?: string      // 版本字符（InfoArea 用 "a"，其他用 "m"）
+  /** true 时对象名保持原样进入 URI（PC 大小写敏感）；缺省 toLowerCase */
+  preserveCase?: boolean
 }
 
 /**
@@ -94,11 +97,17 @@ const BW_OBJECT_CONFIGS: Record<BWObjectType, BWObjectConfig> = {
     versionChar: "m"
   },
   [BWObjectType.PROCESS_CHAIN]: {
-    endpoint: "/sap/bw/modeling/pc",
-    contentType: "application/vnd.sap.bw.modeling.pc-v1_0_0+xml",
+    // 实测 (2026-09-20, VERIFIED_APIS F1): 本系统端点为 /rspc，/pc 404；
+    // GET /rspc/{id}/m 服务 JSON (processvariant.chain-v1_0_0+json)，
+    // pc/rspc 的 vendor XML 一律 415。读路径已实测；lock/unlock/activate
+    // 在本系统未验证（不允许动业务链），沿用统一前缀并如实标注。
+    endpoint: "/sap/bw/modeling/rspc",
+    contentType: "application/vnd.sap.bw4.modeling.processvariant.chain-v1_0_0+json",
     versionSuffix: true,
     needsActivate: true,
-    versionChar: "m"
+    versionChar: "m",
+    // PC 技术名大小写敏感，禁止 toLowerCase（其他对象类型维持小写行为）
+    preserveCase: true
   },
   [BWObjectType.INFO_OBJECT]: {
     endpoint: "/sap/bw/modeling/iobj",
@@ -188,6 +197,11 @@ export class BWObject<T extends BWObjectType> {
     return config
   }
 
+  /** 对象名进入 URI 的形式：PC preserveCase，其余统一小写（历史行为） */
+  private get uriName(): string {
+    return this.config.preserveCase ? this.objectName : this.objectName.toLowerCase()
+  }
+
   /**
    * Build object URI with optional version suffix
    *
@@ -195,7 +209,7 @@ export class BWObject<T extends BWObjectType> {
    * @returns Full object URI
    */
   protected buildUri(version?: "m" | "a" | "d"): string {
-    const base = `${this.config.endpoint}/${this.objectName.toLowerCase()}`
+    const base = `${this.config.endpoint}/${this.uriName}`
     return version && this.config.versionSuffix ? `${base}/${version}` : base
   }
 
@@ -216,18 +230,21 @@ export class BWObject<T extends BWObjectType> {
    */
   async lock(options: { headers?: Record<string, string> } = {}): Promise<LockResult> {
     const { headers = {} } = options
-    const response = await this.client.request(
-      `${this.config.endpoint}/${this.objectName.toLowerCase()}?action=lock`,
-      {
-        method: "POST",
-        sessionType: session_types.stateful,
-        headers: {
-          "Accept": this.config.contentType,
-          ...headers
+    // lock 是写编排的入口且失败不留服务端状态——5xx 时按 F7 换新会话重试一次
+    return withFreshSessionOnServerError(this.client, async () => {
+      const response = await this.client.request(
+        `${this.config.endpoint}/${this.uriName}?action=lock`,
+        {
+          method: "POST",
+          sessionType: session_types.stateful,
+          headers: {
+            "Accept": this.config.contentType,
+            ...headers
+          }
         }
-      }
-    )
-    return parseLockResponse(response.body)
+      )
+      return parseLockResponse(response.body)
+    })
   }
 
   /**
@@ -239,7 +256,7 @@ export class BWObject<T extends BWObjectType> {
    */
   async unlock(): Promise<void> {
     await this.client.request(
-      `${this.config.endpoint}/${this.objectName.toLowerCase()}?action=unlock`,
+      `${this.config.endpoint}/${this.uriName}?action=unlock`,
       {
         method: "POST",
         sessionType: session_types.stateful,
@@ -318,23 +335,8 @@ export class BWObject<T extends BWObjectType> {
     return this.validate(ValidationAction.NEW)
   }
 
-  /**
-   * Check if Object Can be Deleted - 检查对象是否可删除
-   *
-   * @returns 验证结果
-   */
-  async canDelete(): Promise<ValidationResult> {
-    return this.validate(ValidationAction.DELETE)
-  }
-
-  /**
-   * Check if Object Can be Activated - 检查对象是否可激活
-   *
-   * @returns 验证结果
-   */
-  async canActivate(): Promise<ValidationResult> {
-    return this.validate(ValidationAction.ACTIVATE)
-  }
+  // canDelete()/canActivate() 已移除（2026-09-20 实测：validation 端点拒绝
+  // action=delete/activate，"Action 'delete' is not valid"，见 VERIFIED_APIS 第 7 节 V1）。
 
   /**
    * Get Object Versions - 获取对象版本历史
@@ -514,18 +516,21 @@ export class BWObject<T extends BWObjectType> {
   /**
    * Delete Object - 删除对象
    *
-   * InfoArea: DELETE /sap/bw/modeling/area/{name}/a?lockHandle={lockHandle}
-   * ADSO: DELETE /sap/bw/modeling/adso/{name}/m?lockHandle={lockHandle}[&corrNr={tr}]
+   * InfoArea / ADSO / TRFN: DELETE /sap/bw/modeling/{endpoint}/{name}/{m|a}?lockHandle={lockHandle}[&corrNr={tr}]
    * 其他对象: DELETE /sap/bw/modeling/{endpoint}/{name}?transport={transport}
    *
    * 参数按类型二选一，**不再共用一个位置参数**——原先 ADSO/InfoArea 要 lockHandle、
    * 其余要 transport，同一个位置参数语义随类型漂移，极易传错：
-   * - ADSO / InfoArea：必须 `{ lockHandle }`（先 lock 再删），可选 `transport` 带 corrNr
-   * - TRFN / DTP / PC / InfoObject：必须 `{ transport }`
+   * - ADSO / InfoArea / TRFN：必须 `{ lockHandle }`（先 lock 再删），可选 `transport` 带 corrNr
+   * - DTP / PC / InfoObject：必须 `{ transport }`
    *
-   * @param options.lockHandle - ADSO/InfoArea 的锁定句柄
-   * @param options.transport - TRFN/DTP/PC/IObj 的传输请求号；
-   *   ADSO/InfoArea 上传则为 corrNr。必须是**请求号**而非任务号——传任务号服务端报
+   * TRFN 改走 lockHandle 路径的依据：transportchecks 路径要求 TR（本地对象没有），
+   * 实测 `lock(?action=lock) → DELETE /m?lockHandle → unlock` 可删本地 TRFN
+   * （docs/VERIFIED_APIS.md 第 6 节，2026-09-19/20 端到端验证）。
+   *
+   * @param options.lockHandle - ADSO/InfoArea/TRFN 的锁定句柄
+   * @param options.transport - DTP/PC/IObj 的传输请求号；
+   *   ADSO/InfoArea/TRFN 上传则为 corrNr。必须是**请求号**而非任务号——传任务号服务端报
    *   「请求 xxx 不是更改请求」。
    *   注意: 实测带 corrNr 删除后，E071 中该对象的历史登记项**不会**随之消失
    *   （登记项属于传输记录器，需在 SE10/SE01 删除或释放该请求才会清除）。
@@ -537,7 +542,8 @@ export class BWObject<T extends BWObjectType> {
   ): Promise<{ deleted: true; objectType: T; objectName: string }> {
     const useLockHandleMode =
       this.objectType === BWObjectType.INFO_AREA ||
-      this.objectType === BWObjectType.ADSO
+      this.objectType === BWObjectType.ADSO ||
+      this.objectType === BWObjectType.TRANSFORMATION
 
     // 类型决定必填项，且拒绝走错分支（比静默拼出错误查询串好）。
     if (useLockHandleMode && !options.lockHandle) {

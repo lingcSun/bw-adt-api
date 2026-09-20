@@ -19,7 +19,9 @@ export enum SearchObjectType {
   CHA = "CHA",             // Characteristic
   KF = "KF",               // Key Figure
   QUERY = "QUERY",         // Query
-  PROCESS_CHAIN = "PROCS_CHAIN"  // Process Chain
+  // 实测 (2026-09-20): objectType=RSPC 命中全部链；旧值 "PROCS_CHAIN" 服务端直接 500。
+  // 证据: docs/VERIFIED_APIS.md 第 6 节。
+  PROCESS_CHAIN = "RSPC"  // Process Chain
 }
 
 /**

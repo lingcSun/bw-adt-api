@@ -152,9 +152,10 @@ export function extractTableNameFromUrl(ddicUrl: string): string | undefined {
 
 /**
  * Get ADSO DDIC Links - 从 ADSO 响应头获取 DDIC 表链接
- * 
- * 对应请求: GET /sap/bw/modeling/adso/{adso_id}/m
- * 从响应头的 Link 字段解析 DDIC 表链接
+ *
+ * ⚠️ 实测 (VERIFIED_APIS F9): ddicTableLink 是模板（`{table_name}` 字面量占位符），
+ * 不能从中提取真实表名——取表名请用 getADSODDICTableName（走 XML tables 段）。
+ * 本函数保留用于 defaultDataPreview 等其他链接与原始头调试。
  *
  * @param client - ADT HTTP 客户端
  * @param adsoId - ADSO ID
@@ -189,6 +190,10 @@ export async function getADSODDICLinks(
 /**
  * Get ADSO DDIC Table Name - 获取 ADSO 对应的 DDIC 表名
  *
+ * 2026-09-20 修正（VERIFIED_APIS F9）：Link 头的 ddicTableLink 指向
+ * `…/ddic/tables/{table_name}/source/main` 字面量占位符，从中提不出真实表名。
+ * 改为读 ADSO /m 的 XML `tables` 段（activeTable 优先，其次 activeDataTables 首个）。
+ *
  * @param client - ADT HTTP 客户端
  * @param adsoId - ADSO ID
  * @returns DDIC 表名或 undefined
@@ -197,13 +202,9 @@ export async function getADSODDICTableName(
   client: AdtHTTP,
   adsoId: string
 ): Promise<string | undefined> {
-  const links = await getADSODDICLinks(client, adsoId)
-
-  if (links.ddicTableLink) {
-    return extractTableNameFromUrl(links.ddicTableLink)
-  }
-
-  return undefined
+  const { getADSOTables } = await import("./adso")
+  const tables = await getADSOTables(client, adsoId)
+  return tables.activeTable || tables.activeDataTables?.[0]
 }
 
 /**

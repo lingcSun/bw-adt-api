@@ -4,7 +4,8 @@
 > **不含**具体主机、账号、会话令牌、传输号或客户对象技术名；本地验证请用 `.env` 与自有测试对象。
 
 验证日期基准：2026-07-15（写会话模型）；后续模块以同模型复测为准。  
-**2026-09-19 全量复测**：61 个域门面方法 + 客户端方法逐一实测（只读用既有测试对象，写全部在测试 InfoArea 以 $TMP 本地对象进行），发现若干偏差，见[第 6 节](#6-2026-09-19-全量复测发现)。
+**2026-09-19 全量复测**：61 个域门面方法 + 客户端方法逐一实测，见[第 6 节](#6-2026-09-19-全量复测发现)。  
+**2026-09-20 读 API 全量验证**：86 个读类 API 逐一真机验证（多样本：标准 0\*/客户 Z\*/系统生成 id/双段 RSDS/不同源系统），63 ✅ / 5 ⚠️ / 18 ❌；逐 API 状态见 [API_REFERENCE.md](./API_REFERENCE.md) 状态列，新发现见[第 7 节](#7-2026-09-20-读-api-全量验证发现)。
 
 ---
 
@@ -24,7 +25,7 @@
 | RSDS / Replication 写 | ⚠️ 未复测 | 无本地 RSDS 靶子（仅允许动自建对象） |
 | CTS transport | ⚠️ | `transportCheck` 复测通过（本地对象行为 F8）；`createTransport` 未复测 |
 | BICS reporting preview | ✅（2026-09-19 复测） | `reporting.test.ts` |
-| Process Chain | ❌ | 库前缀 `/pc/` 应为 `/rspc/`（F1） |
+| Process Chain | ✅（读路径，2026-09-20 rspc JSON 化） | `getProcessChainDetails` 端到端；版本/日志/状态后缀本系统不支持，execute/stop 未实测 |
 
 ---
 
@@ -149,8 +150,8 @@ RSDS 特例：版本字符在 `<atom:id>`，不在 URI 后缀。
 
 ### Process Chain / InfoObject / System
 
-- 运维：`execute` / `stop` / `logs`（本次未复测——不允许对业务链执行）。
-- **PC 建模前缀实测为 `/sap/bw/modeling/rspc/{id}`**；库内 `/sap/bw/modeling/pc/{id}` 在本系统 404（见第 7 节 F1）。`GET /rspc/{id}/m` 200；`/versions`、`/logs` 后缀本系统返回「不支持对象版本 V/L」。
+- 运维：`execute` / `stop` / `logs`（未复测——不允许对业务链执行）。
+- **PC 建模前缀实测为 `/sap/bw/modeling/rspc/{id}`，读路径服务 JSON**（库已 rspc 化，2026-09-20）；`/versions`、`/logs`、`/status` 后缀本系统返回「不支持对象版本 V/L/S」。PC 名大小写敏感。
 - InfoObject：读 + validate。  
 - System：`info` / `getProperty` / `hasCapability`（`properties[]` 数组结构，如 `system.logsys`、`bw.planning_supported=X`）。
 
@@ -163,7 +164,7 @@ cp .env.example .env   # 填入本机凭据，勿提交
 npm test -- --testPathPattern=adso-write
 ```
 
-更多端点路径见 [API_MAPPING.md](./API_MAPPING.md)。
+完整 API 清单（读/写分类与验证状态）见 [API_REFERENCE.md](./API_REFERENCE.md)。
 
 ---
 
@@ -173,20 +174,25 @@ npm test -- --testPathPattern=adso-write
 
 **库缺陷（需修复）**
 
-- **F1 PC 前缀**：库用 `/sap/bw/modeling/pc/{id}`，本系统实际为 **`/sap/bw/modeling/rspc/{id}`**（`/pc/` 404，`/rspc/{id}/m` 200）。`details/check/logs` 因此全挂；且 `/versions`、`/logs` 后缀本系统不支持（「不支持对象版本 V/L」）。另：`checkProcessChain` 会把 chainId 小写——PC 名大小写敏感时是隐患。
+- **F1（已修复 2026-09-20，读路径）PC 前缀**：库用 `/sap/bw/modeling/pc/{id}`，本系统实际为 **`/sap/bw/modeling/rspc/{id}`**（`/pc/` 404，`/rspc/{id}/m` 200）。修复不止换前缀：**`/rspc/{id}/m` 服务的是 JSON**（`application/vnd.sap.bw4.modeling.processvariant.chain-v1_0_0+json`；payload 仅 `{ bActive, sVariantDescription, oDetail, aSocket[], aExecutionOption[] }`，无链名/步骤/时间戳字段），`pc-v1_0_0+xml`、`rspc-v1_0_0+xml`、`application/xml` 一律 415。库已按 JSON 重写 PC 读路径并端到端复测（搜索 → getProcessChainDetails 全链通过）；`/versions`、`/logs`、`/status` 后缀本系统拒绝（「不支持对象版本 V/L/S」），execute/stop 未实测（不允许动业务链）。PC 名大小写敏感，URI 不再转小写（`preserveCase`）。另：搜索 objectType 过滤值为 `RSPC`（见 N2）。
 - **F2（已修复）TRFN 瞬态创建 500**：根因是创建 POST 用了 `stateful` 会话——与 3 月成功日志（该 POST 为 **stateless**）及会话模型相悖。改为 `session_types.stateless` 后创建稳定成功并端到端复测（创建→更新→激活→删除，见下）。库从 47504da 起引入此回归。
-- **F3 空白模板 ADSO 无法激活**：`createADSO` 无 template 时，创建成功但 XML 被写入字面量 `undefined` 节点；后续 PUT 成功、激活报「名称 undefined 不是以字母开头」（errorPosition `#///undefined`），check=false，对象永久 inactive。ADSO/IOBJ 模板创建不受影响。
-- **F4 模板校验无视类型**：`adso.create` 门面对 `template.type=IOBJ` 仍按 ADSO 校验模板名（validation 404 → 直接失败）。绕过门面走 api 层 `createADSO` + IOBJ 模板，服务器**接受**且 20/20 元素生成为 infoObject 引用字段——门面预检过严，不是服务端限制。
-- **F5 包根导出缺口**：`src/index.ts` 未再导出 `./api/*`（`createBWObject`/`BWObjectType`/`createTransformation` 等只能从 `build/api/...` 子路径导入）。
-- **F6 门面缺口**：`TrfnDomain` 没有 `createTransformation` 方法（api 层有）。
+- **F3（已修复 2026-09-20）空白 ADSO 无法激活**：「XML 被写入字面量 `undefined` 节点」用当前已提交库代码**不可复现**（疑出自当时未入库的临时脚本）。可复现的真实缺陷：空白创建 → 加字段 → PUT 成功但**激活报「Key definition missing」**，对象卡 inactive。**键的完整形态已实测闭环**：`<keyElement>#///{iobj}</keyElement>` + 一个**同名引用元素**，且该元素必须带 `inlineType`（`globalElementName={iobj}`）——裸引用元素（无 inlineType）被服务器 500 拒绝。库已加 `addADSOKeyToXml`/`addADSOKey`/`adso.addKey`（发射实测形态）与 `addField` 无键 fail-fast；端到端复测：空白创建 → addKey → addField → 激活成功（回读 active）。注：keyElement 的 inlineType length 仅实测过 40（0MATERIAL），服务器是否校验长度未验证。
+- **F4（已修复 2026-09-20）模板校验无视类型**：`adso.create` 门面对 `template.type=IOBJ` 仍按 ADSO 校验模板名。实测 validation objectType 合法 token 仅 **ADSO / IOBJ / RSDS**（`DSO`、`ISRC` 直接报「Object type … is not valid」）；修复为 `templateValidationObjectType` 按 tlogo 映射（DSO→RSDS），ISRC 无合法 token 跳过预检交服务端裁决。修复后门面端到端复测通过（IOBJ 模板创建 → 水合 InfoObject 引用字段 + keyElement → 删除）。
+- **F5（已修复 2026-09-20）包根导出缺口**：根 `src/index.ts` 现整体再导出 `./api`；`api/index.ts` 补 `createTransformation`/`createDTP` 及其选项类型。
+- **F6（已修复 2026-09-20）门面缺口**：`TrfnDomain` 增加 `create()`（转发 api 层 `createTransformation`）。
+
+**2026-09-20 复核新增库缺陷（均已修复）**
+
+- **N1 JSON 响应保真**：`AxiosHttpClient` 曾把 axios 自动解析的 JSON 对象串化为 `"[object Object]"`（数据丢失，`/rspc` JSON 端点首个受害者）。修复：`responseBody()`——字符串透传、其余 `JSON.stringify`。
+- **N2 搜索枚举错值**：`SearchObjectType.PROCESS_CHAIN` 旧值 `"PROCS_CHAIN"` 使 bwsearch 直接 500；实测正确值 `"RSPC"`。
 
 **服务端行为（新证据）**
 
-- **F7 会话中毒**：任一请求 500 之后，同一 stateful 会话的后续请求连锁失败（500/400/501），重新登录后恢复。编排层遇到 500 应换新会话重试，而非原地重试。
-- **F8 本地对象写不需要 TR**：$TMP 对象 `transportchecks` 返回 RECORDING 空、无 TRANSPORTS，`resolveTransportForWrite` 全链（lock→PUT→activation→unlock）无需传输号即可完成。`lock` 响应 `IS_LOCAL=X` 可判定本地对象。
-- **F9 ddicTableLink 是模板**：ADSO 响应头 Link 中 `rel=ddicTableLink` 指向 `…/ddic/tables/{table_name}/source/main`（字面量占位符），`adsoDdicTableName` 因此返回 undefined。真实表名应从 ADSO XML `tables` 取。
+- **F7 会话中毒**：任一请求 500 之后，同一 stateful 会话的后续请求连锁失败（500/400/501），重新登录后恢复。编排层遇到 500 应换新会话重试，而非原地重试。**已实现（2026-09-20）**：`withFreshSessionOnServerError` 接入 `BWObject.lock`/`lockDataSource`/`createTransformation` CREA lock——lock 失败不留服务端状态，5xx 换新会话重登重试一次安全；PUT/activate 不自动重试（无法判断是否已部分生效）。恢复机制本身未真机触发（无法安全制造中毒场景），离线单测覆盖。
+- **F8 本地对象写不需要 TR**：$TMP 对象 `transportchecks` 返回 RECORDING 空、无 TRANSPORTS，`resolveTransportForWrite` 全链（lock→PUT→activation→unlock）无需传输号即可完成。`lock` 响应 `IS_LOCAL=X` 可判定本地对象。**已实现（2026-09-20）**：`LockResult.isLocal`（实测 $TMP 对象 lock 返回 true）；顺带修复 `lockHandle` 纯数字被 fullParse 转 number 的类型偏差。
+- **F9 ddicTableLink 是模板**：ADSO 响应头 Link 中 `rel=ddicTableLink` 指向 `…/ddic/tables/{table_name}/source/main`（字面量占位符），`adsoDdicTableName` 因此返回 undefined。真实表名应从 ADSO XML `tables` 取。**已修复（2026-09-20）**：`getADSODDICTableName` 改读 `/m` XML `tables` 段（activeTable 优先），实测返回真实表名。
 - **F10 querySql 语法**：`/sap/bc/adt/datapreview/ddic` 的 SELECT 语句**不带引号、大写表名**（`SELECT * FROM /BIC/AZxxxxxxx` 形式）；带双引号会被拒「仅允许 SELECT 语句」。
-- **F11 infoObject 引用字段**：字段级引用 IOBJ 的元素形如 `<element xsi:type="adso:AdsoElement" name="X" infoObjectName="X" …>`（无 inlineType）。库内 `addADSOFieldToXml` 仅支持本地字段（inlineType），IOBJ 引用字段需手工拼元素（手工拼接 PUT 激活链路实测可行——对象本身因 F3 无法激活，字段写入/更新路径已验证）。
+- **F11（已修复 2026-09-20）infoObject 引用字段**：字段级引用 IOBJ 的元素形如 `<element xsi:type="adso:AdsoElement" name="X" infoObjectName="X" …>`；**PUT 只需最小形态（name + infoObjectName，无 inlineType），服务器水合 inlineType/association 等其余属性**（实测水合出 `inlineType globalElementName=…` 等）。库已加 `infoObjectName` 字段与 `buildADSOInfoObjectElementXml`，经 `addADSOField` 端到端复测：PUT 接受 + 服务器水合确认（激活报错均为模板自带标准单位字段的「主数据检查不能为无报表」配置，与引用字段无关）。
 
 **TRFN 规则专项证据（2026-09-19/20）**
 
@@ -196,16 +202,31 @@ npm test -- --testPathPattern=adso-write
 - **例程 = ABAP 运行时类**：END 例程类名形如 `/BIC/F{TRFN id 尾段}_M`、方法 `GLOBAL_END`，`getAbapClassSource` 只读读取通过。例程类为系统生成的本地对象。
 - **服务器水合**：8TRANSIENT 创建后，服务器按源/目标同名字段自动生成 DIRECT 规则（实测 9 条）——新建 TRFN 无需 autoMap 即有初始映射。
 - **运行时切换可写**：根属性 `HANARuntime="true|false"`，`switchTransformationRuntime` 翻转 + `saveAndActivate` 端到端验证（true→false 回读生效、check 通过）。
-- **TRFN 删除**：库路径需 `transport`（本地对象没有）→ 实测服务端路径 `lock(?action=lock)` → `DELETE /m?lockHandle=…` → `unlock` 可删本地 TRFN；裸 lock 必须带 `Accept: …trfn-v1_0_0+xml`，否则 415。
+- **TRFN 删除（已入库 2026-09-20）**：transportchecks 路径需 `transport`（本地对象没有）；实测服务端路径 `lock(?action=lock)` → `DELETE /m?lockHandle=…` → `unlock` 可删本地 TRFN，裸 lock 必须带 `Accept: …trfn-v1_0_0+xml`，否则 415。`BWObject.delete` 已把 TRFN 归入 lockHandle 模式（可带 `transport` 作 corrNr），端到端复测通过（创建 → delete({lockHandle}) → 回读确认不存在）。
 - **缺口**：START/END/EXPERT 例程的**创建**无 REST 路径（库的 `setEndRoutineFields` 只能在已有 END 规则上加字段）；新字段的结构同步（Eclipse「同步结构」）库也未实现——跨名字段的 DIRECT 规则写链因此无法端到端测试。
 
 **BICS / DDIC 实证补充**：`query.initialView/preview/updateView` 全链通过（provider → 首特征 → preview 15 状态行 → updateView 回写）；DDIC `describe/getData/querySql` 通过（`selectStar` 运行时路径可用）。
 
 ---
 
+## 7. 2026-09-20 读 API 全量验证发现
+
+样本多样性：ADSO×3（0\* 标准 / Z\* 客户×2）、TRFN×2、DTP×2、RSDS×2（真实 ds×源系统组合发现）、InfoObject×2（特征+定制）、流程链×2、InfoArea、命名空间对象专项。无写操作；BICS 用 initialView→state 复用→preview/update 顺序。
+
+**服务端事实（新证据，影响 API 可用性）**
+
+- **V1（已处置 2026-09-20：移除）validation 端点仅支持 `action=exists`（加可创建类型的 `new`）**：`action=delete`、`action=activate` 被全类型拒绝（"Action 'delete'/'activate' is not valid"——ADSO/TRFN/DTP/IOBJ/PC 五类 × CanDelete/CanActivate 共 10 个函数全部 ❌）；`objectType=PC` 整体非法（"Object type 'PC' is not valid"）；DTPA/PC 的 `new` 被拒（"Creation of objects of type 'DTPA'/'PC' not supported"）。**共 13 个 validate\* 函数在本系统不可用——已从 API 面移除**（含 `BWObject.canDelete/canActivate` 与 `ValidationAction.DELETE/ACTIVATE`；存活的验证面收敛为 exists + 可创建类型的 new）。
+- **V2 repository.ts 模块端点在本系统不存在**：`/sap/bc/adt/bw/objects/infoobject[/name]`、`/infocatalog` 一律 404（"Resource does not exist"）——3 个函数本系统不可用，疑似面向其他发行版/产品。
+- **V3 BICS initialView-first 顺序可用**：ADSO 提供者 initialView → 复用 state → updateView 回写成功；直接 preview 用 XML 元素名作 rows 会被拒（"Unknown row characteristic(s)"）——rows 必须用 BICS 视图状态里的特征名，不能用建模字段名。
+
+**库缺陷（新发现，待修）**
+
+- **V4 命名空间对象名未编码**：`/NS/OBJ` 形态的名字拼入 ADSO 读 URL 时未 encodeURIComponent，`/` 被当作路径切开 → 404。getADSO/getADSODetails/getADSOXml/getADSOTables/getADSOConfiguration 同构共享此模式（本轮实测 getADSOTables 复现 404）。
+- **V5 getADSONodePath 实现与服务端契约脱节**：GET repo/nodepath 返回「Data type "" does not exist」——端点参数形态过时，本系统不可用。
+
 ## 安全说明
 
-（2026-09-19 复测发现见第 6 节。）
+（2026-09-19 复测发现见第 6 节；2026-09-20 读验证新发现见第 7 节。）
 
 本文件及仓库历史**不得**包含：内网 IP/主机名、用户名/工号、密码、CSRF/Session cookie、真实 TR 号、客户业务对象清单式导出。  
 若曾误提交，须从 git 历史清除并轮换可能泄露的会话/密码。

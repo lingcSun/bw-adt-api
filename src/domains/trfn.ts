@@ -29,6 +29,14 @@ export class TrfnDomain {
     return trfn.saveAndActivateTransformation(this.h, trfnId, xmlContent, options)
   }
 
+  /**
+   * 创建 TRFN（8TRANSIENT 瞬态流，api 层 createTransformation 的门面转发）。
+   * 2026-09-19 复测 F6：门面此前缺创建入口，只能绕到 client/BWAdtClient。
+   */
+  create(options: trfn.CreateTransformationOptions) {
+    return trfn.createTransformation(this.h, options)
+  }
+
   async setEndRoutineFields(
     trfnId: string,
     fieldNames: string[],

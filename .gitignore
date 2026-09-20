@@ -22,3 +22,4 @@ CLAUDE.md
 # local ad-hoc analysis scripts (kept out of the repo)
 scripts/*
 !scripts/verify-agents.mjs
+!scripts/gen-api-reference.mjs

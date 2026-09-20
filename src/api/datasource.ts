@@ -1,6 +1,6 @@
 import { fullParse, xmlNodeAttr, xmlArray, xmlNode, orUndefined } from "../utilities"
 import { AdtHTTP, session_types } from "../AdtHTTP"
-import { ActivationResult, LockResult, parseLockResponse, parseActivationResponse } from "./common"
+import { ActivationResult, LockResult, parseLockResponse, parseActivationResponse , withFreshSessionOnServerError } from "./common"
 import { DataSourceDetails, DataSourceField, DataSourceVersion } from "./types"
 
 // ============================================================================
@@ -185,17 +185,20 @@ export async function lockDataSource(
   datasource: string,
   sourceSystem: string
 ): Promise<LockResult> {
-  const response = await client.request(
-    `${rsdsBase(datasource, sourceSystem)}?action=lock`,
-    {
-      method: "POST",
-      sessionType: session_types.stateful,
-      headers: {
-        Accept: RSDS_ACCEPT
+  // lock 是写编排的入口且失败不留服务端状态——5xx 时按 F7 换新会话重试一次
+  return withFreshSessionOnServerError(client, async () => {
+    const response = await client.request(
+      `${rsdsBase(datasource, sourceSystem)}?action=lock`,
+      {
+        method: "POST",
+        sessionType: session_types.stateful,
+        headers: {
+          Accept: RSDS_ACCEPT
+        }
       }
-    }
-  )
-  return parseLockResponse(response.body)
+    )
+    return parseLockResponse(response.body)
+  })
 }
 
 /**

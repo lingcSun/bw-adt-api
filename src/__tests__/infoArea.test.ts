@@ -308,19 +308,7 @@ describe("BW InfoArea Tests (Generic CRUD)", () => {
 
       console.log(`\n========== Delete InfoArea: ${TEST_AREA} ==========`)
 
-      // 注意：InfoArea 可能不支持 canDelete 验证
-      try {
-        const canDeleteResult = await areaObj.canDelete()
-
-        console.log(`Can Delete: ${canDeleteResult.message}`)
-      } catch (error: any) {
-        if (error.message?.includes("not valid") || error.message?.includes("不支持")) {
-          console.log(`Can Delete: SKIPPED (Validation not supported for InfoArea)`)
-        } else {
-          throw error
-        }
-      }
-
+      // canDelete 验证已随 validation 端点 delete/activate action 移除（V1，2026-09-20）
       console.log(`Note: Actual deletion requires a valid transport request`)
       console.log(`Uncomment the following to delete: await areaObj.delete("TRANSPORT...")`)
       console.log(`===================================================\n`)
@@ -445,16 +433,7 @@ describe("BW InfoArea Tests (Generic CRUD)", () => {
       try {
         const obj = await client.getObject("area", testArea2)
 
-        try {
-          const canDeleteResult = await obj.canDelete()
-          console.log(`Can Delete: ${canDeleteResult.message}`)
-        } catch (error: any) {
-          if (error.message?.includes("not valid") || error.message?.includes("不支持")) {
-            console.log(`Can Delete: SKIPPED (Validation not supported for InfoArea)`)
-          } else {
-            console.log(`Can Delete: ${error.message}`)
-          }
-        }
+        // canDelete 验证已随 validation 端点 delete/activate action 移除（V1，2026-09-20）
       } catch (error: any) {
         console.log(`Object not found: ${error.message}`)
       }

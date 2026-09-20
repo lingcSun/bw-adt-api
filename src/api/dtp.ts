@@ -212,13 +212,6 @@ export async function validateDTPExists(
  * @param dtpId - DTP ID
  * @returns 验证结果
  */
-export async function validateDTPNewName(
-  client: AdtHTTP,
-  dtpId: string
-): Promise<ValidationResult> {
-  const obj = new BWObject(client, BWObjectType.DTP, dtpId)
-  return obj.isNewNameAvailable()
-}
 
 /**
  * Validate DTP Can Delete - 验证 DTP 是否可删除
@@ -227,13 +220,6 @@ export async function validateDTPNewName(
  * @param dtpId - DTP ID
  * @returns 验证结果
  */
-export async function validateDTPCanDelete(
-  client: AdtHTTP,
-  dtpId: string
-): Promise<ValidationResult> {
-  const obj = new BWObject(client, BWObjectType.DTP, dtpId)
-  return obj.canDelete()
-}
 
 /**
  * Validate DTP Can Activate - 验证 DTP 是否可激活
@@ -242,13 +228,6 @@ export async function validateDTPCanDelete(
  * @param dtpId - DTP ID
  * @returns 验证结果
  */
-export async function validateDTPCanActivate(
-  client: AdtHTTP,
-  dtpId: string
-): Promise<ValidationResult> {
-  const obj = new BWObject(client, BWObjectType.DTP, dtpId)
-  return obj.canActivate()
-}
 
 /**
  * Lock DTP - 锁定 DTP

@@ -122,15 +122,27 @@ export type ProcessChainStatusInfo = t.OutputOf<typeof ProcessChainStatusInfo>
 
 // ============================================================================
 // API Functions
+//
+// 2026-09-20 复核（docs/VERIFIED_APIS.md F1）：本系统端点为 /sap/bw/modeling/rspc
+// （/pc 404）；GET /rspc/{id}/m 服务 JSON
+// (application/vnd.sap.bw4.modeling.processvariant.chain-v1_0_0+json)，
+// pc/rspc 的 vendor XML 一律 415。读路径（meta/details）已实测并按下述 JSON 解析；
+// versions/logs/status 后缀本系统拒绝（「不支持对象版本 V/L/S」），函数保留，
+// 服务端错误原样上抛；execute/stop 未实测（不允许对业务链执行），仅修正前缀。
 // ============================================================================
+
+/** rspc JSON 端点的 Accept/Content-Type */
+export const PC_JSON_CONTENT_TYPE =
+  "application/vnd.sap.bw4.modeling.processvariant.chain-v1_0_0+json"
 
 /**
  * Lock Process Chain - 锁定流程链
  *
- * 对应请求: POST /sap/bw/modeling/pc/{chain_id}?action=lock
+ * 对应请求: POST /sap/bw/modeling/rspc/{chain_id}?action=lock
+ * ⚠️ 本系统未实测（不允许对业务链执行）；URL/会话模型沿用已验证的统一 lock 模式。
  *
  * @param client - ADT HTTP 客户端
- * @param chainId - Process Chain ID
+ * @param chainId - Process Chain ID（大小写敏感，不转小写）
  * @returns 锁定结果（包含 lockHandle）
  */
 export async function lockProcessChain(
@@ -144,7 +156,8 @@ export async function lockProcessChain(
 /**
  * Unlock Process Chain - 解锁流程链
  *
- * 对应请求: POST /sap/bw/modeling/pc/{chain_id}?action=unlock
+ * 对应请求: POST /sap/bw/modeling/rspc/{chain_id}?action=unlock
+ * ⚠️ 本系统未实测（同 lock）。
  *
  * @param client - ADT HTTP 客户端
  * @param chainId - Process Chain ID
@@ -160,10 +173,11 @@ export async function unlockProcessChain(
 /**
  * Get Process Chain Metadata - 获取流程链元数据
  *
- * 对应请求: GET /sap/bw/modeling/pc/{chain_id}/m
+ * 对应请求: GET /sap/bw/modeling/rspc/{chain_id}/m
+ * 实测 (2026-09-20): 服务 JSON (processvariant.chain-v1_0_0+json)。
  *
  * @param client - ADT HTTP 客户端
- * @param chainId - Process Chain ID
+ * @param chainId - Process Chain ID（大小写敏感）
  * @returns 流程链元数据
  */
 export async function getProcessChain(
@@ -171,92 +185,86 @@ export async function getProcessChain(
   chainId: string
 ): Promise<ProcessChainMetaData> {
   const response = await client.request(
-    `/sap/bw/modeling/pc/${chainId}/m`,
+    `/sap/bw/modeling/rspc/${encodeURIComponent(chainId)}/m`,
     {
       headers: {
-        "Accept": "application/vnd.sap.bw.modeling.pc-v1_0_0+xml"
+        "Accept": PC_JSON_CONTENT_TYPE
       }
     }
   )
 
-  return parseProcessChainMetaData(response.body)
+  return parseProcessChainMetaData(response.body, chainId)
 }
 
 /**
- * Parse Process Chain Metadata - 解析流程链元数据
+ * Parse Process Chain Metadata - 解析流程链元数据（rspc JSON）
  *
- * @param xmlBody - XML响应体
+ * 实测 JSON 顶层形态: { bActive, sVariantDescription, oDetail, aSocket[], aExecutionOption[] }。
+ * 无链名字段（名字即 URL id）；bActive 为建模活动版本标记，非运行状态。
+ *
+ * @param jsonBody - JSON 响应体
+ * @param chainId - Process Chain ID（payload 不含名字，由调用方回填）
  * @returns 流程链元数据
  */
-function parseProcessChainMetaData(xmlBody: string): ProcessChainMetaData {
-  const parsed = fullParse(xmlBody)
-  const root = parsed["bwModel:processChain"] || parsed
+export function parseProcessChainMetaData(jsonBody: string, chainId: string): ProcessChainMetaData {
+  const json = safeJsonParse(jsonBody)
 
   return {
-    name: root["bwModel:chainName"] || root["bwModel:name"] || root["name"] || "",
-    description: root["bwModel:description"] || root["description"],
-    objVers: root["bwModel:objVers"] || root["objVers"],
-    chainType: root["bwModel:chainType"] || root["chainType"],
-    status: root["bwModel:status"] || root["status"]
+    name: chainId,
+    description: json?.sVariantDescription,
+    // bActive=true 表示活动版本存在（实测 active 链为 true）；否则视为仅修改版
+    objVers: json?.bActive === true ? "M" : json?.bActive === false ? "A" : undefined,
+    chainType: undefined,
+    status: json?.bActive === true ? "active" : json?.bActive === false ? "inactive" : undefined
+  }
+}
+
+/** 解析 JSON 响应体；非法 JSON 时带原始片段抛错（rspc 读路径应始终是合法 JSON） */
+function safeJsonParse(body: string): any {
+  try {
+    return JSON.parse(body)
+  } catch {
+    throw new Error(
+      `rspc endpoint returned non-JSON payload (first 120 chars): ${body.slice(0, 120)}`
+    )
   }
 }
 
 /**
- * Parse Process Chain Details - 解析流程链详细信息
+ * Parse Process Chain Details - 解析流程链详细信息（rspc JSON）
  *
- * @param xmlBody - XML响应体
+ * 实测 payload 不含步骤/时间戳/责任人字段（本系统样例 oDetail 为空），
+ * steps/created/changed/changedBy 恒为 undefined——如实保留缺口，不虚构字段。
+ *
+ * @param jsonBody - JSON 响应体
+ * @param chainId - Process Chain ID（payload 不含名字，由调用方回填）
  * @returns 流程链详细信息
  */
-export function parseProcessChainDetails(xmlBody: string): ProcessChainDetails {
-  const root = fullParse(xmlBody) as any
-
-  // 提取流程链基本信息
-  const chainNode = root["bwModel:processChain"] || root
-  const name = chainNode["bwModel:chainName"] || chainNode["bwModel:name"]
-  const technicalName = chainNode["bwModel:technicalName"] || name
-  const description = chainNode["bwModel:description"]
-  const objVers = chainNode["bwModel:objVers"]
-  const chainType = chainNode["bwModel:chainType"]
-  const status = chainNode["bwModel:status"]
-
-  // 提取流程链步骤
-  let steps: ProcessChainStep[] = []
-  const stepsNode = chainNode["bwModel:steps"] || chainNode["steps"]
-  if (stepsNode) {
-    const stepList = Array.isArray(stepsNode) ? stepsNode : [stepsNode]
-    const stepItems = stepList.flatMap(s => s["bwModel:step"] || s["step"] || [])
-
-    steps = stepItems.map((step: any) => ({
-      stepId: step["bwModel:stepId"] || step["stepId"],
-      stepType: step["bwModel:stepType"] || step["stepType"],
-      description: step["bwModel:description"] || step["description"],
-      status: step["bwModel:status"] || step["status"],
-      source: step["bwModel:source"] || step["source"],
-      target: step["bwModel:target"] || step["target"]
-    }))
-  }
+export function parseProcessChainDetails(jsonBody: string, chainId?: string): ProcessChainDetails {
+  const json = safeJsonParse(jsonBody)
+  const name = chainId || ""
 
   return {
-    name: name || technicalName,
-    technicalName,
-    description,
-    objVers,
-    chainType,
-    status,
-    steps: steps.length > 0 ? steps : undefined,
-    created: chainNode["bwModel:created"],
-    changed: chainNode["bwModel:changed"],
-    changedBy: chainNode["bwModel:changedBy"]
+    name,
+    technicalName: name,
+    description: json?.sVariantDescription,
+    objVers: json?.bActive === true ? "M" : json?.bActive === false ? "A" : undefined,
+    chainType: undefined,
+    status: json?.bActive === true ? "active" : json?.bActive === false ? "inactive" : undefined,
+    steps: undefined,
+    created: undefined,
+    changed: undefined,
+    changedBy: undefined
   }
 }
 
 /**
  * Get Process Chain Details - 获取流程链详细信息
  *
- * 对应请求: GET /sap/bw/modeling/pc/{chain_id}/m
+ * 对应请求: GET /sap/bw/modeling/rspc/{chain_id}/m（JSON，已实测）
  *
  * @param client - ADT HTTP 客户端
- * @param chainId - Process Chain ID
+ * @param chainId - Process Chain ID（大小写敏感）
  * @returns 流程链详细信息
  */
 export async function getProcessChainDetails(
@@ -264,21 +272,22 @@ export async function getProcessChainDetails(
   chainId: string
 ): Promise<ProcessChainDetails> {
   const response = await client.request(
-    `/sap/bw/modeling/pc/${chainId}/m`,
+    `/sap/bw/modeling/rspc/${encodeURIComponent(chainId)}/m`,
     {
       headers: {
-        "Accept": "application/vnd.sap.bw.modeling.pc-v1_0_0+xml"
+        "Accept": PC_JSON_CONTENT_TYPE
       }
     }
   )
 
-  return parseProcessChainDetails(response.body)
+  return parseProcessChainDetails(response.body, chainId)
 }
 
 /**
  * Get Process Chain Versions - 获取流程链版本历史
  *
- * 对应请求: GET /sap/bw/modeling/pc/{chain_id}/versions
+ * 对应请求: GET /sap/bw/modeling/rspc/{chain_id}/versions
+ * ⚠️ 本系统拒绝该后缀（「不支持对象版本 V」，2026-09-19/20 实测），错误原样上抛。
  *
  * @param client - ADT HTTP 客户端
  * @param chainId - Process Chain ID
@@ -296,6 +305,7 @@ export async function getProcessChainVersions(
  * Activate Process Chain - 激活流程链
  *
  * 对应请求: POST /sap/bw/modeling/activation
+ * ⚠️ 本系统未实测（不允许动业务链）；URI/lockHandle/corrNr 语义同其他 BW 对象。
  *
  * @param client - ADT HTTP 客户端
  * @param chainId - Process Chain ID
@@ -316,7 +326,8 @@ export async function activateProcessChain(
 /**
  * Check Process Chain - 检查流程链一致性
  *
- * 对应请求: POST /sap/bw/modeling/activation
+ * 对应请求: POST /sap/bw/modeling/activation（checkruns 路径）
+ * ⚠️ 本系统未实测。
  *
  * @param client - ADT HTTP 客户端
  * @param chainId - Process Chain ID
@@ -333,7 +344,9 @@ export async function checkProcessChain(
 /**
  * Execute Process Chain - 执行流程链
  *
- * 对应请求: POST /sap/bw/modeling/pc/{chain_id}?action=execute
+ * 对应请求: POST /sap/bw/modeling/rspc/{chain_id}?action=execute
+ * ⚠️ 未实测（不允许对业务链执行）；响应格式未知，以下解析沿用旧 XML 假设，
+ * 结果字段在真实响应上可能为空——运行后请以日志核实。
  *
  * @param client - ADT HTTP 客户端
  * @param chainId - Process Chain ID
@@ -344,11 +357,11 @@ export async function executeProcessChain(
   chainId: string
 ): Promise<ProcessChainExecutionResult> {
   const response = await client.request(
-    `/sap/bw/modeling/pc/${chainId}?action=execute`,
+    `/sap/bw/modeling/rspc/${chainId}?action=execute`,
     {
       method: "POST",
       headers: {
-        "Accept": "application/vnd.sap.bw.modeling.pc-v1_0_0+xml"
+        "Accept": PC_JSON_CONTENT_TYPE
       }
     }
   )
@@ -369,7 +382,8 @@ export async function executeProcessChain(
 /**
  * Stop Process Chain - 停止正在运行的流程链
  *
- * 对应请求: POST /sap/bw/modeling/pc/{chain_id}?action=stop
+ * 对应请求: POST /sap/bw/modeling/rspc/{chain_id}?action=stop
+ * ⚠️ 未实测（不允许对业务链执行）；响应格式未知，解析同 execute 的旧 XML 假设。
  *
  * @param client - ADT HTTP 客户端
  * @param chainId - Process Chain ID
@@ -380,11 +394,11 @@ export async function stopProcessChain(
   chainId: string
 ): Promise<{ success: boolean; message?: string }> {
   const response = await client.request(
-    `/sap/bw/modeling/pc/${chainId}?action=stop`,
+    `/sap/bw/modeling/rspc/${chainId}?action=stop`,
     {
       method: "POST",
       headers: {
-        "Accept": "application/vnd.sap.bw.modeling.pc-v1_0_0+xml"
+        "Accept": PC_JSON_CONTENT_TYPE
       }
     }
   )
@@ -401,7 +415,9 @@ export async function stopProcessChain(
 /**
  * Get Process Chain Logs - 获取流程链执行日志
  *
- * 对应请求: GET /sap/bw/modeling/pc/{chain_id}/logs
+ * 对应请求: GET /sap/bw/modeling/rspc/{chain_id}/logs
+ * ⚠️ 本系统拒绝该后缀（「不支持对象版本 L」，2026-09-19/20 实测），错误原样上抛；
+ * PC 运行日志需走 RSPC 应用日志（如 RSA1/BW4MT），本库暂无对应端点。
  *
  * @param client - ADT HTTP 客户端
  * @param chainId - Process Chain ID
@@ -412,10 +428,10 @@ export async function getProcessChainLogs(
   chainId: string
 ): Promise<ProcessChainLogEntry[]> {
   const response = await client.request(
-    `/sap/bw/modeling/pc/${chainId}/logs`,
+    `/sap/bw/modeling/rspc/${chainId}/logs`,
     {
       headers: {
-        "Accept": "application/vnd.sap.bw.modeling.pc-v1_0_0+xml"
+        "Accept": PC_JSON_CONTENT_TYPE
       }
     }
   )
@@ -443,7 +459,8 @@ export async function getProcessChainLogs(
 /**
  * Get Process Chain Status - 获取流程链运行状态
  *
- * 对应请求: GET /sap/bw/modeling/pc/{chain_id}/status
+ * 对应请求: GET /sap/bw/modeling/rspc/{chain_id}/status
+ * ⚠️ 本系统拒绝该后缀（「不支持对象版本 S」，2026-09-20 实测），错误原样上抛。
  *
  * @param client - ADT HTTP 客户端
  * @param chainId - Process Chain ID
@@ -454,10 +471,10 @@ export async function getProcessChainStatus(
   chainId: string
 ): Promise<ProcessChainStatusInfo> {
   const response = await client.request(
-    `/sap/bw/modeling/pc/${chainId}/status`,
+    `/sap/bw/modeling/rspc/${chainId}/status`,
     {
       headers: {
-        "Accept": "application/vnd.sap.bw.modeling.pc-v1_0_0+xml"
+        "Accept": PC_JSON_CONTENT_TYPE
       }
     }
   )
@@ -488,13 +505,6 @@ export async function getProcessChainStatus(
  * @param chainId - Process Chain ID
  * @returns 验证结果
  */
-export async function validateProcessChainExists(
-  client: AdtHTTP,
-  chainId: string
-): Promise<ValidationResult> {
-  const obj = new BWObject(client, BWObjectType.PROCESS_CHAIN, chainId)
-  return obj.exists()
-}
 
 /**
  * Validate New Process Chain Name - 验证新流程链名称是否可用
@@ -503,13 +513,6 @@ export async function validateProcessChainExists(
  * @param chainId - Process Chain ID
  * @returns 验证结果
  */
-export async function validateProcessChainNewName(
-  client: AdtHTTP,
-  chainId: string
-): Promise<ValidationResult> {
-  const obj = new BWObject(client, BWObjectType.PROCESS_CHAIN, chainId)
-  return obj.isNewNameAvailable()
-}
 
 /**
  * Validate Process Chain Can Delete - 验证流程链是否可删除
@@ -518,13 +521,6 @@ export async function validateProcessChainNewName(
  * @param chainId - Process Chain ID
  * @returns 验证结果
  */
-export async function validateProcessChainCanDelete(
-  client: AdtHTTP,
-  chainId: string
-): Promise<ValidationResult> {
-  const obj = new BWObject(client, BWObjectType.PROCESS_CHAIN, chainId)
-  return obj.canDelete()
-}
 
 /**
  * Validate Process Chain Can Activate - 验证流程链是否可激活
@@ -533,10 +529,3 @@ export async function validateProcessChainCanDelete(
  * @param chainId - Process Chain ID
  * @returns 验证结果
  */
-export async function validateProcessChainCanActivate(
-  client: AdtHTTP,
-  chainId: string
-): Promise<ValidationResult> {
-  const obj = new BWObject(client, BWObjectType.PROCESS_CHAIN, chainId)
-  return obj.canActivate()
-}

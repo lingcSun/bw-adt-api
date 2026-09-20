@@ -41,7 +41,9 @@ export type {
   GetTransformationOptions,
   UpdateTransformationOptions,
   TransformationRuleSpec,
-  AddRuleOptions
+  AddRuleOptions,
+  CreateTransformationOptions,
+  CreateTransformationResult
 } from "./transformation"
 
 export type {
@@ -49,7 +51,8 @@ export type {
   DTPStatus,
   DTPMetaData,
   DTPVersion,
-  DTPExecutionResult
+  DTPExecutionResult,
+  CreateDTPOptions
 } from "./dtp"
 
 export type {
@@ -123,13 +126,15 @@ export {
   getADSONodePath,
   validateInfoArea,
   validateTemplateADSO,
+  templateValidationObjectType,
   validateNewADSOName,
   validateADSOExists,
   validateADSONewName,
-  validateADSOCanDelete,
-  validateADSOCanActivate,
   buildADSOFieldElementXml,
+  buildADSOInfoObjectElementXml,
   addADSOFieldToXml,
+  addADSOKeyToXml,
+  addADSOKey,
   removeADSOFieldFromXml,
   extractADSOTimestamp,
   saveAndActivateADSO,
@@ -139,6 +144,7 @@ export {
 export {
   lockTransformation,
   unlockTransformation,
+  createTransformation,
   getTransformation,
   getTransformationXml,
   getTransformationDetails,
@@ -162,14 +168,13 @@ export {
   hasExpertRoutine,
   validateTransformationExists,
   validateTransformationNewName,
-  validateTransformationCanDelete,
-  validateTransformationCanActivate,
   saveAndActivateTransformation
 } from "./transformation"
 
 export {
   lockDTP,
   unlockDTP,
+  createDTP,
   getDTP,
   getDTPXml,
   getDTPDetails,
@@ -178,9 +183,6 @@ export {
   checkDTP,
   executeDTP,
   validateDTPExists,
-  validateDTPNewName,
-  validateDTPCanDelete,
-  validateDTPCanActivate,
   updateDTP,
   saveAndActivateDTP
 } from "./dtp"
@@ -196,18 +198,10 @@ export {
   executeProcessChain,
   stopProcessChain,
   getProcessChainLogs,
-  getProcessChainStatus,
-  validateProcessChainExists,
-  validateProcessChainNewName,
-  validateProcessChainCanDelete,
-  validateProcessChainCanActivate
-} from "./processchain"
+  getProcessChainStatus,} from "./processchain"
 
 export {
   getInfoObject,
   getInfoObjectMetadata,
   validateInfoObjectExists,
-  validateInfoObjectNewName,
-  validateInfoObjectCanDelete,
-  validateInfoObjectCanActivate
-} from "./infoobject"
+  validateInfoObjectNewName,} from "./infoobject"

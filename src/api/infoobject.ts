@@ -353,13 +353,6 @@ export async function validateInfoObjectNewName(
  * @param iobjName - InfoObject 名称
  * @returns 验证结果
  */
-export async function validateInfoObjectCanDelete(
-  client: AdtHTTP,
-  iobjName: string
-): Promise<ValidationResult> {
-  const obj = new BWObject(client, BWObjectType.INFO_OBJECT, iobjName)
-  return obj.canDelete()
-}
 
 /**
  * Validate InfoObject Can Activate - 验证 InfoObject 是否可激活
@@ -368,10 +361,3 @@ export async function validateInfoObjectCanDelete(
  * @param iobjName - InfoObject 名称
  * @returns 验证结果
  */
-export async function validateInfoObjectCanActivate(
-  client: AdtHTTP,
-  iobjName: string
-): Promise<ValidationResult> {
-  const obj = new BWObject(client, BWObjectType.INFO_OBJECT, iobjName)
-  return obj.canActivate()
-}

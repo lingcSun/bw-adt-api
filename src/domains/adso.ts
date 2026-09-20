@@ -47,6 +47,18 @@ export class AdsoDomain {
     return adso.saveAndActivateADSO(this.h, adsoId, nextXml, options)
   }
 
+  /**
+   * 给 ADSO 加键定义（2026-09-20 F3 闭环）。默认不激活——
+   * 空白 ADSO 建议先 addKey 再 addField（由 addField 激活）。
+   */
+  addKey(
+    adsoId: string,
+    infoObjectName: string,
+    options?: adso.AddADSOKeyOptions
+  ) {
+    return adso.addADSOKey(this.h, adsoId, infoObjectName, options)
+  }
+
   create(
     options: adso.CreateADSOOptions & {
       autoActivate?: boolean
