@@ -44,6 +44,7 @@ export { BWAdtClient, createSSLConfig } from "./BWAdtClient"
 // Domain facades (preferred Public entry)
 export {
   AdsoDomain,
+  InfoProviderDomain,
   TrfnDomain,
   DtpDomain,
   DataSourceDomain,
@@ -53,7 +54,8 @@ export {
   QueryDomain,
   SystemDomain,
   DdicDomain,
-  TransportDomain
+  TransportDomain,
+  InfoAreaDomain
 } from "./domains"
 
 // Logging

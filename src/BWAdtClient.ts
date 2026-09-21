@@ -10,6 +10,7 @@ import { followUrl, isString } from "./utilities"
 import https from "https"
 import {
   AdsoDomain,
+  InfoProviderDomain,
   TrfnDomain,
   DtpDomain,
   DataSourceDomain,
@@ -19,7 +20,8 @@ import {
   QueryDomain,
   SystemDomain,
   DdicDomain,
-  TransportDomain
+  TransportDomain,
+  InfoAreaDomain
 } from "./domains"
 
 export function createSSLConfig(
@@ -66,7 +68,13 @@ export class BWAdtClient {
   private options: HttpOptions
 
   /** Public domain facades (preferred entry). */
+  /**
+   * ADSO 类型特化域门面——`client.infoProvider.adso(name)` 的快捷方式
+   * （同类实例，绑定同一 AdtHTTP 会话）。
+   */
   readonly adso: AdsoDomain
+  /** InfoProvider 多态域（ADSO 判别优先，其余类型未验证即抛错）。 */
+  readonly infoProvider: InfoProviderDomain
   readonly trfn: TrfnDomain
   readonly dtp: DtpDomain
   readonly dataSource: DataSourceDomain
@@ -77,6 +85,7 @@ export class BWAdtClient {
   readonly system: SystemDomain
   readonly ddic: DdicDomain
   readonly transport: TransportDomain
+  readonly infoArea: InfoAreaDomain
 
   /**
    * Create a BW ADT client
@@ -112,6 +121,7 @@ export class BWAdtClient {
     }
     this.h = this.createHttp()
     this.adso = new AdsoDomain(this.h)
+    this.infoProvider = new InfoProviderDomain(this.h)
     this.trfn = new TrfnDomain(this.h)
     this.dtp = new DtpDomain(this.h)
     this.dataSource = new DataSourceDomain(this.h)
@@ -122,6 +132,7 @@ export class BWAdtClient {
     this.system = new SystemDomain(this.h)
     this.ddic = new DdicDomain(this.h)
     this.transport = new TransportDomain(this.h)
+    this.infoArea = new InfoAreaDomain(this.h)
   }
 
   private createHttp() {
