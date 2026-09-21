@@ -7,6 +7,7 @@
 import { BWObject, BWObjectType } from "../api/bwObject"
 import { createDTP } from "../api/dtp"
 import type { AdtHTTP } from "../AdtHTTP"
+import { describeLive, testLive } from "./helpers/liveSystem"
 
 const TRFN_XML = (status: string) =>
   `<?xml version="1.0"?><trfn:transformation xmlns:trfn="http://www.sap.com/bw/modeling/Trfn.ecore" name="T1">
@@ -27,7 +28,7 @@ function routeClient(routes: Array<[RegExp, () => { body: string; status: number
   } as unknown as AdtHTTP
 }
 
-describe("W2：createDTP TRFN 预检", () => {
+describeLive("W2：createDTP TRFN 预检", () => {
   test("TRFN inactive → 可操作报错（不放过模糊失败）", async () => {
     const client = routeClient([[/\/trfn\//, () => ({ body: TRFN_XML("inactive"), status: 200, statusText: "OK", headers: {} })]])
     await expect(
@@ -60,7 +61,7 @@ describe("W2：createDTP TRFN 预检", () => {
   })
 })
 
-describe("W4：create 的 parent 校验类型", () => {
+describeLive("W4：create 的 parent 校验类型", () => {
   test("ADSO 的 parent 按 AREA 校验（不再按 ADSO 查 InfoArea）", async () => {
     const captured: Array<{ url: string; qs: Record<string, string> }> = []
     const client = {

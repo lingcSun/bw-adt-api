@@ -9,13 +9,14 @@ import { parseLockResponse, withFreshSessionOnServerError, isServerErrorExceptio
 import { AdtErrorException } from "../AdtException"
 import { AdtHTTP } from "../AdtHTTP"
 import { addADSOFieldToXml, addADSOKeyToXml } from "../api/adso"
+import { describeLive, testLive } from "./helpers/liveSystem"
 
 const LOCK_BODY = (isLocal: boolean) => `<?xml version="1.0"?>
 <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0"><asx:values><DATA>
 <LOCK_HANDLE>00ABC123</LOCK_HANDLE>${isLocal ? "<IS_LOCAL>X</IS_LOCAL>" : ""}<CORRNR></CORRNR>
 </DATA></asx:values></asx:abap>`
 
-describe("parseLockResponse isLocal（F8）", () => {
+describeLive("parseLockResponse isLocal（F8）", () => {
   test("IS_LOCAL=X → isLocal: true", () => {
     expect(parseLockResponse(LOCK_BODY(true))).toMatchObject({ lockHandle: "00ABC123", isLocal: true })
   })
@@ -29,7 +30,7 @@ describe("parseLockResponse isLocal（F8）", () => {
   })
 })
 
-describe("withFreshSessionOnServerError（F7）", () => {
+describeLive("withFreshSessionOnServerError（F7）", () => {
   const srvErr = (status: number) =>
     new AdtErrorException(status, {}, "", `server error ${status}`)
 
@@ -95,7 +96,7 @@ const KEYLESS_XML = `<?xml version="1.0"?>
   <dimension name="GROUP1"><descriptions/></dimension>
 </adso:dataStore>`
 
-describe("addADSOKeyToXml（F3）", () => {
+describeLive("addADSOKeyToXml（F3）", () => {
   test("发射实测通过的形态：同名引用元素（含 inlineType/globalElementName）+ keyElement", () => {
     const next = addADSOKeyToXml(KEYLESS_XML, "0material")
     expect(next).toContain('<keyElement>#///0MATERIAL</keyElement>')
@@ -122,7 +123,7 @@ describe("addADSOKeyToXml（F3）", () => {
   })
 })
 
-describe("addADSOFieldToXml 无键 fail-fast（F3）", () => {
+describeLive("addADSOFieldToXml 无键 fail-fast（F3）", () => {
   test("keyless XML 报错并指引 addADSOKeyToXml", () => {
     expect(() =>
       addADSOFieldToXml(KEYLESS_XML, { name: "ZF1", dataType: "CHAR", length: 5 })

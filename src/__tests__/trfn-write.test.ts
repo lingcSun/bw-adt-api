@@ -1,4 +1,5 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 import {
   addFieldToEndRoutine,
   removeFieldFromEndRoutine,
@@ -26,7 +27,7 @@ const testConfig = {
 const TEST_TRFN = "0BE9X06HU3MN3FB1TO6MNLEGQI6XIJEO"
 const TEST_FIELD = "ZC_JTL4"
 
-describe("TRFN 写操作 / 结束例程 setFields", () => {
+describeLive("TRFN 写操作 / 结束例程 setFields", () => {
   let client: BWAdtClient
 
   beforeAll(async () => {

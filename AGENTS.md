@@ -19,7 +19,7 @@ npm test        # jest（集成测试需 .env 提供 BW_BASE_URL 等；尚不会
 
 ## Invariants
 
-- **所有写路径遵循已验证会话模型**：lock（stateful）→ transportCheck/PUT/activate（stateless，`lockHandle` 上 URL）→ unlock（stateful，放 `finally`）。见[会话模型笔记](.agents/notes/implemented/architecture/2026-09-18-write-session-model.md)。
+- **所有写路径遵循已验证会话模型，编排必须走 withWriteSession**：序列顺序与 finally 解锁只在 `src/api/writeSession.ts` 维护，域只提供步骤闭包。见[会话模型笔记](.agents/notes/implemented/architecture/2026-09-18-write-session-model.md)与[引擎笔记](.agents/notes/implemented/architecture/2026-09-21-write-session-engine.md)。
 - **传输显式解析，绝不自动取第一个 TR**：解析次序为显式 transport > 复用 lock 的 corrNr > createTransport:true > 抛 TransportRequiredError。
 - **服务端行为断言必须先入证据账本**：对 SAP 行为的新断言先在 `docs/VERIFIED_APIS.md` 记录实测证据；凭据与系统信息不入库。写此类断言时用 [test-dont-assume](.agents/skills/test-dont-assume/SKILL.md) 技能。
 - **新增端点落在 api 函数层**：`src/api/<域>.ts` 写函数与编排；`src/domains/` 门面只做转发，不藏逻辑（[rationale](.agents/notes/implemented/architecture/2026-09-18-api-domains-two-layer.md)）。

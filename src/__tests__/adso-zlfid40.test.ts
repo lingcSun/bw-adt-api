@@ -1,4 +1,5 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 
 /**
  * ADSO 读取接口验证 - 对照 Eclipse 双击打开 ZL_FID40 的 Communication Log
@@ -25,7 +26,7 @@ const testConfig = {
 
 const TEST_ADSO = "ZL_FID40"
 
-describe("ADSO 读取接口验证 (ZL_FID40)", () => {
+describeLive("ADSO 读取接口验证 (ZL_FID40)", () => {
   let client: BWAdtClient
 
   beforeAll(async () => {

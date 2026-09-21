@@ -4,6 +4,7 @@ import { AdtHTTP, session_types } from "../AdtHTTP"
 import { ActivationResult, LockResult, ValidationAction, ValidationResult } from "./common"
 import { BWObject, BWObjectType, createBWObject } from "./bwObject"
 import { DTPDetails } from "./types"
+import { withWriteSession } from "./writeSession"
 
 // ============================================================================
 // Types and Codecs for DTP (Data Transfer Process)
@@ -457,45 +458,21 @@ export async function saveAndActivateDTP(
   xmlContent: string,
   options?: SaveAndActivateDTPOptions
 ): Promise<SaveAndActivateDTPResult> {
-  const { resolveTransportForWrite } = await import("./transport")
-
-  const dtpUri = `/sap/bw/modeling/dtpa/${dtpId.toLowerCase()}/m`
-  const autoActivate = options?.autoActivate ?? true
-
-  const lockResult = await lockDTP(client, dtpId)
-
-  try {
-    const transport = await resolveTransportForWrite(client, dtpUri, {
-      transport: options?.transport,
-      lockCorrNr: lockResult.corrNr,
-      createTransport: options?.createTransport,
-      transportDescription: options?.transportDescription || "API update"
-    })
-
-    await updateDTP(client, dtpId, xmlContent, {
-      lockHandle: lockResult.lockHandle,
-      transport
-    })
-
-    let activateResult
-    if (autoActivate) {
-      activateResult = await activateDTP(
-        client,
-        dtpId,
-        lockResult.lockHandle,
-        transport || ""
-      )
-    }
-
-    return {
-      lockHandle: lockResult.lockHandle,
-      transport,
-      activated: autoActivate,
-      activateResult
-    }
-  } finally {
-    await unlockDTP(client, dtpId)
-  }
+  const { updateResult, ...rest } = await withWriteSession(client, {
+    lock: c => lockDTP(c, dtpId),
+    update: (c, xml, io) =>
+      updateDTP(c, dtpId, xml, { lockHandle: io.lockHandle, transport: io.corrNr }),
+    activate: (c, lockHandle, corrNr) => activateDTP(c, dtpId, lockHandle, corrNr || ""),
+    unlock: c => unlockDTP(c, dtpId),
+  }, {
+    uri: `/sap/bw/modeling/dtpa/${dtpId.toLowerCase()}/m`,
+    xml: xmlContent,
+    autoActivate: options?.autoActivate,
+    transport: options?.transport,
+    createTransport: options?.createTransport,
+    transportDescription: options?.transportDescription || "API update",
+  })
+  return rest
 }
 
 // ============================================================================

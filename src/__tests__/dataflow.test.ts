@@ -1,4 +1,5 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 
 /**
  * DMOD 数据流接口验证 - 对照 Eclipse 数据流图抓包
@@ -17,7 +18,7 @@ const testConfig = {
 
 const TARGET = "ZL_FID40"
 
-describe("DMOD 数据流接口", () => {
+describeLive("DMOD 数据流接口", () => {
   let client: BWAdtClient
 
   beforeAll(async () => {

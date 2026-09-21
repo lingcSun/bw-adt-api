@@ -4,6 +4,7 @@ import { AdtHTTP } from "../AdtHTTP"
 import { ActivationResult, ActivationMessage, LockResult, activateObject, parseActivationResponse, ValidationAction, ValidationResult } from "./common"
 import { BWObject, BWObjectType } from "./bwObject"
 import { ADSODetails } from "./types"
+import { withWriteSession } from "./writeSession"
 
 // ============================================================================
 // Types and Codecs for ADSO (Advanced DataStore Object)
@@ -743,48 +744,25 @@ export async function saveAndActivateADSO(
   xmlContent: string,
   options?: SaveAndActivateADSOOptions
 ): Promise<SaveAndActivateADSOResult> {
-  const { resolveTransportForWrite } = await import("./transport")
-
-  const adsoUri = `/sap/bw/modeling/adso/${encodeURIComponent(adsoId.toLowerCase())}/m`
-  const autoActivate = options?.autoActivate ?? true
-  const timestamp = options?.timestamp ?? extractADSOTimestamp(xmlContent)
-
-  const lockResult = await lockADSO(client, adsoId)
-
-  try {
-    const transport = await resolveTransportForWrite(client, adsoUri, {
-      transport: options?.transport,
-      lockCorrNr: lockResult.corrNr,
-      createTransport: options?.createTransport,
-      transportDescription: options?.transportDescription || "API ADSO update"
-    })
-
-    const updateResult = await updateADSO(client, adsoId, xmlContent, {
-      lockHandle: lockResult.lockHandle,
-      corrNr: transport,
-      timestamp
-    })
-
-    let activateResult
-    if (autoActivate) {
-      activateResult = await activateADSO(
-        client,
-        adsoId,
-        lockResult.lockHandle,
-        transport || ""
-      )
-    }
-
-    return {
-      lockHandle: lockResult.lockHandle,
-      transport,
-      updateResult,
-      activated: autoActivate,
-      activateResult
-    }
-  } finally {
-    await unlockADSO(client, adsoId)
-  }
+  return withWriteSession(client, {
+    lock: c => lockADSO(c, adsoId),
+    update: (c, xml, io) =>
+      updateADSO(c, adsoId, xml, {
+        lockHandle: io.lockHandle,
+        corrNr: io.corrNr,
+        timestamp: io.timestamp ?? extractADSOTimestamp(xml),
+      }),
+    activate: (c, lockHandle, corrNr) => activateADSO(c, adsoId, lockHandle, corrNr || ""),
+    unlock: c => unlockADSO(c, adsoId),
+  }, {
+    uri: `/sap/bw/modeling/adso/${encodeURIComponent(adsoId.toLowerCase())}/m`,
+    xml: xmlContent,
+    autoActivate: options?.autoActivate,
+    timestamp: options?.timestamp,
+    transport: options?.transport,
+    createTransport: options?.createTransport,
+    transportDescription: options?.transportDescription || "API ADSO update",
+  })
 }
 
 export type AddADSOKeyOptions = {

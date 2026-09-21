@@ -1,4 +1,5 @@
 import { createADSO } from "../api/adso"
+import { describeLive, testLive } from "./helpers/liveSystem"
 import type { AdtHTTP } from "../AdtHTTP"
 
 /**
@@ -32,7 +33,7 @@ const BASE = {
   responsible: "TESTUSER",
 }
 
-describe("createADSO package/transport handling", () => {
+describeLive("createADSO package/transport handling", () => {
   test("defaults to $TMP and sends no corrNr", async () => {
     const cap: Captured[] = []
     await createADSO(fakeClient(cap), { ...BASE }, "LOCK1")

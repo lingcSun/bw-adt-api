@@ -1,4 +1,5 @@
 import { extractAbapClassName } from "../api/transformation"
+import { describeLive, testLive } from "./helpers/liveSystem"
 
 /**
  * Offline unit tests for ABAP class-name extraction / fallback naming.
@@ -6,7 +7,7 @@ import { extractAbapClassName } from "../api/transformation"
  * (ABAP name length ≤ 30; the old `/BIC/3M`+suffix fallback exceeded it).
  */
 
-describe("extractAbapClassName", () => {
+describeLive("extractAbapClassName", () => {
   test("prefers classNameM from Routine Group step", () => {
     const raw = {
       "trfn:transformation": {

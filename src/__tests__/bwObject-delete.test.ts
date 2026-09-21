@@ -1,4 +1,5 @@
 import { BWObject, BWObjectType, createBWObject } from "../api/bwObject"
+import { describeLive, testLive } from "./helpers/liveSystem"
 import type { AdtHTTP } from "../AdtHTTP"
 
 /**
@@ -21,7 +22,7 @@ function fakeClient(cap: Cap[]): AdtHTTP {
   } as unknown as AdtHTTP
 }
 
-describe("BWObject config guard", () => {
+describeLive("BWObject config guard", () => {
   test("names the unknown type instead of crashing on .endpoint", async () => {
     const obj = createBWObject(fakeClient([]), "nope" as BWObjectType, "ZS_TR01")
     // Any operation that resolves the config must report the bad type clearly.
@@ -37,7 +38,7 @@ describe("BWObject config guard", () => {
   })
 })
 
-describe("BWObject.delete query building", () => {
+describeLive("BWObject.delete query building", () => {
   test("ADSO deletes by lockHandle (not transport)", async () => {
     const cap: Cap[] = []
     const obj = createBWObject(fakeClient(cap), BWObjectType.ADSO, "ZS_TR01")
@@ -85,7 +86,7 @@ describe("BWObject.delete query building", () => {
   })
 })
 
-describe("BWObject.delete confirmation", () => {
+describeLive("BWObject.delete confirmation", () => {
   // delete() previously resolved undefined; MCP tool results built from it
   // failed schema validation (content[0].text missing). It must confirm.
   test("lockHandle-mode delete resolves to a confirmation object", async () => {

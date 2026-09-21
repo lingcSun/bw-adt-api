@@ -1,4 +1,5 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 import {
   extractAbapClassName,
   parseTransformationSettings
@@ -26,7 +27,7 @@ const testConfig = {
 const TEST_TRFN = "0BE9X06HU3MN3FB1TO6MNLEGQI6XIJEO"
 const EXPECTED_CLASS = "/BIC/3FB1TO6MNLEGQI6XIJEO_M"
 
-describe("TRFN 例程类读取 (结束例程)", () => {
+describeLive("TRFN 例程类读取 (结束例程)", () => {
   let client: BWAdtClient
 
   beforeAll(async () => {

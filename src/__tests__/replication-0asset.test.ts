@@ -1,4 +1,5 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 import { buildReplicationRequestBody, parseReplicationTasks } from "../api/replication"
 
 /**
@@ -23,7 +24,7 @@ const testConfig = {
 const DATASOURCE = "0ASSET_ATTR_TEXT"
 const SOURCE_SYSTEM = "S4DCLNT300"
 
-describe(`Replicate DataSource ${DATASOURCE}`, () => {
+describeLive(`Replicate DataSource ${DATASOURCE}`, () => {
   let client: BWAdtClient
   let preCheckTasks: any[]
 

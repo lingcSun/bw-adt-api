@@ -1,4 +1,5 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 import { addADSOFieldToXml, removeADSOFieldFromXml } from "../api/adso"
 
 /**
@@ -29,7 +30,7 @@ const TEST_ADSO = "ZL_FID37"
 const ADSO_URI = `/sap/bw/modeling/adso/${TEST_ADSO.toLowerCase()}/m`
 const TMP_FIELD = "ZADT_TMP_F"
 
-describe("ADSO 写操作流程", () => {
+describeLive("ADSO 写操作流程", () => {
   let client: BWAdtClient
 
   beforeAll(async () => {

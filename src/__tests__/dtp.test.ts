@@ -1,4 +1,5 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 
 // 测试配置 - 请根据实际情况修改
 const testConfig = {
@@ -12,7 +13,7 @@ const testConfig = {
 // 测试用的 DTP 名称
 const TEST_DTP = process.env.BW_TEST_DTP || "YOUR_DTP_NAME"
 
-describe("BW DTP Tests", () => {
+describeLive("BW DTP Tests", () => {
   let client: BWAdtClient
 
   beforeAll(async () => {

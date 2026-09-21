@@ -1,4 +1,5 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 
 // 测试配置 - 请根据实际情况修改
 const testConfig = {
@@ -12,7 +13,7 @@ const testConfig = {
 // 测试用的 Process Chain 名称
 const TEST_CHAIN = process.env.BW_TEST_PROCESS_CHAIN || "YOUR_PROCESS_CHAIN_NAME"
 
-describe("BW Process Chain Tests", () => {
+describeLive("BW Process Chain Tests", () => {
   let client: BWAdtClient
 
   beforeAll(async () => {

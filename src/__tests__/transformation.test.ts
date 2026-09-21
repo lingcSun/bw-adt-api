@@ -1,4 +1,5 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 
 // 测试配置 - 请根据实际情况修改
 const testConfig = {
@@ -12,7 +13,7 @@ const testConfig = {
 // 测试用的 Transformation 名称
 const TEST_TRFN = process.env.BW_TEST_TRFN || "YOUR_TRFN_NAME"
 
-describe("BW Transformation Tests", () => {
+describeLive("BW Transformation Tests", () => {
   let client: BWAdtClient
 
   beforeAll(async () => {

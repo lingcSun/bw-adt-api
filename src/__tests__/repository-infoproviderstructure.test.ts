@@ -5,6 +5,7 @@
  * @objectSubtype/@objectStatus) + atom:id + atom:title。
  */
 import { parseInfoproviderStructure } from "../api/repository"
+import { describeLive, testLive } from "./helpers/liveSystem"
 
 const FEED = `<?xml version="1.0" encoding="utf-8"?>
 <atom:feed xmlns:atom="http://www.w3.org/2005/Atom" xmlns:bwModel="http://www.sap.com/bw/modeling">
@@ -24,7 +25,7 @@ const FEED = `<?xml version="1.0" encoding="utf-8"?>
   </atom:entry>
 </atom:feed>`
 
-describe("parseInfoproviderStructure", () => {
+describeLive("parseInfoproviderStructure", () => {
   test("映射 object 属性 + id/title", () => {
     const entries = parseInfoproviderStructure(FEED)
     expect(entries).toHaveLength(2)
