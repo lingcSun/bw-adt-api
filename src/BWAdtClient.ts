@@ -67,6 +67,7 @@ export class BWAdtClient {
   private pClone?: BWAdtClient
   private options: HttpOptions
 
+  /** Public domain facades (preferred entry). */
   /**
    * ADSO 类型特化域门面——`client.infoProvider.adso(name)` 的快捷方式
    * （同类实例，绑定同一 AdtHTTP 会话）。
