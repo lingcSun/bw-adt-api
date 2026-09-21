@@ -1117,6 +1117,43 @@ export class BWAdtClient {
   }
 
   /**
+   * Ensure End Routine — 无则创建结束例程（PUT 挂 END + 铸 AMDP 类 → 激活类 → 激活 TRFN）。
+   * 对照 2026-09-21 Eclipse 抓包。已有则幂等；fields 勾进 setFields。
+   */
+  public async ensureEndRoutine(
+    trfnId: string,
+    options?: {
+      fields?: string[]
+      transport?: string
+      createTransport?: boolean
+      transportDescription?: string
+      autoActivate?: boolean
+      activateClass?: boolean
+    }
+  ) {
+    const { ensureEndRoutine } = await import("./api/transformation")
+    return ensureEndRoutine(this.h, trfnId, options)
+  }
+
+  /**
+   * Ensure Start Routine — 无则创建开始例程（与 END 同款链路，GLOBAL_START）。
+   */
+  public async ensureStartRoutine(
+    trfnId: string,
+    options?: {
+      fields?: string[]
+      transport?: string
+      createTransport?: boolean
+      transportDescription?: string
+      autoActivate?: boolean
+      activateClass?: boolean
+    }
+  ) {
+    const { ensureStartRoutine } = await import("./api/transformation")
+    return ensureStartRoutine(this.h, trfnId, options)
+  }
+
+  /**
    * Add Transformation Rule (纯 XML 辅助) - 往 TRFN XML 插入一条 DIRECT 映射 rule
    *
    * 对照 Eclipse (2026-07-16 PUT body): 在 Rules group (type="S") 中插入

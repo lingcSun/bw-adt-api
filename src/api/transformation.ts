@@ -355,6 +355,157 @@ export async function saveAndActivateTransformation(
   }
 }
 
+export interface EnsureRoutineOptions extends SaveAndActivateTransformationOptions {
+  /** END：勾进例程的目标字段；START：源字段 */
+  fields?: string[]
+  /** 保存后是否激活 AMDP 类（默认 true；Eclipse：先激活类再激活 TRFN） */
+  activateClass?: boolean
+}
+
+export interface EnsureRoutineResult {
+  trfnId: string
+  className: string
+  created: boolean
+  saveResult: SaveAndActivateTransformationResult
+  classActivated: boolean
+  classActivateSuccess?: boolean
+  classActivateMessages?: string[]
+  trfnActivated: boolean
+  trfnActivateSuccess?: boolean
+  trfnActivateMessages?: string[]
+}
+
+/**
+ * 确保 TRFN 有结束例程（Eclipse 抓包链路）：
+ * 1) PUT 挂 END 规则（含 classNameM）→ 服务端铸 AMDP 类壳
+ * 2) 可选勾选 target 字段（addFieldToEndRoutine）
+ * 3) 激活 AMDP 类（/sap/bc/adt/activation）
+ * 4) 再激活 TRFN
+ */
+export async function ensureEndRoutine(
+  client: AdtHTTP,
+  trfnId: string,
+  options?: EnsureRoutineOptions
+): Promise<EnsureRoutineResult> {
+  return ensureRoutine(client, trfnId, "END", options)
+}
+
+/** 确保 TRFN 有开始例程（与 END 同款链路，method=GLOBAL_START）。 */
+export async function ensureStartRoutine(
+  client: AdtHTTP,
+  trfnId: string,
+  options?: EnsureRoutineOptions
+): Promise<EnsureRoutineResult> {
+  return ensureRoutine(client, trfnId, "START", options)
+}
+
+async function ensureRoutine(
+  client: AdtHTTP,
+  trfnId: string,
+  kind: "END" | "START",
+  options?: EnsureRoutineOptions
+): Promise<EnsureRoutineResult> {
+  const activateClass = options?.activateClass ?? true
+  const autoActivate = options?.autoActivate ?? true
+  const fields = options?.fields || []
+
+  let xml = await getTransformationXml(client, trfnId, "m", {
+    forceCacheUpdate: true
+  })
+
+  const ensured =
+    kind === "END"
+      ? ensureEndRoutineInXml(xml, { targetFields: fields.length ? fields : undefined })
+      : ensureStartRoutineInXml(xml, {
+          sourceFields: fields.length ? fields : undefined
+        })
+  xml = ensured.xml
+  const created = ensured.created
+  const className = ensured.className
+
+  // END：用 addFieldToEndRoutine 补 NO_UPDATE（幂等）；START 的 source 已写在规则里
+  if (kind === "END" && fields.length) {
+    for (const f of fields) {
+      xml = addFieldToEndRoutine(xml, f)
+    }
+  }
+
+  // 先只保存，等类激活后再激活 TRFN（对齐 Eclipse）
+  const saveResult = await saveAndActivateTransformation(client, trfnId, xml, {
+    transport: options?.transport,
+    createTransport: options?.createTransport,
+    transportDescription:
+      options?.transportDescription ||
+      `API ensure ${kind} routine` + (created ? " (create)" : " (fields)"),
+    autoActivate: false,
+    timestamp: options?.timestamp
+  })
+
+  let classActivated = false
+  let classActivateSuccess: boolean | undefined
+  let classActivateMessages: string[] | undefined
+  if (activateClass) {
+    const { activateAbapClass, getAbapClassSource } = await import("./abapClass")
+    // 类可能在 PUT 后短暂不可读——轻量重试
+    let ready = false
+    for (let i = 0; i < 5; i++) {
+      try {
+        await getAbapClassSource(client, className)
+        ready = true
+        break
+      } catch {
+        await new Promise((r) => setTimeout(r, 400))
+      }
+    }
+    if (!ready) {
+      throw new Error(
+        `ensure${kind === "END" ? "End" : "Start"}Routine: AMDP class ${className} ` +
+          `not readable after TRFN PUT — server may not have generated the stub`
+      )
+    }
+    const act = await activateAbapClass(client, className)
+    classActivated = true
+    classActivateSuccess = !!act.success
+    classActivateMessages = (act.messages || [])
+      .filter((m) => (m.type || "").toUpperCase() === "E" || m.type === "Error")
+      .map((m) => m.shortText || m.objDescr || "")
+      .filter(Boolean)
+      .slice(0, 5)
+  }
+
+  let trfnActivated = false
+  let trfnActivateSuccess: boolean | undefined
+  let trfnActivateMessages: string[] | undefined
+  if (autoActivate) {
+    const lock = await lockTransformation(client, trfnId)
+    try {
+      const act = await activateTransformation(client, trfnId, lock.lockHandle)
+      trfnActivated = true
+      trfnActivateSuccess = !!act.success
+      trfnActivateMessages = (act.messages || [])
+        .filter((m) => m.messageType === "Error")
+        .map((m) => m.title || "")
+        .filter(Boolean)
+        .slice(0, 5)
+    } finally {
+      await unlockTransformation(client, trfnId)
+    }
+  }
+
+  return {
+    trfnId,
+    className,
+    created,
+    saveResult,
+    classActivated,
+    classActivateSuccess,
+    classActivateMessages,
+    trfnActivated,
+    trfnActivateSuccess,
+    trfnActivateMessages
+  }
+}
+
 // ============================================================================
 // CREATE —— 8TRANSIENT 瞬态流 (Eclipse 新建转换向导同款, 2026-09-11 实测)
 // ============================================================================
@@ -1540,15 +1691,175 @@ export function extractAbapClassName(raw: any): string | undefined {
     }
   }
 
-  // 方法2: 通过命名约定推导 —— /BIC/ + TRFN id 第 13-32 位 + _M
-  // 已验证实例: 0F30KPOAZK07TIY86JBGVAO9XHWIVIBT → TIY86JBGVAO9XHWIVIBT_M
-  //             0BE9X06HU3MN3FB1TO6MNLEGQI6XIJEO → 3FB1TO6MNLEGQI6XIJEO_M
+  // 方法2: 通过命名约定推导
   const trfnName = root["@_name"] || root["name"]
-  if (trfnName && typeof trfnName === "string" && trfnName.length >= 20) {
-    return `/BIC/${trfnName.slice(12)}_M`
+  if (trfnName && typeof trfnName === "string") {
+    try {
+      return deriveRoutineClassName(trfnName)
+    } catch {
+      return undefined
+    }
   }
 
   return undefined
+}
+
+/**
+ * 例程 AMDP 类名约定：`/BIC/` + TRFN id 从第 13 字符起 + `_M`
+ * 已验证：0OWVFWFXS8GE8R2VTBF9YQX4QMQST1TV → /BIC/8R2VTBF9YQX4QMQST1TV_M
+ */
+export function deriveRoutineClassName(trfnId: string): string {
+  const id = String(trfnId || "").trim()
+  if (id.length < 20) {
+    throw new Error(
+      `deriveRoutineClassName: TRFN id too short (${id.length}): ${JSON.stringify(id)}`
+    )
+  }
+  return `/BIC/${id.slice(12)}_M`
+}
+
+export function hasEndRoutineInXml(trfnXml: string): boolean {
+  return /<rule\b[^>]*routinetype="END"/i.test(trfnXml)
+}
+
+export function hasStartRoutineInXml(trfnXml: string): boolean {
+  return /<rule\b[^>]*routinetype="START"/i.test(trfnXml)
+}
+
+export interface EnsureRoutineInXmlResult {
+  xml: string
+  created: boolean
+  className: string
+}
+
+function extractTrfnNameFromXml(trfnXml: string): string {
+  const m =
+    trfnXml.match(/<(?:trfn:)?transformation\b[^>]*\bname="([^"]+)"/) ||
+    trfnXml.match(/\bname="([0-9A-Za-z]{20,})"/)
+  if (!m?.[1]) throw new Error("TRFN name not found in XML root")
+  return m[1]
+}
+
+function classNameFromXmlOrDerive(trfnXml: string, trfnName: string): string {
+  const m = trfnXml.match(/classNameM="([^"]+)"/)
+  if (m?.[1]) return m[1]
+  return deriveRoutineClassName(trfnName)
+}
+
+function buildEndRuleXml(
+  ruleId: number,
+  className: string,
+  targetFields?: string[]
+): string {
+  const targets = (targetFields || [])
+    .map(
+      (f, i) =>
+        `      <target id="${i + 1}"><elementRef>#///target/segment1/${f}</elementRef></target>`
+    )
+    .join("\n")
+  return (
+    `<rule description="" id="${ruleId}" routinetype="END">` +
+    (targets ? `\n${targets}\n` : "") +
+    `<step xsi:type="trfn:StepRoutine" classNameM="${className}" methodNameM="GLOBAL_END" hanaRuntime="false" id="1" type="ROUTINE" rank="MAIN"/>` +
+    `</rule>`
+  )
+}
+
+function buildStartRuleXml(
+  ruleId: number,
+  className: string,
+  sourceFields?: string[]
+): string {
+  const sources = (sourceFields || [])
+    .map(
+      (f, i) =>
+        `      <source id="${i + 1}"><elementRef>#///source/segment1/${f}</elementRef></source>`
+    )
+    .join("\n")
+  return (
+    `<rule description="" id="${ruleId}" routinetype="START">` +
+    (sources ? `\n${sources}\n` : "") +
+    `<step xsi:type="trfn:StepRoutine" classNameM="${className}" methodNameM="GLOBAL_START" hanaRuntime="false" id="1" type="ROUTINE"/>` +
+    `</rule>`
+  )
+}
+
+/** 把一条 rule 插入已有 type=G 的 group（在 </group> 前）；若无 G 组则在 S 组前新建。 */
+function insertRoutineRuleIntoGGroup(trfnXml: string, ruleXml: string): string {
+  const gMatch = trfnXml.match(/<group\b[^>]*type="G"[^>]*>[\s\S]*?<\/group>/)
+  if (gMatch && gMatch.index !== undefined) {
+    const g = gMatch[0]
+    const nextG = g.replace(/<\/group>\s*$/, `\n    ${ruleXml}\n  </group>`)
+    return (
+      trfnXml.slice(0, gMatch.index) +
+      nextG +
+      trfnXml.slice(gMatch.index + g.length)
+    )
+  }
+  const gGroup =
+    `  <group id="0" description="" type="G" sourceSegment="#///source/segment1">\n` +
+    `    ${ruleXml}\n` +
+    `  </group>\n`
+  if (/<group\b[^>]*type="S"/.test(trfnXml)) {
+    return trfnXml.replace(/(<group\b[^>]*type="S")/, gGroup + "  $1")
+  }
+  return trfnXml.replace(
+    /<\/(?:trfn:)?transformation>/,
+    gGroup + "</trfn:transformation>"
+  )
+}
+
+/**
+ * 确保 TRFN XML 含 END 例程规则（对照 Eclipse：PUT 挂 routinetype=END + classNameM，服务端铸 AMDP 类）。
+ * 已存在则幂等返回。
+ */
+export function ensureEndRoutineInXml(
+  trfnXml: string,
+  options?: { targetFields?: string[] }
+): EnsureRoutineInXmlResult {
+  const trfnName = extractTrfnNameFromXml(trfnXml)
+  const className = deriveRoutineClassName(trfnName)
+  if (hasEndRoutineInXml(trfnXml)) {
+    return {
+      xml: trfnXml,
+      created: false,
+      className: classNameFromXmlOrDerive(trfnXml, trfnName)
+    }
+  }
+  const rule = buildEndRuleXml(nextRuleId(trfnXml), className, options?.targetFields)
+  return {
+    xml: insertRoutineRuleIntoGGroup(trfnXml, rule),
+    created: true,
+    className
+  }
+}
+
+/**
+ * 确保 TRFN XML 含 START 例程规则。与 END 共用同一 AMDP 类（classNameM 约定相同）。
+ */
+export function ensureStartRoutineInXml(
+  trfnXml: string,
+  options?: { sourceFields?: string[] }
+): EnsureRoutineInXmlResult {
+  const trfnName = extractTrfnNameFromXml(trfnXml)
+  const className = deriveRoutineClassName(trfnName)
+  if (hasStartRoutineInXml(trfnXml)) {
+    return {
+      xml: trfnXml,
+      created: false,
+      className: classNameFromXmlOrDerive(trfnXml, trfnName)
+    }
+  }
+  const rule = buildStartRuleXml(
+    nextRuleId(trfnXml),
+    className,
+    options?.sourceFields
+  )
+  return {
+    xml: insertRoutineRuleIntoGGroup(trfnXml, rule),
+    created: true,
+    className
+  }
 }
 
 /**

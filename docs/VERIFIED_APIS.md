@@ -7,6 +7,8 @@
 **2026-09-19 全量复测**：61 个域门面方法 + 客户端方法逐一实测，见[第 6 节](#6-2026-09-19-全量复测发现)。  
 **2026-09-20 读 API 全量验证**：86 个读类 API 逐一真机验证（多样本：标准 0\*/客户 Z\*/系统生成 id/双段 RSDS/不同源系统），63 ✅ / 5 ⚠️ / 18 ❌；逐 API 状态见 [API_REFERENCE.md](./API_REFERENCE.md) 状态列，新发现见[第 7 节](#7-2026-09-20-读-api-全量验证发现)。
 **2026-09-21 写 API 验证**：写 43 项全覆盖（ZGLD_TEST/$TMP，即建即删），22 ✅ / 20 ⚠️ / 1 ❌，发现 W1–W4 见[第 8 节](#8-2026-09-21-写-api-验证zld_test--tmp-本地对象)。
+**2026-09-21 写 API 第 3 轮故事链**：创建后改 / 类型回环 / 字段→IOBJ / 规则链 / 例程注入边界 / DTP D↔F，见 §8 **D9**（证据 `.local/probe/write-results3.json`）。
+**2026-09-21 例程创建闭环**：`ensureEndRoutine` / `ensureStartRoutine` 真机通过，见 §8 **D10**。
 **2026-09-21 读 API 复验**：71 个读类 API（V1/V2 移除后的全集）逐项复验——多样本（0\*/Z\*/命名空间/双链/双 RSDS/特征+关键指标/标准表+客户表）、负例（不存在对象/空结果/非法属性）、语义断言（字段回填与样本匹配）；66 ✅ / 3 ⚠️ / 2 ❌（V7 新发现，同日修复后转 ✅——终态 68 ✅）；71/71 覆盖自检通过。
 
 ---
@@ -21,7 +23,7 @@
 | ADSO / DTP / TRFN 读 | ✅ | 各域 `*-*.test.ts` |
 | ADSO / RSDS 写 | ✅（2026-09-19 复测，$TMP 本地对象） | `*-write.test.ts`（见下文会话模型） |
 | TRFN 写（创建/更新/切换/删除） | ✅（F2 修复后复测） | 瞬态流创建 + 水合规则 + HANARuntime 切换 |
-| TRFN 例程创建 | ❌ 无 REST 路径 | `setEndRoutineFields` 仅限已有 END 规则 |
+| TRFN 例程创建 | ✅ ensureEnd/StartRoutine | PUT 挂规则+classNameM → 铸 AMDP → 激活类 → 激活 TRFN（2026-09-21 抓包对齐，D10） |
 | TRFN 例程类读/写 | ✅ | `trfn-routine-*.test.ts` |
 | DataSource / Replication 读 | ✅ | `datasource*.ts` / `replication.test.ts` |
 | RSDS / Replication 写 | ⚠️ 未复测 | 无本地 RSDS 靶子（仅允许动自建对象） |
@@ -205,7 +207,7 @@ npm test -- --testPathPattern=adso-write
 - **服务器水合**：8TRANSIENT 创建后，服务器按源/目标同名字段自动生成 DIRECT 规则（实测 9 条）——新建 TRFN 无需 autoMap 即有初始映射。
 - **运行时切换可写**：根属性 `HANARuntime="true|false"`，`switchTransformationRuntime` 翻转 + `saveAndActivate` 端到端验证（true→false 回读生效、check 通过）。
 - **TRFN 删除（已入库 2026-09-20）**：transportchecks 路径需 `transport`（本地对象没有）；实测服务端路径 `lock(?action=lock)` → `DELETE /m?lockHandle=…` → `unlock` 可删本地 TRFN，裸 lock 必须带 `Accept: …trfn-v1_0_0+xml`，否则 415。`BWObject.delete` 已把 TRFN 归入 lockHandle 模式（可带 `transport` 作 corrNr），端到端复测通过（创建 → delete({lockHandle}) → 回读确认不存在）。
-- **缺口**：START/END/EXPERT 例程的**创建**无 REST 路径（库的 `setEndRoutineFields` 只能在已有 END 规则上加字段）；新字段的结构同步（Eclipse「同步结构」）库也未实现——跨名字段的 DIRECT 规则写链因此无法端到端测试。
+- **缺口**：START/END 例程创建已由 `ensureStartRoutine` / `ensureEndRoutine` 覆盖（见 D10）；新字段的结构同步（Eclipse「同步结构」）库仍未实现——跨名字段的 DIRECT 规则写链因此无法端到端测试。
 
 **BICS / DDIC 实证补充**：`query.initialView/preview/updateView` 全链通过（provider → 首特征 → preview 15 状态行 → updateView 回写）；DDIC `describe/getData/querySql` 通过（`selectStar` 运行时路径可用）。
 
@@ -256,7 +258,7 @@ npm test -- --testPathPattern=adso-write
 - **D2 DTP 抽取模式**：创建传 `F` 被服务端**水合为 `D`**（按源能力归一化，本系统源对均为 D）；PUT 翻转 `D↔F` **双向持久**（每步保存+激活+回读）；二次执行各自 201+runId、轮询匹配。
 - **D3 字段改造**：本地字段可**整块替换为 IOBJ 引用元素**（转换而非新增），激活后水合 `inlineType globalElementName`；CHAR→NUMC 改型、+DEC、+IOBJ 引用、删字段均逐步激活+回读通过。
 - **D4 规则链**（同一目标字段）：CONSTANT→FORMULA→NO_UPDATE 全部按写入类型持久；**INITIAL 被服务端规范化**（回读无 StepInitial，与 09-20 键上 INITIAL 规范化证据互补——非键字段亦然）；**键字段 CONSTANT 被接受**（0MATERIAL 常量 X 持久）。
-- **D5 例程边界精确形态**：无 END 规则的 TRFN 上 `setEndRoutineFields` 报 "END routine rule not found in TRFN XML"（例程创建无 REST 路径的调用侧形态）。
+- **D5 例程边界精确形态**：无 END 规则的 TRFN 上 `setEndRoutineFields` 报 "END routine rule not found in TRFN XML"（例程创建无 REST 路径的调用侧形态）。**D9 补充**：可手工注入 `type="G"` 的 START/END `StepRoutine` 骨架并 PUT 持久，之后 `setEndRoutineFields` 可勾选字段（含新加目标字段）；但激活报 AMDP/`OUTTAB` 未赋值——Eclipse 创建例程时生成的完整类体 REST 侧仍不可得。删掉 G 组后激活恢复。
 - **D6 修改时序**：inactive 期 PUT 持久（autoActivate:false）；**单锁双 PUT 后写生效**；**过期 timestamp（20200101000000）被服务端接受**——服务端不校验时间戳冲突，并发防护不可依赖它。
 
 **D7/D8 选项兼容矩阵（2026-09-21，用户点名门道后七格+六格实测）**
@@ -275,7 +277,32 @@ npm test -- --testPathPattern=adso-write
   - **语义（why）**：四类 ADSO 本质是**表布局不同**——标准 = AQ→AT→(可选)CL 的经典激活闭环；Staging = 入站/历史表，不走标准激活闭环（落地、缓冲、企业记忆，为下游喂数而非干净主数据层）；DataMart = 压缩态 + HANA 模型、报表只读（readOnly+withHanaModel）；DirectUpdate = 直写活动表（规划/APD 旁路，故禁激活与 changelog——即 D1 的组合约束）。Staging 下三选项是**单选模板**而非正交开关：每一档对应不同的表存在方式与读写合同，叠加会表结构冲突——这就是"三选一"的根源（档位名因版本略有出入：仅入站 / 入站+可报表(isReportingObject) / 企业记忆(保留历史)）。
   - MCP 语义层应把 staging 建模为枚举 `mode: inboundQueueOnly | compressDataLog | changeLog(企业记忆)` + `reportingEnabled`（仅非 inbound 模式），而非两个自由布尔。
 
-**范围外登记（⚠️，共 19 项）**：RSDS 写×6（源系统对象非本地靶子）、复制×2（系统级影响面）、PC 写×5（需专用可执行测试链）、createTransport（传输组织器写）、例程类写×5（例程创建无 REST 路径，业务 TRFN 的例程类不在授权范围）。
+**D9 第 3 轮故事链复验（2026-09-21，ZGLD_TEST/$TMP，即建即删）**
+
+证据：`.local/probe/write-results3.json`（主跑 + staging 回环补跑 + 干净 DTP + 例程注入/删除）。
+
+| 故事 | 结果 | 要点 |
+|------|------|------|
+| A 创建→改描述→标准↔Staging 回环 | ✅ | Staging 去 `<keyElement>`；回标准须 `addADSOKeyToXml`（`#///0MATERIAL`），裸插 `0MATERIAL`/错误容器会 XML schema 拒写 |
+| A DataMart / DirectUpdate | ✅ | DataMart=`readOnly+withHanaModel`；DirectUpdate=`directUpdate+act=F+cl=F` |
+| B 字段链 | ✅ | CHAR→NUMC；+DEC；+IOBJ 引用；本地字段整块→IOBJ；删字段——逐步激活回读 |
+| C 规则链 | ✅ | CONSTANT→FORMULA→DIRECT→NO_UPDATE 按类型持久 |
+| C 加字段后例程 | ⚠️→钉边界 | 无 END：`setEndRoutineFields` 明确报错；注入 G/START/END 可持久且可 setEnd（含 ZFLD2）；激活 AMDP OUTTAB 失败；**删 G 组后激活恢复** |
+| D DTP D↔F + 执行 | ✅ | 须在 **active** TRFN 上创建；水合多为 D；`D↔F` 双向持久；executerun 201+轮询 |
+| E 残留扫描 | ✅ | 前缀对象全部删除 |
+
+**D10 例程创建闭环（2026-09-21，对齐用户 Eclipse 抓包 ZVSTG91→ZVSTD91）**
+
+抓包顺序：8TRANSIENT 创建 → PUT 挂 END → GET `/BIC/…_M` → ADT LOCK/PUT source/UNLOCK → `/sap/bc/adt/activation` → BW modeling activation。
+
+库实现：`ensureEndRoutine` / `ensureStartRoutine`（+ XML 纯函数 `ensure*RoutineInXml`、`deriveRoutineClassName`）。
+
+- 类名约定：`/BIC/` + TRFN id `slice(12)` + `_M`（与 `extractAbapClassName` 方法2一致）。
+- 链路：PUT（`autoActivate:false`）→ 等类可读 → `activateAbapClass` → `activateTransformation`。
+- 真机（ZGLD_TEST/$TMP）：ensureEnd `created=true`，类/TRFN 均激活成功，源码含 `GLOBAL_END`+`RESULT_PACKAGE`；幂等 `created=false`；ensureStart 同款成功。
+- `setEndRoutineFields` 仍仅用于**已有** END 上勾选字段；无 END 时请先 `ensureEndRoutine`。
+
+**范围外登记（⚠️）**：RSDS 写×6、复制×2、PC 写×5、createTransport、EXPERT 例程、业务 TRFN 例程类不在本地靶授权范围。
 
 ## 安全说明
 

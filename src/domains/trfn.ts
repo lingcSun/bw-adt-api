@@ -56,6 +56,14 @@ export class TrfnDomain {
     })
   }
 
+  ensureEndRoutine(trfnId: string, options?: trfn.EnsureRoutineOptions) {
+    return trfn.ensureEndRoutine(this.h, trfnId, options)
+  }
+
+  ensureStartRoutine(trfnId: string, options?: trfn.EnsureRoutineOptions) {
+    return trfn.ensureStartRoutine(this.h, trfnId, options)
+  }
+
   switchRuntime(xmlContent: string, useHanaRuntime: boolean) {
     return trfn.switchTransformationRuntime(xmlContent, useHanaRuntime)
   }

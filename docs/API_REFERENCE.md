@@ -122,6 +122,8 @@
 | `extractRoutineMethodName` | 本地 | 提取例程方法名 | — |
 | `isEndRoutineFieldSelected` | 本地 | END 例程字段选中判定 | — |
 | `addFieldToEndRoutine` | 本地 | END 例程加字段（XML） | — |
+| `ensureEndRoutineInXml` / `ensureStartRoutineInXml` | 本地 | 注入 START/END 规则（含 classNameM） | — |
+| `ensureEndRoutine` / `ensureStartRoutine` | 写 | 创建例程全链路（PUT→激活类→激活 TRFN） | ✅ D10 |
 | `removeFieldFromEndRoutine` | 本地 | END 例程去字段（XML） | — |
 | `hasStartRoutine` | 本地 | START 例程存在判定 | — |
 | `hasEndRoutine` | 本地 | END 例程存在判定 | — |
@@ -412,7 +414,9 @@
 | `check` | 读 | → checkTransformation |
 | `saveAndActivate` | 写 | → saveAndActivateTransformation |
 | `create` | 写 | → createTransformation |
-| `setEndRoutineFields` | 写 | → @addFieldToEndRoutine 编排 |
+| `setEndRoutineFields` | 写 | → @addFieldToEndRoutine 编排（需已有 END） |
+| `ensureEndRoutine` | 写 | PUT 挂 END+铸类 → 激活类 → 激活 TRFN | ✅ D10 真机 |
+| `ensureStartRoutine` | 写 | 同款 START/GLOBAL_START | ✅ D10 真机 |
 | `switchRuntime` | 本地 | → switchTransformationRuntime |
 
 ## BWAdtClient（src/BWAdtClient.ts）
@@ -469,7 +473,9 @@
 | `createTransformation` | 写 | = createTransformation |
 | `createDTP` | 写 | = createDTP |
 | `saveAndActivateTransformation` | 写 | = saveAndActivateTransformation |
-| `setEndRoutineFields` | W | addFieldToEndRoutine+save |
+| `setEndRoutineFields` | W | addFieldToEndRoutine+save（需已有 END） |
+| `ensureEndRoutine` | W | 创建/确保 END 例程（类+TRFN 激活） |
+| `ensureStartRoutine` | W | 创建/确保 START 例程 |
 | `addTransformationRule` | 本地 | = addTransformationRule |
 | `autoMapTransformationFields` | 本地 | = autoMapTransformationFields |
 | `addTransformationRulesAndSave` | W | addRule+saveAndActivate |
