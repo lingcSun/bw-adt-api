@@ -266,12 +266,14 @@ npm test -- --testPathPattern=adso-write
   - `snapShotScenario` 与 `uniqueDataRecords` **互斥**——同设报 "'Snapshot Scenario' is set. 'Unique Data records' cannot be set."；
   - `uniqueDataRecords` 自由（有无 changelog 均持久）；
   - 合法组合实测：cl=T ✓、snap+cl ✓、uniq+cl ✓、uniq 单选 ✓、全关 ✓；非法：snap 单选 ✗、snap+uniq ✗。
+  - **语义（why）**：标准 ADSO 激活路径 = 请求(AQ)→激活→活动表(AT)，changelog 存前后镜像供下游抽 delta。三选项各答一个问题——`writeChangelog`：要不要 CL 镜像（下游有增量接力≈必开；纯终点可关省空间）；`uniqueDataRecords`：活动表同键是否只留一条（开=经典唯一键 DSO，激活合并/违例报错；关=允许同键多行）；`snapShotScenario`：按"某时刻完整现状"而非 before/after delta 处理（库存/非累积类）。**snapshot 必须依托镜像机制才自洽**（changelog 留历史），孤立开=语义悬空，建模层直接禁；本系统上 snapshot 与 uniqueDataRecords 整体互斥（比"唯一键也可撑快照"的概念模型更严）。
 - **D8 Staging 持久策略三选一**（activateData/writeChangelog 组合即策略，非自由布尔）：
   - `(act=F, cl=F)` = **inbound queue only**（无键合法；reporting 不可加——激活报 GET_OBJECT_FOR_EXTRACTION）；
   - `(act=T, cl=F)` = **compress data log**（**必须有键定义**，无键报 "Key definition missing"；`isReportingObject=true` 可叠加 ✓）；
   - `(act=T, cl=T)` = 带 changelog（**服务端强制 `isReportingObject=true`**，写 F 归一化为 T）；
   - `(act=F, cl=T)` = **非法**——"Change log cannot be set without 'Activate Data'"。
-  - MCP 语义层应把 staging 建模为枚举 `mode: inboundQueueOnly | compressDataLog | changeLog` + `reportingEnabled`（仅非 inbound 模式），而非两个自由布尔。
+  - **语义（why）**：四类 ADSO 本质是**表布局不同**——标准 = AQ→AT→(可选)CL 的经典激活闭环；Staging = 入站/历史表，不走标准激活闭环（落地、缓冲、企业记忆，为下游喂数而非干净主数据层）；DataMart = 压缩态 + HANA 模型、报表只读（readOnly+withHanaModel）；DirectUpdate = 直写活动表（规划/APD 旁路，故禁激活与 changelog——即 D1 的组合约束）。Staging 下三选项是**单选模板**而非正交开关：每一档对应不同的表存在方式与读写合同，叠加会表结构冲突——这就是"三选一"的根源（档位名因版本略有出入：仅入站 / 入站+可报表(isReportingObject) / 企业记忆(保留历史)）。
+  - MCP 语义层应把 staging 建模为枚举 `mode: inboundQueueOnly | compressDataLog | changeLog(企业记忆)` + `reportingEnabled`（仅非 inbound 模式），而非两个自由布尔。
 
 **范围外登记（⚠️，共 19 项）**：RSDS 写×6（源系统对象非本地靶子）、复制×2（系统级影响面）、PC 写×5（需专用可执行测试链）、createTransport（传输组织器写）、例程类写×5（例程创建无 REST 路径，业务 TRFN 的例程类不在授权范围）。
 
