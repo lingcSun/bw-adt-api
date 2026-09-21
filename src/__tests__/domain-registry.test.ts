@@ -175,6 +175,23 @@ describe("infoProvider 预注册（P1 Task 3 落地）", () => {
   })
 })
 
+describe("动词族审计 close-out（Task 1）：三建模域 exists/delete", () => {
+  test("adso/trfn/dtp 动词表均含 exists 与 delete（原型一致性由下方统一断言兜底）", () => {
+    for (const name of ["adso", "trfn", "dtp"]) {
+      const verbs = getDomain(name)?.verbs ?? []
+      expect(verbs).toContain("exists")
+      expect(verbs).toContain("delete")
+    }
+  })
+
+  test("dataSource 刻意不加 exists/delete（RSDS 删除无实测证据；notes 记录审计结论）", () => {
+    const e = getDomain("dataSource")
+    expect(e?.verbs).not.toContain("exists")
+    expect(e?.verbs).not.toContain("delete")
+    expect(e?.notes).toContain("不加 exists/delete")
+  })
+})
+
 describe("注册表 verbs ⇄ 门面实际方法名（一致性）", () => {
   test.each(attachedNames())("%s: registry verbs == 原型方法名", name => {
     const entry = getDomain(name)

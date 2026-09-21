@@ -61,6 +61,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "xml",
       "versions",
       "check",
+      "exists",
       "saveAndActivate",
       "addField",
       "addKey",
@@ -68,10 +69,11 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "validateInfoArea",
       "validateTemplate",
       "validateNewName",
-      "getRaw"
+      "getRaw",
+      "delete"
     ],
     notes:
-      "validateTemplate/validateNewName 是寄居的校验动词；validateInfoArea 已归位 client.infoArea.validate（P1 Task 2，旧位置保留 @deprecated）；getRaw 是 Advanced 层原始 XML 访问器"
+      "validateTemplate/validateNewName 是寄居的校验动词；validateInfoArea 已归位 client.infoArea.validate（P1 Task 2，旧位置保留 @deprecated）；getRaw 是 Advanced 层原始 XML 访问器。exists/delete 为动词族审计补齐（2026-09-22）：exists 归一 validate*Exists 为 boolean；delete 走 BWObject lockHandle 模式"
   },
   {
     name: "trfn",
@@ -82,15 +84,17 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "xml",
       "versions",
       "check",
+      "exists",
       "saveAndActivate",
       "create",
       "setEndRoutineFields",
       "ensureEndRoutine",
       "ensureStartRoutine",
-      "switchRuntime"
+      "switchRuntime",
+      "delete"
     ],
     notes:
-      "ensure*/setEndRoutineFields 是例程家族扩展动词；switchRuntime 是纯 XML 辅助（不发网络）"
+      "ensure*/setEndRoutineFields 是例程家族扩展动词；switchRuntime 是纯 XML 辅助（不发网络）。exists/delete 为动词族审计补齐（2026-09-22），delete 走 BWObject lockHandle 模式"
   },
   {
     name: "dtp",
@@ -101,12 +105,14 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "xml",
       "versions",
       "check",
+      "exists",
       "activate",
       "saveAndActivate",
-      "execute"
+      "execute",
+      "delete"
     ],
     notes:
-      "execute 是 ops 族动词（DTP 执行入口寄居建模域）；activate 是锁→激活→解锁一站式"
+      "execute 是 ops 族动词（DTP 执行入口寄居建模域）；activate 是锁→激活→解锁一站式。exists/delete 为动词族审计补齐（2026-09-22），delete 走 BWObject lockHandle 模式（W1：本地 DTP 亦实测可删）"
   },
   {
     name: "dataSource",
@@ -124,7 +130,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "replicateFull"
     ],
     notes:
-      "replicate/replicateFull/replicationInfo 是 ops 族动词；分类学明示复制运维留在 dataSource 内，不拆独立域"
+      "replicate/replicateFull/replicationInfo 是 ops 族动词；分类学明示复制运维留在 dataSource 内，不拆独立域。动词族审计结论（2026-09-22）：不加 exists/delete——RSDS 删除无实测证据，且 BWObject 通用单段 URI 不适用于双段 RSDS 标识（src/api/bwObject.ts DATA_SOURCE 登记）"
   },
   {
     name: "infoObject",
