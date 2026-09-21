@@ -106,6 +106,7 @@ Write orchestration (`saveAndActivate*`) lives in the **API layer** (`src/api/*`
 | `versions(id)` / `check(id)` | Version history / consistency |
 | `saveAndActivate(id, xml, options?)` | lock → transport → PUT → activate → unlock |
 | `addField(id, field, options?)` | Add local field then save+activate |
+| `addKey(id, infoObject, options?)` | Register InfoObject as key (keyless → keyed ADSO), then save; key is a prerequisite for activating keyless ADSOs |
 | `create(options)` | Full create (validate → create → optional activate) |
 | `validateInfoArea` / `validateTemplate` / `validateNewName` | Pre-create checks |
 
@@ -116,14 +117,26 @@ Write orchestration (`saveAndActivate*`) lives in the **API layer** (`src/api/*`
 | `trfn` | `details` / `xml` / `versions` / `check` | Read & check |
 | `trfn` | `create(options)` via `client.createTransformation` | 8TRANSIENT create flow |
 | `trfn` | `saveAndActivate(id, xml, options?)` | One-stop write |
-| `trfn` | `setEndRoutineFields(id, fields, options?)` | Check fields into end routine + save |
+| `trfn` | `setEndRoutineFields(id, fields, options?)` | Check fields into an **existing** END routine + save (ensure one first if missing) |
+| `trfn` | `ensureEndRoutine(id, options?)` | Create END routine Eclipse-style: PUT rules → generate AMDP class → activate class → activate TRFN |
+| `trfn` | `ensureStartRoutine(id, options?)` | Same flow for the START routine (source `fields`) |
 | `trfn` | `switchRuntime(xml, useHana)` | Pure XML helper (HANA vs ABAP) |
 | `dtp` | `details` / `xml` / `versions` / `check` | Read & check |
 | `dtp` | `create(options)` via `client.createDTP` | Minimal-body POST create |
 | `dtp` | `saveAndActivate(id, xml, options?)` | One-stop write |
 | `dtp` | `execute(id)` | Run DTP |
 
-Flat client methods still expose TRFN rule helpers (`addTransformationRulesAndSave`, class source read/write, …) and Advanced lock/update APIs.
+```typescript
+// Ensure an END routine (Eclipse-aligned flow, idempotent: created=false if already present)
+const r = await client.trfn.ensureEndRoutine(trfnId, {
+  fields: ["ZC_BSTKD"],        // target fields checked into the routine
+  transport: "BPDK9xxxxx"      // or createTransport: true
+})
+// r.className, r.created, r.classActivated
+// START routine: client.trfn.ensureStartRoutine(trfnId, { fields: ["0MATERIAL"] })
+```
+
+Flat client methods still expose the same helpers (`ensureEndRoutine` / `ensureStartRoutine`, `addTransformationRulesAndSave`, class source read/write, …) plus Advanced lock/update APIs. Pure XML transforms (`ensure*RoutineInXml`, `switchTransformationRuntime`, `addADSOKeyToXml`) are exported from the API layer for offline composition.
 
 ### `client.dataSource`
 
@@ -241,6 +254,17 @@ npm test -- --testPathPattern=datasource    # one suite
 ```
 
 Suites live in `src/__tests__/` and are checked against real Communication Logs.
+
+Some suites target specific objects and fall back to placeholder names when these are unset (they will fail against a real system until pinned via `.env`):
+
+```bash
+BW_TEST_ADSO=ZL_FID37          # ADSO read/write target
+BW_TEST_DTP=DTP_…              # DTP read target
+BW_TEST_TRFN=0MSIURA…          # TRFN read/routine target
+BW_TEST_PROCESS_CHAIN=ZPC_…    # process chain read target
+```
+
+CI (`ci.yml`) runs build + `verify:agents` only — integration suites require a live system and do not auto-skip offline yet.
 
 ## Documentation
 
