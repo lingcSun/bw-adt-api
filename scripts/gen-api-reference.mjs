@@ -363,7 +363,7 @@ out.push(`# BW-ADT-API 完整 API 参考（代码生成）
 | **写 (W)** | 变更或建立会话：lock/unlock、create/update/delete/activate、编排、执行、TR 创建 | ${nW} |
 | **本地 (L)** | 纯函数：XML/解析/工厂辅助，无服务器 I/O | ${nL} |
 
-读 API 的真机验证状态见状态列（✅/⚠️/❌）与 [VERIFIED_APIS.md](./VERIFIED_APIS.md)。
+读/写 API 的真机验证状态见状态列（✅/⚠️/❌，⚠️ 含"范围外未验证"登记）与 [VERIFIED_APIS.md](./VERIFIED_APIS.md)。写验证范围：ZGLD_TEST / $TMP 本地对象（2026-09-21）。
 
 > 2026-09-20：依据读验证 V1 结论（validation 端点拒绝 delete/activate action、PC/DTPA 不支持 new/exists），
 > 13 个 \`validate*CanDelete/CanActivate/validateProcessChain*/validateDTPNewName\` 函数已从 API 面移除，
@@ -402,7 +402,7 @@ const sectionTitles = {
 out.push(`\n## API 层（src/api/*.ts，${apiCount} 个导出函数）\n`)
 for (const [file, entries] of Object.entries(T)) {
   out.push(`\n### ${sectionTitles[file] || file}（\`${file}\`）\n`)
-  out.push("| 函数 | 类 | 端点/说明 | 读验证状态 |")
+  out.push("| 函数 | 类 | 端点/说明 | 验证状态 |")
   out.push("|---|---|---|---|")
   for (const [n, c, e, d] of entries) {
     if (c === "R") {
@@ -411,7 +411,8 @@ for (const [file, entries] of Object.entries(T)) {
       out.push(`| \`${n}\` | 读 | ${e} — ${d} | ${st} |`)
     } else {
       const info = e === "—" ? d : `${e} — ${d}`
-      out.push(`| \`${n}\` | ${CLS[c]} | ${info} | — |`)
+      const key = `${file.replace(".ts", "")}.${n}`
+      out.push(`| \`${n}\` | ${CLS[c]} | ${info} | ${results[key] || "—"} |`)
     }
   }
 }

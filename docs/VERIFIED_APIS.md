@@ -6,6 +6,7 @@
 验证日期基准：2026-07-15（写会话模型）；后续模块以同模型复测为准。  
 **2026-09-19 全量复测**：61 个域门面方法 + 客户端方法逐一实测，见[第 6 节](#6-2026-09-19-全量复测发现)。  
 **2026-09-20 读 API 全量验证**：86 个读类 API 逐一真机验证（多样本：标准 0\*/客户 Z\*/系统生成 id/双段 RSDS/不同源系统），63 ✅ / 5 ⚠️ / 18 ❌；逐 API 状态见 [API_REFERENCE.md](./API_REFERENCE.md) 状态列，新发现见[第 7 节](#7-2026-09-20-读-api-全量验证发现)。
+**2026-09-21 写 API 验证**：写 43 项全覆盖（ZGLD_TEST/$TMP，即建即删），22 ✅ / 20 ⚠️ / 1 ❌，发现 W1–W4 见[第 8 节](#8-2026-09-21-写-api-验证zld_test--tmp-本地对象)。
 **2026-09-21 读 API 复验**：71 个读类 API（V1/V2 移除后的全集）逐项复验——多样本（0\*/Z\*/命名空间/双链/双 RSDS/特征+关键指标/标准表+客户表）、负例（不存在对象/空结果/非法属性）、语义断言（字段回填与样本匹配）；66 ✅ / 3 ⚠️ / 2 ❌（V7 新发现，同日修复后转 ✅——终态 68 ✅）；71/71 覆盖自检通过。
 
 ---
@@ -229,6 +230,21 @@ npm test -- --testPathPattern=adso-write
 - **V6（2026-09-21）Eclipse 日志对照批**：`GET /sap/bw/modeling/repo/infoproviderstructure/area/{area}/{type}` 已入库（`getInfoproviderStructure`，门面 `repository.infoproviderStructure`）——atom:feed + bwModel:object（objectName/objectType/objectSubtype/objectStatus + atom:id/atom:title）；实测 iobj_cha/iobj_kyf/iobj/adso 三 type 均 200，无内容返回空 feed 不报错。**qprops（`GET /rules/qprops?objectType=&infoprovider=&version=`）端点存在但决定不实现（2026-09-21）**：其 vendor Accept 无法从服务端获取（415 报错对两侧内容类型的中间段一律以 `…` 字面缩写，17 个候选命名空间全部不中，ADT discovery 未登记该服务），实现需 Eclipse 请求头佐证；价值（BICS preview 免 initialView 选特征）不足以支撑该成本。若将来系统升级或抓包暴露了完整类型，以新证据重开。
 
 - **V7（已修复 2026-09-21）标准表 DDL 字段解析缺口**：`parseDDICTableSource` 只认原始类型形态（`abap.char(40)`，/BIC/ 生成表的 DDL），标准表用**数据元素类型**（`key mandt : mandt not null;`，无 `abap.` 前缀、无长度括号）时正则不命中——`getDDICTableInfo/getDDICTableFields` 对 T000 等标准表**静默返回 0 字段**（实测 T000=0 vs /BIC/=5）。修复：字段正则支持数据元素形态（`key mandt : mandt not null;`）并锚定行首（排除 `@AbapCatalog.foreignKey.screenCheck : true` 类注解冒号——离线测试先于真机抓到此泄漏）；护栏：`define table` 的 DDL 解析 0 字段时显式报错（拒绝静默空）。实测 T000=17 字段（MANDT key✓、dataType=元素名），/BIC/ 表 5 字段不回归。
+
+## 8. 2026-09-21 写 API 验证（ZGLD_TEST / $TMP 本地对象）
+
+方法：故事式全生命周期（非逐函数孤立调用）——ADSO blank→key→field→激活→改描述→删除；BWObject 通用路径；TRFN 8TRANSIENT 创建→加规则(CONSTANT/DIRECT)→自动映射→切运行时→删除；DTP 创建→锁→编辑→激活→删除探针。全部即建即删，收尾按前缀扫描确认无残留。写 43 项全覆盖：22 ✅ / 20 ⚠️ / 1 ❌（逐项见 API_REFERENCE 状态列）。
+
+**会话模型复认**：重复 lock 同 handle ✓；本地对象 `resolveTransportForWrite` 返回 undefined 不建 TR ✓（全链实证）。
+
+**新发现**
+
+- **W1 DTP 本地删除被库挡死**：`BWObject.delete` 对 DTP 强制 transport 模式（本地对象没有 TR），但服务端实测接受 `lock → DELETE /m?lockHandle → unlock`（200 + 回读消失）——与 TRFN（P1）完全同款。修法：`useLockHandleMode` 纳入 DTP。
+- **W2 createDTP 两个暗坑**：① 引用的 TRFN 必须 **active**（未激活/已删除均报同款模糊错误 "could not be successfully created"，库无预检）；② `description` 参数被**静默丢弃**——库把它放根元素属性，服务端忽略之，真实描述在 `overview/object@description` 且为派生字段（源→目标自动生成，PUT 接受但不持久）。可编辑实测点：`extractionSettings`（packageSize 持久化 ✓）。
+- **W3 executeDTP 从未可用**：`POST /dtpa/{id}?action=execute` 本系统报「内部错误：不支持 URI」；该函数历史无任何真机验证记录。真实触发端点需 Eclipse 抓包。
+- **W4 createObject 通用路径 parent 校验用错类型**：`BWObject.create` 的父对象校验用**对象自身类型**（建 ADSO 时把 InfoArea 名按 ADSO 查 → 404）；不传 parent 可正常创建。ADSO 专用路径（createADSOFull）无此问题。
+
+**范围外登记（⚠️，共 19 项）**：RSDS 写×6（源系统对象非本地靶子）、复制×2（系统级影响面）、PC 写×5（需专用可执行测试链）、createTransport（传输组织器写）、例程类写×5（例程创建无 REST 路径，业务 TRFN 的例程类不在授权范围）。
 
 ## 安全说明
 

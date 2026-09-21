@@ -11,7 +11,7 @@
 | **写 (W)** | 变更或建立会话：lock/unlock、create/update/delete/activate、编排、执行、TR 创建 | 43 |
 | **本地 (L)** | 纯函数：XML/解析/工厂辅助，无服务器 I/O | 46 |
 
-读 API 的真机验证状态见状态列（✅/⚠️/❌）与 [VERIFIED_APIS.md](./VERIFIED_APIS.md)。
+读/写 API 的真机验证状态见状态列（✅/⚠️/❌，⚠️ 含"范围外未验证"登记）与 [VERIFIED_APIS.md](./VERIFIED_APIS.md)。写验证范围：ZGLD_TEST / $TMP 本地对象（2026-09-21）。
 
 > 2026-09-20：依据读验证 V1 结论（validation 端点拒绝 delete/activate action、PC/DTPA 不支持 new/exists），
 > 13 个 `validate*CanDelete/CanActivate/validateProcessChain*/validateDTPNewName` 函数已从 API 面移除，
@@ -48,26 +48,26 @@
 
 ### 通用（激活/检查/验证/会话恢复）（`common.ts`）
 
-| 函数 | 类 | 端点/说明 | 读验证状态 |
+| 函数 | 类 | 端点/说明 | 验证状态 |
 |---|---|---|---|
-| `activateObject` | 写 | POST /sap/bw/modeling/activation — 激活对象（checkProperties feed） | — |
-| `checkObject` | 读 | POST /sap/bw/modeling/checkruns — 一致性检查（不激活；注意与激活端点不同） | ✅ checkruns：ADSO success=true，TRFN success=true |
+| `activateObject` | 写 | POST /sap/bw/modeling/activation — 激活对象（checkProperties feed） | ✅ 经 activateADSO/…家族调用（activateADSO/DTP 路径） |
+| `checkObject` | 读 | POST /sap/bw/modeling/checkruns — 一致性检查（不激活；注意与激活端点不同） | ✅ checkruns（写后一致性 success=true） |
 | `validateObject` | 读 | POST /sap/bw/modeling/validation — 对象验证（exists/new/delete/activate） | ✅ AREA token valid=true（与 adso.validateObject 同端点独立符号） |
 | `parseActivationResponse` | 本地 | 解析激活/检查 ATOM 响应 | — |
 | `parseLockResponse` | 本地 | 解析 lock 响应（lockHandle/corrNr/isLocal） | — |
 | `parseObjectVersions` | 本地 | 解析版本 ATOM feed | — |
 | `isServerErrorException` | 本地 | 判定 5xx 类异常 | — |
-| `withFreshSessionOnServerError` | 写 | 会话恢复 — 5xx 时 dropSession+重登并重试一次（仅限 lock 入口） | — |
+| `withFreshSessionOnServerError` | 写 | 会话恢复 — 5xx 时 dropSession+重登并重试一次（仅限 lock 入口） | ⚠️ 已由离线单测覆盖（无法安全制造真机 500 中毒） |
 
 ### 通用 BW 对象基类（`bwObject.ts`）
 
-| 函数 | 类 | 端点/说明 | 读验证状态 |
+| 函数 | 类 | 端点/说明 | 验证状态 |
 |---|---|---|---|
 | `createBWObject` | 本地 | BWObject 泛型实例工厂（lock/unlock/check/versions/create/update/delete） | — |
 
 ### ADSO（Advanced DataStore Object）（`adso.ts`）
 
-| 函数 | 类 | 端点/说明 | 读验证状态 |
+| 函数 | 类 | 端点/说明 | 验证状态 |
 |---|---|---|---|
 | `validateObject` | 读 | POST /sap/bw/modeling/validation — 对象验证（通用，ADSO 域内副本） | ✅ IOBJ token valid=true |
 | `validateInfoArea` | 读 | POST /sap/bw/modeling/validation — InfoArea 存在性 | ✅ valid |
@@ -84,14 +84,14 @@
 | `checkADSO` | 读 | POST /sap/bw/modeling/checkruns — 一致性检查 | ✅ success=true |
 | `validateADSOExists` | 读 | POST /sap/bw/modeling/validation — 存在性 | ✅ 存在=valid；负例报错(数据存储对象 'ZQNOTXIST9' 不存在) |
 | `validateADSONewName` | 读 | POST /sap/bw/modeling/validation — 新名称可用性 | ✅ 新名 valid=true；重名报错(名称为 ZADSO_02（类型为 ADSO）的信息提供者已存在) |
-| `createADSO` | 写 | POST /sap/bw/modeling/adso/{name}?lockHandle — 创建（需先 lock） | — |
-| `createADSOFull` | 写 | 验证→lock→创建→(激活)→unlock — 创建编排（门面入口） | — |
-| `lockADSO` | 写 | POST /adso/{id}?action=lock — 锁定（stateful） | — |
-| `unlockADSO` | 写 | POST /adso/{id}?action=unlock — 解锁（stateful） | — |
-| `activateADSO` | 写 | POST /sap/bw/modeling/activation — 激活 | — |
-| `updateADSO` | 写 | PUT /sap/bw/modeling/adso/{id}/m — 保存 XML（stateless） | — |
-| `saveAndActivateADSO` | 写 | lock→transport→PUT→activate→unlock — 保存并激活编排 | — |
-| `addADSOKey` | 写 | getXml→addADSOKeyToXml→saveAndActivate — 加键编排（默认不激活） | — |
+| `createADSO` | 写 | POST /sap/bw/modeling/adso/{name}?lockHandle — 创建（需先 lock） | ✅ blank 创建 200（经 createADSOFull） |
+| `createADSOFull` | 写 | 验证→lock→创建→(激活)→unlock — 创建编排（门面入口） | ✅ 门面编排（验证→lock→create→unlock） |
+| `lockADSO` | 写 | POST /adso/{id}?action=lock — 锁定（stateful） | ✅ stateful 锁；重复 lock 同 handle✓；isLocal=true |
+| `unlockADSO` | 写 | POST /adso/{id}?action=unlock — 解锁（stateful） | ✅ 解锁（finally 语义） |
+| `activateADSO` | 写 | POST /sap/bw/modeling/activation — 激活 | ✅ 经 addADSOField 编排激活（active 回读） |
+| `updateADSO` | 写 | PUT /sap/bw/modeling/adso/{id}/m — 保存 XML（stateless） | ✅ PUT 改 label（timestamp 自动提取） |
+| `saveAndActivateADSO` | 写 | lock→transport→PUT→activate→unlock — 保存并激活编排 | ✅ lock→transport(undefined)→PUT→activate→unlock 全链 |
+| `addADSOKey` | 写 | getXml→addADSOKeyToXml→saveAndActivate — 加键编排（默认不激活） | ✅ keyElement+引用元素 PUT（activated=false，由 addField 收尾激活） |
 | `buildADSOFieldElementXml` | 本地 | 本地字段元素 XML（infoObjectName 时分派引用分支） | — |
 | `buildADSOInfoObjectElementXml` | 本地 | IOBJ 引用字段元素 XML（最小形态） | — |
 | `addADSOFieldToXml` | 本地 | 插入字段（无键 fail-fast） | — |
@@ -101,7 +101,7 @@
 
 ### TRFN（Transformation）（`transformation.ts`）
 
-| 函数 | 类 | 端点/说明 | 读验证状态 |
+| 函数 | 类 | 端点/说明 | 验证状态 |
 |---|---|---|---|
 | `getTransformation` | 读 | GET /sap/bw/modeling/trfn/{id}/{version} — TRFN 解析树 | ✅ 解析树双样本（经 details/xml 已验同名端点） |
 | `getTransformationDetails` | 读 | GET /sap/bw/modeling/trfn/{id}/{version} — TRFN 元数据 | ✅ 双样本；source.name=无；例程类=找到 |
@@ -110,12 +110,12 @@
 | `checkTransformation` | 读 | POST /sap/bw/modeling/checkruns — 一致性检查 | ✅ success=true |
 | `validateTransformationExists` | 读 | POST /sap/bw/modeling/validation — 存在性 | ✅ valid=true |
 | `validateTransformationNewName` | 读 | POST /sap/bw/modeling/validation — 新名称可用性 | ✅ valid=true（新生成 id） |
-| `lockTransformation` | 写 | POST /trfn/{id}?action=lock — 锁定（stateful） | — |
-| `unlockTransformation` | 写 | POST /trfn/{id}?action=unlock — 解锁 | — |
-| `updateTransformation` | 写 | PUT /sap/bw/modeling/trfn/{id}/m — 保存 XML | — |
-| `activateTransformation` | 写 | POST /sap/bw/modeling/activation — 激活 | — |
-| `saveAndActivateTransformation` | 写 | lock→transport→PUT→activate→unlock — 保存并激活编排 | — |
-| `createTransformation` | 写 | GET 8TRANSIENT→CREA lock→POST→unlock — 8TRANSIENT 瞬态流创建 | — |
+| `lockTransformation` | 写 | POST /trfn/{id}?action=lock — 锁定（stateful） | ✅（createTransformation 内 CREA lock + saveAndActivate 内 lock/unlock 复用同模型） |
+| `unlockTransformation` | 写 | POST /trfn/{id}?action=unlock — 解锁 | ✅（同上，finally unlock） |
+| `updateTransformation` | 写 | PUT /sap/bw/modeling/trfn/{id}/m — 保存 XML | ✅ PUT 带 addRule(CONSTANT) XML |
+| `activateTransformation` | 写 | POST /sap/bw/modeling/activation — 激活 | ✅ 编排内激活（success 回读） |
+| `saveAndActivateTransformation` | 写 | lock→transport→PUT→activate→unlock — 保存并激活编排 | ✅ lock→PUT→activate→unlock（本地无 TR） |
+| `createTransformation` | 写 | GET 8TRANSIENT→CREA lock→POST→unlock — 8TRANSIENT 瞬态流创建 | ✅ 8TRANSIENT 瞬态流（0DYWYICUWK…，A3→A2） |
 | `parseTransformationSettings` | 本地 | 解析 settings/例程步骤规则 | — |
 | `extractTransformationTimestamp` | 本地 | 提取 changedAt | — |
 | `extractAbapClassName` | 本地 | 从解析树提取例程 ABAP 类名（含回退） | — |
@@ -133,7 +133,7 @@
 
 ### DTP（Data Transfer Process）（`dtp.ts`）
 
-| 函数 | 类 | 端点/说明 | 读验证状态 |
+| 函数 | 类 | 端点/说明 | 验证状态 |
 |---|---|---|---|
 | `getDTP` | 读 | GET /sap/bw/modeling/dtpa/{id}/m — DTP 解析树 | ✅ 解析树 |
 | `getDTPXml` | 读 | GET /sap/bw/modeling/dtpa/{id}/m — DTP 原始 XML | ✅ 127303B |
@@ -141,30 +141,30 @@
 | `getDTPVersions` | 读 | GET /sap/bw/modeling/dtpa/{id}/versions — 版本历史 | ✅ 10 版本 |
 | `checkDTP` | 读 | POST /sap/bw/modeling/checkruns — 一致性检查 | ✅ success=true |
 | `validateDTPExists` | 读 | POST /sap/bw/modeling/validation — 存在性 | ✅ valid=true |
-| `lockDTP` | 写 | POST /dtpa/{id}?action=lock — 锁定 | — |
-| `unlockDTP` | 写 | POST /dtpa/{id}?action=unlock — 解锁 | — |
-| `activateDTP` | 写 | POST /sap/bw/modeling/activation — 激活 | — |
-| `updateDTP` | 写 | PUT /sap/bw/modeling/dtpa/{id}/m — 保存 XML | — |
-| `executeDTP` | 写 | POST /dtpa/{id}?action=execute — 运维执行（批量运行） | — |
-| `createDTP` | 写 | POST /sap/bw/modeling/dtpa/{id}?lockHandle — CREA lock→collection POST 创建 | — |
-| `saveAndActivateDTP` | 写 | lock→transport→PUT→activate→unlock — 保存并激活编排 | — |
+| `lockDTP` | 写 | POST /dtpa/{id}?action=lock — 锁定 | ✅ stateful 锁（isLocal=true） |
+| `unlockDTP` | 写 | POST /dtpa/{id}?action=unlock — 解锁 | ✅ 解锁 |
+| `activateDTP` | 写 | POST /sap/bw/modeling/activation — 激活 | ✅ 激活后 active 回读 |
+| `updateDTP` | 写 | PUT /sap/bw/modeling/dtpa/{id}/m — 保存 XML | ✅ extractionSettings.packageSize 编辑 PUT 持久化实测；overview@description 为服务端派生字段（PUT 接受不持久） |
+| `executeDTP` | 写 | POST /dtpa/{id}?action=execute — 运维执行（批量运行） | ❌ W3：?action=execute 本系统「内部错误：不支持 URI」——从未有真机验证记录，需 Eclipse 抓包 |
+| `createDTP` | 写 | POST /sap/bw/modeling/dtpa/{id}?lockHandle — CREA lock→collection POST 创建 | ✅ CREA lock→collection POST（引用 TRFN 须 active，W2）；description 参数被静默丢弃（W2） |
+| `saveAndActivateDTP` | 写 | lock→transport→PUT→activate→unlock — 保存并激活编排 | ✅ 编辑→激活→DTP active 回读 |
 | `generateDtpId` | 本地 | 生成 DTP_<26 位> 技术名 | — |
 
 ### RSDS（DataSource）（`datasource.ts`）
 
-| 函数 | 类 | 端点/说明 | 读验证状态 |
+| 函数 | 类 | 端点/说明 | 验证状态 |
 |---|---|---|---|
 | `getDataSource` | 读 | GET /sap/bw/modeling/rsds/{ds}/{sys}/m — RSDS 解析树（版本在 atom:id） | ✅ 解析树 |
 | `getDataSourceXml` | 读 | GET /sap/bw/modeling/rsds/{ds}/{sys}/m — RSDS 原始 XML | ✅ 9284B |
 | `getDataSourceDetails` | 读 | GET /sap/bw/modeling/rsds/{ds}/{sys}/m — RSDS 元数据 | ✅ 样本1(sys XXXXXXXXXX)✓；样本2(sys XXXXXXXXXX)✓ |
 | `getDataSourceFields` | 读 | GET /sap/bw/modeling/rsds/{ds}/{sys}/m — 字段列表 | ✅ 10 字段 |
 | `getDataSourceVersions` | 读 | GET /sap/bw/modeling/rsds/{ds}/{sys}/versions — 版本历史 | ✅ 1 版本（版本字符在 atom:id，RSDS 特例） |
-| `lockDataSource` | 写 | POST /rsds/{ds}/{sys}?action=lock — 锁定（含 5xx 会话恢复） | — |
-| `unlockDataSource` | 写 | POST /rsds/{ds}/{sys}?action=unlock — 解锁 | — |
-| `updateDataSource` | 写 | PUT /sap/bw/modeling/rsds/{ds}/{sys}/m — 保存 XML | — |
-| `activateDataSource` | 写 | POST /sap/bw/modeling/activation — 激活 | — |
-| `mergeDataSourceProposal` | 写 | POST /rsds/{ds}/{sys}/proposals — 适配器变更后字段合并建议 | — |
-| `saveAndActivateDataSource` | 写 | lock→transport→PUT→activate→unlock — 保存并激活编排 | — |
+| `lockDataSource` | 写 | POST /rsds/{ds}/{sys}?action=lock — 锁定（含 5xx 会话恢复） | ⚠️ 无本地 RSDS 靶子（RSDS 属源系统对象，非 ZGLD_TEST 本地） |
+| `unlockDataSource` | 写 | POST /rsds/{ds}/{sys}?action=unlock — 解锁 | ⚠️ 同上 |
+| `updateDataSource` | 写 | PUT /sap/bw/modeling/rsds/{ds}/{sys}/m — 保存 XML | ⚠️ 同上 |
+| `activateDataSource` | 写 | POST /sap/bw/modeling/activation — 激活 | ⚠️ 同上 |
+| `mergeDataSourceProposal` | 写 | POST /rsds/{ds}/{sys}/proposals — 适配器变更后字段合并建议 | ⚠️ 同上（且需适配器变更前置） |
+| `saveAndActivateDataSource` | 写 | lock→transport→PUT→activate→unlock — 保存并激活编排 | ⚠️ 同上 |
 | `parseDataSourceDetails` | 本地 | 解析 RSDS 元数据 | — |
 | `parseDataSourceFields` | 本地 | 解析字段列表 | — |
 | `parseDataSourceVersions` | 本地 | 解析版本 feed | — |
@@ -172,18 +172,18 @@
 
 ### 复制（Replication）（`replication.ts`）
 
-| 函数 | 类 | 端点/说明 | 读验证状态 |
+| 函数 | 类 | 端点/说明 | 验证状态 |
 |---|---|---|---|
 | `getReplicationInfo` | 读 | GET /sap/bw/modeling/lsysint/replication — 源系统复制信息 | ✅ 0 任务（源系统 XXXXXXXXXX） |
-| `replicateDataSource` | 写 | POST /lsysint/replication — 触发复制 | — |
-| `replicateDataSourceFull` | 写 | POST /lsysint/replication — 全量复制 | — |
+| `replicateDataSource` | 写 | POST /lsysint/replication — 触发复制 | ⚠️ 复制影响面超出本地对象（系统级操作） |
+| `replicateDataSourceFull` | 写 | POST /lsysint/replication — 全量复制 | ⚠️ 同上 |
 | `buildReplicationRequestBody` | 本地 | 复制请求体构建 | — |
 | `parseReplicationTasks` | 本地 | 解析复制任务 | — |
 | `parseReplicationResult` | 本地 | 解析复制结果 | — |
 
 ### DDIC 表与数据预览（`ddic.ts`）
 
-| 函数 | 类 | 端点/说明 | 读验证状态 |
+| 函数 | 类 | 端点/说明 | 验证状态 |
 |---|---|---|---|
 | `getADSODDICLinks` | 读 | GET /sap/bw/modeling/adso/{id}/m — Link 头解析（ddicTableLink 是模板占位符） | ✅ Link 头解析✓；ddicTableLink 本样本缺失（F9 已文档化不可靠，取表名走 getADSODDICTableName）；defaultDataPreview=无 |
 | `getADSODDICTableName` | 读 | GET /sap/bw/modeling/adso/{id}/{version} — 真实表名（XML tables 段） | ✅ activeTable=/BIC/AXXXXXXXX… |
@@ -198,7 +198,7 @@
 
 ### 搜索与关联（`search.ts`）
 
-| 函数 | 类 | 端点/说明 | 读验证状态 |
+| 函数 | 类 | 端点/说明 | 验证状态 |
 |---|---|---|---|
 | `searchBWObjects` | 读 | GET /sap/bw/modeling/repo/is/bwsearch — BW 对象搜索（名称/描述/类型过滤） | ✅ 样本采集即用（Z=1224/0=3189；名称+类型过滤）；日期过滤窄区间 163 条（合法无错） |
 | `quickSearch` | 读 | GET /sap/bw/modeling/repo/is/bwsearch — 按名快速搜索 | ✅ 命中 4；无匹配负例=0 |
@@ -208,14 +208,14 @@
 
 ### 数据流与血缘（DMOD）（`dataflow.ts`）
 
-| 函数 | 类 | 端点/说明 | 读验证状态 |
+| 函数 | 类 | 端点/说明 | 验证状态 |
 |---|---|---|---|
 | `getDataflow` | 读 | GET /sap/bw/modeling/dmod/8TRANSIENT — DMOD 数据流（上/下游） | ✅ up1=0 down1=0 both=0 |
 | `getDataflowLineage` | 读 | GET /sap/bw/modeling/dmod/8TRANSIENT — 血缘（upstream/downstream/both） | ✅ 1 关系（source=XXXXXXXX） |
 
 ### InfoObject（`infoobject.ts`）
 
-| 函数 | 类 | 端点/说明 | 读验证状态 |
+| 函数 | 类 | 端点/说明 | 验证状态 |
 |---|---|---|---|
 | `getInfoObject` | 读 | GET /sap/bw/modeling/iobj/{n}/a — InfoObject 详情（modified 版本） | ✅ 特征(0MATERIAL)✓；关键指标(0QUANTITY)✓；Z 定制✓ |
 | `getInfoObjectMetadata` | 读 | GET /sap/bw/modeling/iobj/{n}/m — InfoObject 元数据（active） | ✅ 特征样本 /m 版本 |
@@ -225,14 +225,14 @@
 
 ### 仓库目录（InfoObject Catalog）（`repository.ts`）
 
-| 函数 | 类 | 端点/说明 | 读验证状态 |
+| 函数 | 类 | 端点/说明 | 验证状态 |
 |---|---|---|---|
 | `getInfoproviderStructure` | 读 | GET /sap/bw/modeling/repo/infoproviderstructure/area/{area}/{type} — InfoArea 查询树（2026-09-21 真机验证） | ✅ cha=20 kyf=0 adso=0；负例区域=空数组 |
 | `parseInfoproviderStructure` | 本地 | 解析结构 feed | — |
 
 ### 系统信息（`systemInfo.ts`）
 
-| 函数 | 类 | 端点/说明 | 读验证状态 |
+| 函数 | 类 | 端点/说明 | 验证状态 |
 |---|---|---|---|
 | `systemInfo` | 读 | GET /sap/bw/modeling/repo/is/systeminfo — 系统信息（properties[]） | ✅ properties 结构✓ |
 | `getSystemProperty` | 读 | GET /sap/bw/modeling/repo/is/systeminfo — 读取单个系统属性 | ✅ system.logsys=有值；非法属性=空(不报错) |
@@ -240,7 +240,7 @@
 
 ### Process Chain（rspc JSON）（`processchain.ts`）
 
-| 函数 | 类 | 端点/说明 | 读验证状态 |
+| 函数 | 类 | 端点/说明 | 验证状态 |
 |---|---|---|---|
 | `getProcessChain` | 读 | GET /sap/bw/modeling/rspc/{id}/m — 链元数据（JSON，已实测） | ✅ name✓ objVers=M |
 | `getProcessChainDetails` | 读 | GET /sap/bw/modeling/rspc/{id}/m — 链详情（JSON，已实测） | ✅ 双链 status=active/active |
@@ -248,39 +248,39 @@
 | `getProcessChainLogs` | 读 | GET /sap/bw/modeling/rspc/{id}/logs — ⚠️ 本系统不支持（对象版本 L） | ⚠️ 本系统不支持（L）——文档化行为复认 |
 | `getProcessChainStatus` | 读 | GET /sap/bw/modeling/rspc/{id}/status — ⚠️ 本系统不支持（对象版本 S） | ⚠️ 本系统不支持（S）——文档化行为复认 |
 | `checkProcessChain` | 读 | POST /sap/bw/modeling/checkruns — 一致性检查（⚠️ 未实测） | ✅ success=true（rspc 前缀经 checkruns） |
-| `lockProcessChain` | 写 | POST /rspc/{id}?action=lock — 锁定（⚠️ 未实测） | — |
-| `unlockProcessChain` | 写 | POST /rspc/{id}?action=unlock — 解锁（⚠️ 未实测） | — |
-| `activateProcessChain` | 写 | POST /sap/bw/modeling/activation — 激活（⚠️ 未实测） | — |
-| `executeProcessChain` | 写 | POST /rspc/{id}?action=execute — 执行（⚠️ 未实测） | — |
-| `stopProcessChain` | 写 | POST /rspc/{id}?action=stop — 停止（⚠️ 未实测） | — |
+| `lockProcessChain` | 写 | POST /rspc/{id}?action=lock — 锁定（⚠️ 未实测） | ⚠️ 需专用可执行测试链（业务链不可动） |
+| `unlockProcessChain` | 写 | POST /rspc/{id}?action=unlock — 解锁（⚠️ 未实测） | ⚠️ 同上 |
+| `activateProcessChain` | 写 | POST /sap/bw/modeling/activation — 激活（⚠️ 未实测） | ⚠️ 同上 |
+| `executeProcessChain` | 写 | POST /rspc/{id}?action=execute — 执行（⚠️ 未实测） | ⚠️ 同上 |
+| `stopProcessChain` | 写 | POST /rspc/{id}?action=stop — 停止（⚠️ 未实测） | ⚠️ 同上 |
 | `parseProcessChainMetaData` | 本地 | 解析 rspc JSON 元数据 | — |
 | `parseProcessChainDetails` | 本地 | 解析 rspc JSON 详情 | — |
 
 ### CTS 传输（`transport.ts`）
 
-| 函数 | 类 | 端点/说明 | 读验证状态 |
+| 函数 | 类 | 端点/说明 | 验证状态 |
 |---|---|---|---|
 | `transportCheck` | 读 | POST /sap/bc/adt/cts/transportchecks — 录制检查（非变更探针） | ✅ 0*样本 RECORDING=空；Z 样本 RECORDING=空 TR=0 |
-| `createTransport` | 写 | POST /sap/bc/adt/cts/transports — 新建工作台请求 | — |
-| `resolveTransportForWrite` | 写 | check→(create)→TR — 写前 TR 解析编排 | — |
+| `createTransport` | 写 | POST /sap/bc/adt/cts/transports — 新建工作台请求 | ⚠️ 创建 TR 属传输组织器写（超出 ZGLD_TEST/本地对象范围） |
+| `resolveTransportForWrite` | 写 | check→(create)→TR — 写前 TR 解析编排 | ✅ 本地对象 RECORDING 空 → undefined，不建 TR（全链实证） |
 | `isTransportRequiredError` | 本地 | TransportRequiredError 判定 | — |
 
 ### ABAP 类（例程运行时类）（`abapClass.ts`）
 
-| 函数 | 类 | 端点/说明 | 读验证状态 |
+| 函数 | 类 | 端点/说明 | 验证状态 |
 |---|---|---|---|
 | `getAbapClassMetadata` | 读 | GET /sap/bc/adt/oo/classes/{n} — 类元数据 | ✅ ✓ |
 | `getAbapClassSource` | 读 | GET /sap/bc/adt/oo/classes/{n}/source/main — 类源码（例程读） | ✅ 42270B sourceCode（类 /BIC/RXXXXXXXXXXXXXXXXXXXXX） |
 | `getAbapClassObjectStructure` | 读 | GET /sap/bc/adt/oo/classes/{n} — 类结构 | ✅ ✓ |
-| `lockAbapClass` | 写 | POST /oo/classes/{n}?_action=LOCK — 类锁定 | — |
-| `unlockAbapClass` | 写 | POST /oo/classes/{n}?_action=UNLOCK — 类解锁 | — |
-| `updateAbapClassSource` | 写 | PUT /oo/classes/{n}/source/main — 保存类源码 | — |
-| `activateAbapClass` | 写 | POST /sap/bc/adt/activation — 类激活（非 BW modeling） | — |
-| `saveAndActivateAbapClassSource` | 写 | lock→PUT→activate→unlock — 类源码保存编排 | — |
+| `lockAbapClass` | 写 | POST /oo/classes/{n}?_action=LOCK — 类锁定 | ⚠️ 例程类属业务 TRFN（例程创建无 REST 路径，无法本地造靶） |
+| `unlockAbapClass` | 写 | POST /oo/classes/{n}?_action=UNLOCK — 类解锁 | ⚠️ 同上 |
+| `updateAbapClassSource` | 写 | PUT /oo/classes/{n}/source/main — 保存类源码 | ⚠️ 同上 |
+| `activateAbapClass` | 写 | POST /sap/bc/adt/activation — 类激活（非 BW modeling） | ⚠️ 同上 |
+| `saveAndActivateAbapClassSource` | 写 | lock→PUT→activate→unlock — 类源码保存编排 | ⚠️ 同上 |
 
 ### BICS Reporting（`reporting.ts`）
 
-| 函数 | 类 | 端点/说明 | 读验证状态 |
+| 函数 | 类 | 端点/说明 | 验证状态 |
 |---|---|---|---|
 | `queryProviderPreview` | 读 | POST /sap/bw/modeling/comp/reporting — BICS 提供者预览（会话状态） | ✅ rows=[4XXXXXXXX-BELNR] 预览✓ |
 | `getReportingInitialView` | 读 | POST /sap/bw/modeling/comp/reporting — BICS 初始视图（会话状态） | ✅ 初始视图可用 |
