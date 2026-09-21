@@ -291,12 +291,14 @@ export async function getDDICTableInfo(
 /**
  * Parse DDIC Table Source - 解析 DDIC 表源码（ABAP CDS DDL 格式）
  *
- * 支持的字段格式：
- * - key fieldname : abap.type(length) not null;
+ * 支持的字段格式（2026-09-21 V7 修复：补数据元素形态）：
+ * - key fieldname : abap.type(length) not null;            ← 原始类型（/BIC/ 生成表）
  * - key fieldname : abap.type(length, decimals) not null;
- * - fieldname : abap.type(length);
- * - @EndUserText.label : 'label'
- *   fieldname : abap.type(length) not null;
+ * - key fieldname : dataelement not null;                  ← 数据元素（标准表，如 T000 的 `key mandt : mandt`）
+ * - @EndUserText.label : 'label' 前缀注解同样适用
+ *
+ * 防回归护栏：DDL 是表定义（含 define table）却解析出 0 字段时显式报错，
+ * 拒绝静默空（V7 的危险面：调用方拿到空字段列表无从察觉）。
  */
 function parseDDICTableSource(source: string, tableName: string): DDICTableInfo {
   const fields: DDICTableField[] = []
@@ -308,18 +310,20 @@ function parseDDICTableSource(source: string, tableName: string): DDICTableInfo 
   const deliveryClassMatch = source.match(/@AbapCatalog\.deliveryClass\s*:\s*#(\w+)/)
   const deliveryClass = deliveryClassMatch ? deliveryClassMatch[1] : undefined
 
-  // 解析字段 - 支持单参数和双参数类型
-  // 格式: [@EndUserText.label:'xxx'] [key] fieldname : abap.type(length[, decimals]) [not null];
+  // 解析字段：原始类型 abap.type(len[,dec]) 或裸数据元素名。
+  // 行首锚定（m 标志）+ 注解行以 @ 开头 → 排除 `@AbapCatalog.foreignKey.screenCheck : true`
+  // 这类注解冒号被误读为字段；结尾断言（not null / ; / 换行）排除外键 where 子句
   const fieldPattern =
-    /(?:@EndUserText\.label\s*:\s*'([^']+)'\s*)?(key\s+)?(\w+)\s*:\s*(\w+)\.(\w+)\((\d+)(?:,\s*(\d+))?\)/g
+    /^(?:[ \t]*@EndUserText\.label\s*:\s*'([^']+)'\s*\n[ \t]*)?[ \t]*(key\s+)?(\w+)[ \t]*:[ \t]*(?:(\w+)\.(\w+)\((\d+)(?:,\s*(\d+))?\)|([A-Za-z_]\w*))(?=\s*(?:not\s+null)?\s*[;\n])/gm
   let fieldMatch
 
   while ((fieldMatch = fieldPattern.exec(source)) !== null) {
     const fieldLabel = fieldMatch[1]
     const isKey = !!fieldMatch[2]
     const fieldName = fieldMatch[3]
-    const dataType = fieldMatch[4] // abap
-    const dataTypeName = fieldMatch[5] // numc, dec, char, int4 等
+    const isPrimitive = !!fieldMatch[4]
+    // 原始类型 → "abap.char"；数据元素 → 元素名（如 mandt/mtext_d），长度由数据元素定义
+    const dataType = isPrimitive ? `${fieldMatch[4]}.${fieldMatch[5]}` : fieldMatch[8]
     const length = fieldMatch[6] ? parseInt(fieldMatch[6], 10) : undefined
     const decimals = fieldMatch[7] ? parseInt(fieldMatch[7], 10) : undefined
 
@@ -327,7 +331,7 @@ function parseDDICTableSource(source: string, tableName: string): DDICTableInfo 
       name: fieldName.toUpperCase(),
       position: fields.length + 1,
       keyFlag: isKey,
-      dataType: `${dataType}.${dataTypeName}`,
+      dataType,
       length,
       decimals,
       shortText: fieldLabel,
@@ -336,6 +340,13 @@ function parseDDICTableSource(source: string, tableName: string): DDICTableInfo 
       foreignKey: undefined,
       nullable: undefined
     })
+  }
+
+  // V7 护栏：非空表定义解析 0 字段 = 未识别的 DDL 形态，报错而非静默空
+  if (fields.length === 0 && /define\s+table/i.test(source)) {
+    throw new Error(
+      `DDIC DDL for ${tableName} parsed 0 fields — unrecognized DDL form (first 120 chars): ${source.replace(/\s+/g, " ").slice(0, 120)}`
+    )
   }
 
   return {

@@ -188,8 +188,8 @@
 | `getADSODDICLinks` | 读 | GET /sap/bw/modeling/adso/{id}/m — Link 头解析（ddicTableLink 是模板占位符） | ✅ Link 头解析✓；ddicTableLink 本样本缺失（F9 已文档化不可靠，取表名走 getADSODDICTableName）；defaultDataPreview=无 |
 | `getADSODDICTableName` | 读 | GET /sap/bw/modeling/adso/{id}/{version} — 真实表名（XML tables 段） | ✅ activeTable=/BIC/AXXXXXXXX… |
 | `getDDICTableMetadata` | 读 | GET /sap/bc/adt/ddic/tables/{t} — 表元数据（blueSource） | ✅ 标准表(T000) 标准表 name✓；/BIC/ /BIC/ name✓ |
-| `getDDICTableInfo` | 读 | GET /sap/bc/adt/ddic/tables/{t}/source/main — 表定义（DDL 源解析） | ❌ V7：标准表（数据元素型 DDL，如 T000）静默解析 0 字段；/BIC/ 表（abap.* 原始类型）5 字段正常 |
-| `getDDICTableFields` | 读 | GET /sap/bc/adt/ddic/tables/{t}/source/main — 字段列表 | ❌ V7：标准表（数据元素型 DDL，如 T000）静默解析 0 字段；/BIC/ 表（abap.* 原始类型）5 字段正常 |
+| `getDDICTableInfo` | 读 | GET /sap/bc/adt/ddic/tables/{t}/source/main — 表定义（DDL 源解析） | ✅ V7 修复后实测：T000 数据元素型 DDL 17 字段（MANDT key✓）；/BIC/ 原始类型 5 字段不回归 |
+| `getDDICTableFields` | 读 | GET /sap/bc/adt/ddic/tables/{t}/source/main — 字段列表 | ✅ V7 修复后实测：T000 数据元素型 DDL 17 字段（MANDT key✓）；/BIC/ 原始类型 5 字段不回归 |
 | `getDDICTableDataMetadata` | 读 | GET /sap/bc/adt/datapreview/ddic/{t}/metadata — 数据预览列元数据 | ✅ 标准表✓；/BIC/✓ |
 | `getDDICTableData` | 读 | POST /sap/bc/adt/datapreview/ddic — 数据预览（SELECT，非变更） | ✅ 列表路径 0 行×7 列；selectStar(T000) 2 行 |
 | `getTableDataViaSQL` | 读 | POST /sap/bc/adt/datapreview/freestyle — Freestyle OpenSQL 查询 | ✅ freestyle 2 行（ORDER BY 生效） |
