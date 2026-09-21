@@ -146,7 +146,7 @@
 | `activateDTP` | 写 | POST /sap/bw/modeling/activation — 激活 | ✅ 激活后 active 回读 |
 | `updateDTP` | 写 | PUT /sap/bw/modeling/dtpa/{id}/m — 保存 XML | ✅ extractionSettings.packageSize 编辑 PUT 持久化实测；overview@description 为服务端派生字段（PUT 接受不持久） |
 | `executeDTP` | 写 | POST /dtpa/{id}?action=execute — 运维执行（批量运行） | ❌ W3：?action=execute 本系统「内部错误：不支持 URI」——从未有真机验证记录，需 Eclipse 抓包 |
-| `createDTP` | 写 | POST /sap/bw/modeling/dtpa/{id}?lockHandle — CREA lock→collection POST 创建 | ✅ CREA lock→collection POST（引用 TRFN 须 active，W2）；description 参数被静默丢弃（W2） |
+| `createDTP` | 写 | POST /sap/bw/modeling/dtpa/{id}?lockHandle — CREA lock→collection POST 创建 | ✅ CREA lock→collection POST；W2 已处置：TRFN 须 active 预检（inactive 明确报错、active 放行实测）+ description 不生效已文档化 |
 | `saveAndActivateDTP` | 写 | lock→transport→PUT→activate→unlock — 保存并激活编排 | ✅ 编辑→激活→DTP active 回读 |
 | `generateDtpId` | 本地 | 生成 DTP_<26 位> 技术名 | — |
 

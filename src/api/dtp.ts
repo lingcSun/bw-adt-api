@@ -486,6 +486,11 @@ export interface CreateDTPOptions {
   /** 目标包; 默认 "$TMP"。非 $TMP 时建议提供 transport */
   packageName?: string
   transport?: string
+  /**
+   * ⚠️ 不生效（2026-09-21 W2 实测）：服务端忽略根元素描述，DTP 真实描述是
+   * `overview/object@description` 派生字段（源→目标自动生成，PUT 亦不持久）。
+   * 参数仅为签名兼容保留。可编辑配置见 extractionSettings（如 packageSize）。
+   */
   description?: string
   responsible?: string
   masterSystem?: string // default "BPD"
@@ -537,6 +542,33 @@ export async function createDTP(
       `Pass transport=<TRKORR> (create one with createTransport), or set packageName="$TMP" explicitly.`
     )
   }
+  // W2 预检（2026-09-21 实测）：引用的 TRFN 必须处于 active 版本——未激活或已删除时
+  // 服务端只报模糊的 "could not be successfully created"，提前给出可操作报错。
+  {
+    let trfnXml: string
+    try {
+      const resp = await client.request(
+        `/sap/bw/modeling/trfn/${encodeURIComponent(options.transformId.toLowerCase())}/m`,
+        { method: "GET", headers: { Accept: "application/vnd.sap.bw.modeling.trfn-v1_0_0+xml" } }
+      )
+      trfnXml = resp.body
+    } catch (e) {
+      throw new Error(
+        `createDTP: referenced transformation ${options.transformId} could not be read ` +
+        `(${String((e as Error).message).slice(0, 80)}). ` +
+        `Create it with createTransformation() and pass its id.`
+      )
+    }
+    if (/<objectStatus>\s*inactive\s*<\/objectStatus>/.test(trfnXml)) {
+      throw new Error(
+        `createDTP: referenced transformation ${options.transformId} is INACTIVE — ` +
+        `the server only accepts DTP creation against an active transformation ` +
+        `(otherwise it fails with a cryptic "could not be successfully created"). ` +
+        `Activate it first via saveAndActivateTransformation().`
+      )
+    }
+  }
+
   const pkgUri = packageName === "$TMP"
     ? "/sap/bc/adt/packages/%24tmp"
     : `/sap/bc/adt/packages/${encodeURIComponent(packageName.toLowerCase())}`

@@ -387,9 +387,14 @@ export class BWObject<T extends BWObjectType> {
   ): Promise<void> {
     const { transport, parent, headers = {} } = options
 
-    // Step 1: 验证父对象（如果提供）
+    // Step 1: 验证父对象（如果提供）。
+    // W4（2026-09-21）：ADSO 的父对象是 InfoArea，校验类型必须是 AREA——原先用对象
+    // 自身类型（ADSO）校验 InfoArea 名必 404。其他类型的 parent 语义未验证，仍用
+    // 对象自身类型（调用方慎用；专用创建路径不受影响）。
     if (parent) {
-      await validateObject(this.client, this.objectType.toUpperCase(), parent, ValidationAction.EXISTS)
+      const parentValidationType =
+        this.objectType === BWObjectType.ADSO ? "AREA" : this.objectType.toUpperCase()
+      await validateObject(this.client, parentValidationType, parent, ValidationAction.EXISTS)
     }
 
     // Step 2: 验证新名称是否可用
@@ -521,17 +526,17 @@ export class BWObject<T extends BWObjectType> {
   /**
    * Delete Object - 删除对象
    *
-   * InfoArea / ADSO / TRFN: DELETE /sap/bw/modeling/{endpoint}/{name}/{m|a}?lockHandle={lockHandle}[&corrNr={tr}]
+   * InfoArea / ADSO / TRFN / DTP: DELETE /sap/bw/modeling/{endpoint}/{name}/{m|a}?lockHandle={lockHandle}[&corrNr={tr}]
    * 其他对象: DELETE /sap/bw/modeling/{endpoint}/{name}?transport={transport}
    *
    * 参数按类型二选一，**不再共用一个位置参数**——原先 ADSO/InfoArea 要 lockHandle、
    * 其余要 transport，同一个位置参数语义随类型漂移，极易传错：
-   * - ADSO / InfoArea / TRFN：必须 `{ lockHandle }`（先 lock 再删），可选 `transport` 带 corrNr
-   * - DTP / PC / InfoObject：必须 `{ transport }`
+   * - ADSO / InfoArea / TRFN / DTP：必须 `{ lockHandle }`（先 lock 再删），可选 `transport` 带 corrNr
+   * - PC / InfoObject：必须 `{ transport }`
    *
-   * TRFN 改走 lockHandle 路径的依据：transportchecks 路径要求 TR（本地对象没有），
-   * 实测 `lock(?action=lock) → DELETE /m?lockHandle → unlock` 可删本地 TRFN
-   * （docs/VERIFIED_APIS.md 第 6 节，2026-09-19/20 端到端验证）。
+   * TRFN/DTP 走 lockHandle 路径的依据：transportchecks 路径要求 TR（本地对象没有），
+   * 实测 `lock(?action=lock) → DELETE /m?lockHandle → unlock` 可删本地 TRFN/DTP
+   * （docs/VERIFIED_APIS.md 第 6/8 节，2026-09-19/21 端到端验证）。
    *
    * @param options.lockHandle - ADSO/InfoArea/TRFN 的锁定句柄
    * @param options.transport - DTP/PC/IObj 的传输请求号；
@@ -548,7 +553,8 @@ export class BWObject<T extends BWObjectType> {
     const useLockHandleMode =
       this.objectType === BWObjectType.INFO_AREA ||
       this.objectType === BWObjectType.ADSO ||
-      this.objectType === BWObjectType.TRANSFORMATION
+      this.objectType === BWObjectType.TRANSFORMATION ||
+      this.objectType === BWObjectType.DTP
 
     // 类型决定必填项，且拒绝走错分支（比静默拼出错误查询串好）。
     if (useLockHandleMode && !options.lockHandle) {

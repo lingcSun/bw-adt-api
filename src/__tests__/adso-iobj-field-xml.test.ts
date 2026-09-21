@@ -70,8 +70,9 @@ describe("BWObject.delete 参数校验", () => {
     await expect(obj.delete({ lockHandle: "H" })).rejects.toThrow()
   })
 
-  test("DTP 缺 transport 报错（行为不变）", async () => {
+  test("DTP 缺 lockHandle 报错（W1：DTP 纳入 lockHandle 删除模式）", async () => {
     const obj = new BWObject(fakeClient, BWObjectType.DTP, "DTP_1")
-    await expect(obj.delete({})).rejects.toThrow(/requires options.transport/)
+    await expect(obj.delete({})).rejects.toThrow(/requires options.lockHandle/)
+    await expect(obj.delete({ lockHandle: "H" })).rejects.toThrow() // 校验通过后进入请求层（fake client 无 request）
   })
 })

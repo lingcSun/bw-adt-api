@@ -239,10 +239,10 @@ npm test -- --testPathPattern=adso-write
 
 **新发现**
 
-- **W1 DTP 本地删除被库挡死**：`BWObject.delete` 对 DTP 强制 transport 模式（本地对象没有 TR），但服务端实测接受 `lock → DELETE /m?lockHandle → unlock`（200 + 回读消失）——与 TRFN（P1）完全同款。修法：`useLockHandleMode` 纳入 DTP。
-- **W2 createDTP 两个暗坑**：① 引用的 TRFN 必须 **active**（未激活/已删除均报同款模糊错误 "could not be successfully created"，库无预检）；② `description` 参数被**静默丢弃**——库把它放根元素属性，服务端忽略之，真实描述在 `overview/object@description` 且为派生字段（源→目标自动生成，PUT 接受但不持久）。可编辑实测点：`extractionSettings`（packageSize 持久化 ✓）。
+- **W1（已修复 2026-09-21）DTP 本地删除被库挡死**：`BWObject.delete` 曾对 DTP 强制 transport 模式（本地对象没有 TR），服务端实测接受 `lock → DELETE /m?lockHandle → unlock`（200 + 回读消失）——与 TRFN（P1）同款。已把 DTP 纳入 lockHandle 模式，库路径端到端实测删除成功。
+- **W2 createDTP 两个暗坑**：① 引用的 TRFN 必须 **active**（未激活/已删除均报同款模糊错误 "could not be successfully created"，库无预检）；② `description` 参数被**静默丢弃**——库把它放根元素属性，服务端忽略之，真实描述在 `overview/object@description` 且为派生字段（源→目标自动生成，PUT 接受但不持久）。可编辑实测点：`extractionSettings`（packageSize 持久化 ✓）。**已处置（2026-09-21）**：createDTP 加 TRFN active 预检（inactive/不可读 → 可操作报错，拦截与放行均实测）；description 参数标注"不生效"。
 - **W3 executeDTP 从未可用**：`POST /dtpa/{id}?action=execute` 本系统报「内部错误：不支持 URI」；该函数历史无任何真机验证记录。真实触发端点需 Eclipse 抓包。
-- **W4 createObject 通用路径 parent 校验用错类型**：`BWObject.create` 的父对象校验用**对象自身类型**（建 ADSO 时把 InfoArea 名按 ADSO 查 → 404）；不传 parent 可正常创建。ADSO 专用路径（createADSOFull）无此问题。
+- **W4（已修复 2026-09-21）createObject 通用路径 parent 校验用错类型**：`BWObject.create` 的父对象校验曾用**对象自身类型**（建 ADSO 时把 InfoArea 名按 ADSO 查 → 404）。已改为 ADSO 的 parent 按 AREA 校验（带 parent 的 createObject 实测通过）；其他类型 parent 语义未验证、保持原行为并注释提示。
 
 **范围外登记（⚠️，共 19 项）**：RSDS 写×6（源系统对象非本地靶子）、复制×2（系统级影响面）、PC 写×5（需专用可执行测试链）、createTransport（传输组织器写）、例程类写×5（例程创建无 REST 路径，业务 TRFN 的例程类不在授权范围）。
 
