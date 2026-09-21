@@ -13,7 +13,7 @@
 export type DomainKind = "modeling" | "ops" | "structure"
 
 export interface DomainEntry {
-  /** 域名 = BWAdtClient 上的门面字段名（infoArea 尚未挂载，P1 Task 2）。 */
+  /** 域名 = BWAdtClient 上的门面字段名。 */
   name: string
   kind: DomainKind
   summary: string
@@ -62,7 +62,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "getRaw"
     ],
     notes:
-      "validateInfoArea/validateTemplate/validateNewName 是寄居的校验动词（P1 Task 2 归位 infoArea）；getRaw 是 Advanced 层原始 XML 访问器"
+      "validateTemplate/validateNewName 是寄居的校验动词；validateInfoArea 已归位 client.infoArea.validate（P1 Task 2，旧位置保留 @deprecated）；getRaw 是 Advanced 层原始 XML 访问器"
   },
   {
     name: "trfn",
@@ -174,7 +174,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
     summary: "InfoArea 容器域（对象树 / 校验）",
     verbs: ["tree", "validate"],
     notes:
-      "P1 Task 2 落地：validateInfoArea、getInfoproviderStructure 两个既有动词自 adso/repository 归位；尚未挂载到 client"
+      "P1 Task 2 已落地：tree（自 repository.infoproviderStructure）、validate（自 adso.validateInfoArea）归位，旧位置保留 @deprecated"
   }
 ]
 

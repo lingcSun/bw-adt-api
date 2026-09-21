@@ -10,6 +10,8 @@ export class RepositoryDomain {
   /**
    * InfoArea 下可用于查询定义的对象树（2026-09-21 真机验证）。
    * type 默认 iobj_cha（特征），可选 iobj_kyf / iobj / adso。
+   *
+   * @deprecated 使用 `client.infoArea.tree`（P1 Task 2 归位 infoArea 域）。
    */
   infoproviderStructure(
     infoArea: string,

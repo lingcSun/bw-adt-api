@@ -5,8 +5,7 @@
  * - kind 三分类与域分类学笔记一致（query/ddic 为 structure：只读消费面）；
  * - verbs 列各域门面"当前实际"的方法名（类是事实，注册表跟随），
  *   一致性断言 verbs == 门面原型方法名，不断言 ∈ VERB_FAMILIES
- *   （越族动词用 notes 记录，如 dataSource.replicate）；
- * - 注册但尚未挂载到 client 的域（infoArea，P1 Task 2）跳过一致性对比。
+ *   （越族动词用 notes 记录，如 dataSource.replicate）。
  *
  * 全部断言离线可得：只实例化类（{} as AdtHTTP），不发网络请求、不读 .env。
  */
@@ -21,6 +20,7 @@ import {
   DataSourceDomain,
   DdicDomain,
   DtpDomain,
+  InfoAreaDomain,
   InfoObjectDomain,
   ProcessChainDomain,
   QueryDomain,
@@ -42,12 +42,12 @@ const FACADE_CLASSES: Record<string, new (h: AdtHTTP) => unknown> = {
   query: QueryDomain,
   system: SystemDomain,
   ddic: DdicDomain,
-  transport: TransportDomain
-  // infoArea：P1 Task 2 落地后挂入
+  transport: TransportDomain,
+  infoArea: InfoAreaDomain
 }
 
-/** 未挂载域清单：当前必须恰好是 infoArea；Task 2 落地后更新为 []。 */
-const EXPECTED_UNATTACHED = ["infoArea"]
+/** 未挂载域清单：infoArea 已于 P1 Task 2 挂载，当前应为空。 */
+const EXPECTED_UNATTACHED: string[] = []
 
 /** 门面原型上的公开方法名（prototype own-properties，去 constructor）。 */
 function facadeMethods(facade: unknown): string[] {
@@ -139,7 +139,7 @@ describe("kind 三分类（域分类学）", () => {
 })
 
 describe("infoArea 预注册（P1 Task 2 落地）", () => {
-  test("已注册：structure、tree/validate 动词、标注待落地", () => {
+  test("已注册：structure、tree/validate 动词、标注 P1 Task 2 落地", () => {
     const e = getDomain("infoArea")
     expect(e).toBeDefined()
     expect(e?.kind).toBe("structure")
@@ -147,7 +147,7 @@ describe("infoArea 预注册（P1 Task 2 落地）", () => {
     expect(e?.notes).toContain("P1 Task 2")
   })
 
-  test("注册但未挂载的域恰好是 infoArea（落地后更新 EXPECTED_UNATTACHED）", () => {
+  test("全部注册域均已挂载到 client（EXPECTED_UNATTACHED 为空）", () => {
     const unattached = DOMAIN_REGISTRY.filter(
       e => !FACADE_CLASSES[e.name]
     ).map(e => e.name)

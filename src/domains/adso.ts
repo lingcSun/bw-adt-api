@@ -68,6 +68,9 @@ export class AdsoDomain {
     return adso.createADSOFull(this.h, options)
   }
 
+  /**
+   * @deprecated 使用 `client.infoArea.validate`（P1 Task 2 归位 infoArea 域）。
+   */
   validateInfoArea(name: string) {
     return adso.validateInfoArea(this.h, name)
   }

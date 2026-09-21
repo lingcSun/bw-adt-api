@@ -19,7 +19,8 @@ import {
   QueryDomain,
   SystemDomain,
   DdicDomain,
-  TransportDomain
+  TransportDomain,
+  InfoAreaDomain
 } from "./domains"
 
 export function createSSLConfig(
@@ -77,6 +78,7 @@ export class BWAdtClient {
   readonly system: SystemDomain
   readonly ddic: DdicDomain
   readonly transport: TransportDomain
+  readonly infoArea: InfoAreaDomain
 
   /**
    * Create a BW ADT client
@@ -122,6 +124,7 @@ export class BWAdtClient {
     this.system = new SystemDomain(this.h)
     this.ddic = new DdicDomain(this.h)
     this.transport = new TransportDomain(this.h)
+    this.infoArea = new InfoAreaDomain(this.h)
   }
 
   private createHttp() {
