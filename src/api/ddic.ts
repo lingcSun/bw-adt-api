@@ -166,7 +166,7 @@ export async function getADSODDICLinks(
   adsoId: string
 ): Promise<ADSODDICLinks & { rawHeaders?: Record<string, any> }> {
   const response = await client.request(
-    `/sap/bw/modeling/adso/${adsoId.toLowerCase()}/m`,
+    `/sap/bw/modeling/adso/${encodeURIComponent(adsoId.toLowerCase())}/m`,
     {
       method: "GET",
       headers: {

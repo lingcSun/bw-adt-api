@@ -197,9 +197,14 @@ export class BWObject<T extends BWObjectType> {
     return config
   }
 
-  /** 对象名进入 URI 的形式：PC preserveCase，其余统一小写（历史行为） */
+  /**
+   * 对象名进入 URI 的形式：PC preserveCase，其余统一小写（历史行为）。
+   * 统一 encodeURIComponent——命名空间名（/NS/OBJ）里的 / 不编码会被当
+   * 路径切开（V4，2026-09-21）；对常规名（字母数字下划线）编码是无操作。
+   */
   private get uriName(): string {
-    return this.config.preserveCase ? this.objectName : this.objectName.toLowerCase()
+    const name = this.config.preserveCase ? this.objectName : this.objectName.toLowerCase()
+    return encodeURIComponent(name)
   }
 
   /**

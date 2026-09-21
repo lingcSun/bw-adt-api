@@ -29,7 +29,8 @@ const RSDS_ENDPOINT = "/sap/bw/modeling/rsds"
  * 大小写不敏感 (Eclipse 日志中 lock 用小写、GET 用大写均返回 200), 统一转小写。
  */
 function rsdsBase(datasource: string, sourceSystem: string): string {
-  return `${RSDS_ENDPOINT}/${datasource.toLowerCase()}/${sourceSystem.toLowerCase()}`
+  // 路径段编码：命名空间名（/BIC/… 等）里的 / 不编码会被当路径切开（V4 同源）
+  return `${RSDS_ENDPOINT}/${encodeURIComponent(datasource.toLowerCase())}/${encodeURIComponent(sourceSystem.toLowerCase())}`
 }
 
 // ============================================================================

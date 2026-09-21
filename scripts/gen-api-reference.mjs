@@ -200,9 +200,6 @@ const T = {
   "repository.ts": [
     ["getInfoproviderStructure", "R", "GET /sap/bw/modeling/repo/infoproviderstructure/area/{area}/{type}", "InfoArea 查询树（2026-09-21 真机验证）"],
     ["parseInfoproviderStructure", "L", "—", "解析结构 feed"],
-    ["infoObjects", "R", "GET /sap/bc/adt/bw/objects/infoobject", "InfoObject 目录查询"],
-    ["infoObjectDetails", "R", "GET /sap/bc/adt/bw/objects/infoobject", "InfoObject 目录详情"],
-    ["infoObjectCatalogs", "R", "GET /sap/bc/adt/bw/objects/infocatalog", "InfoObject 目录列表"],
   ],
   "systemInfo.ts": [
     ["systemInfo", "R", "GET /sap/bw/modeling/repo/is/systeminfo", "系统信息（properties[]）"],
@@ -370,7 +367,10 @@ out.push(`# BW-ADT-API 完整 API 参考（代码生成）
 
 > 2026-09-20：依据读验证 V1 结论（validation 端点拒绝 delete/activate action、PC/DTPA 不支持 new/exists），
 > 13 个 \`validate*CanDelete/CanActivate/validateProcessChain*/validateDTPNewName\` 函数已从 API 面移除，
-> \`ValidationAction\` 仅存 EXISTS/NEW。详见 VERIFIED_APIS 第 7 节。
+> \`ValidationAction\` 仅存 EXISTS/NEW。
+> 2026-09-21：依据 V2 结论（/sap/bc/adt/bw/objects/* 服务树本系统 404），
+> \`infoObjects\`/\`infoObjectDetails\`/\`infoObjectCatalogs\` 及其类型已移除。
+> 详见 VERIFIED_APIS 第 7 节。
 
 ## 总览
 

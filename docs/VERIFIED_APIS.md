@@ -216,12 +216,12 @@ npm test -- --testPathPattern=adso-write
 **服务端事实（新证据，影响 API 可用性）**
 
 - **V1（已处置 2026-09-20：移除）validation 端点仅支持 `action=exists`（加可创建类型的 `new`）**：`action=delete`、`action=activate` 被全类型拒绝（"Action 'delete'/'activate' is not valid"——ADSO/TRFN/DTP/IOBJ/PC 五类 × CanDelete/CanActivate 共 10 个函数全部 ❌）；`objectType=PC` 整体非法（"Object type 'PC' is not valid"）；DTPA/PC 的 `new` 被拒（"Creation of objects of type 'DTPA'/'PC' not supported"）。**共 13 个 validate\* 函数在本系统不可用——已从 API 面移除**（含 `BWObject.canDelete/canActivate` 与 `ValidationAction.DELETE/ACTIVATE`；存活的验证面收敛为 exists + 可创建类型的 new）。
-- **V2 repository.ts 模块端点在本系统不存在**：`/sap/bc/adt/bw/objects/infoobject[/name]`、`/infocatalog` 一律 404（"Resource does not exist"）——3 个函数本系统不可用，疑似面向其他发行版/产品。
+- **V2（已处置 2026-09-21：移除）repository.ts 模块端点在本系统不存在**：`/sap/bc/adt/bw/objects/infoobject[/name]`、`/infocatalog` 一律 404（"Resource does not exist"），父路径亦 404（服务未注册，非路径错误）——`infoObjects`/`infoObjectDetails`/`infoObjectCatalogs` 及其专属类型已从 API 面移除；InfoObject 读能力由 iobj 建模端点与搜索覆盖。
 - **V3 BICS initialView-first 顺序可用**：ADSO 提供者 initialView → 复用 state → updateView 回写成功；直接 preview 用 XML 元素名作 rows 会被拒（"Unknown row characteristic(s)"）——rows 必须用 BICS 视图状态里的特征名，不能用建模字段名。
 
 **库缺陷（新发现，待修）**
 
-- **V4 命名空间对象名未编码**：`/NS/OBJ` 形态的名字拼入 ADSO 读 URL 时未 encodeURIComponent，`/` 被当作路径切开 → 404。getADSO/getADSODetails/getADSOXml/getADSOTables/getADSOConfiguration 同构共享此模式（本轮实测 getADSOTables 复现 404）。
+- **V4（已修复 2026-09-21）命名空间对象名未编码**：`/NS/OBJ` 形态的名字拼入 URL 路径段时未 encodeURIComponent，`/` 被当作路径切开 → 404（实测 `/CPM/…` 对象复现）。修复：adso 族读路径、`BWObject.uriName`（lock/unlock/versions/delete 等统一路径）、ddic Link 读取、RSDS 双段 base 全部编码；qs 值保持原始（V5 契约）。修复后实测：命名空间 ADSO 的 details/tables/versions/ddicLinks 四路径全通（系统内存量 11 个命名空间 ADSO），常规名线上形态不变。
 - **V5（已修复 2026-09-20）getADSONodePath 双重编码**：根因是调用方预编码 `encodeURIComponent(objectUri)` 后再交给传输层（axios params 单次编码），上线成 `%252F...`，服务端报「Data type "" does not exist」。真机三组对照定位（预编码❌ / 单次编码✅ 200 同字节 / 原始串进 qs✅）；Eclipse 抓包（08:51 日志）线上形态即单次编码。修复后实测 adso URI 返回 3 节点；nodepath 端点本身对 iobj URI 同样可用（iobj 探针 200）。回归锁 `adso-nodepath-encoding.test.ts`：qs 必须收原始串。
   同轮 Eclipse 日志对照发现 5 个库外端点（iobj/versions、iobj/configuration、rules/qprops[需 vendor Accept `…ov_query_props-v3_0_0+xml`]、queryint user_props、repo/infoproviderstructure）均真机 200，未入库待决策。
 

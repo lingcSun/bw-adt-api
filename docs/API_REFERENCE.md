@@ -7,7 +7,7 @@
 
 | 类 | 含义 | 数量 |
 |---|---|---|
-| **读 (R)** | 非变更：GET、搜索、validation/checkruns 探针、数据预览、BICS 会话分析 | 74 |
+| **读 (R)** | 非变更：GET、搜索、validation/checkruns 探针、数据预览、BICS 会话分析 | 71 |
 | **写 (W)** | 变更或建立会话：lock/unlock、create/update/delete/activate、编排、执行、TR 创建 | 43 |
 | **本地 (L)** | 纯函数：XML/解析/工厂辅助，无服务器 I/O | 46 |
 
@@ -15,7 +15,10 @@
 
 > 2026-09-20：依据读验证 V1 结论（validation 端点拒绝 delete/activate action、PC/DTPA 不支持 new/exists），
 > 13 个 `validate*CanDelete/CanActivate/validateProcessChain*/validateDTPNewName` 函数已从 API 面移除，
-> `ValidationAction` 仅存 EXISTS/NEW。详见 VERIFIED_APIS 第 7 节。
+> `ValidationAction` 仅存 EXISTS/NEW。
+> 2026-09-21：依据 V2 结论（/sap/bc/adt/bw/objects/* 服务树本系统 404），
+> `infoObjects`/`infoObjectDetails`/`infoObjectCatalogs` 及其类型已移除。
+> 详见 VERIFIED_APIS 第 7 节。
 
 ## 总览
 
@@ -33,14 +36,14 @@
 | processchain | 13 | ProcessChainDomain |
 | replication | 6 | DataSourceDomain |
 | reporting | 8 | QueryDomain |
-| repository | 5 | RepositoryDomain |
+| repository | 2 | RepositoryDomain |
 | search | 5 | RepositoryDomain |
 | systemInfo | 3 | SystemDomain |
 | transformation | 27 | TrfnDomain |
 | transport | 4 | TransportDomain |
 
 
-## API 层（src/api/*.ts，163 个导出函数）
+## API 层（src/api/*.ts，160 个导出函数）
 
 
 ### 通用（激活/检查/验证/会话恢复）（`common.ts`）
@@ -76,7 +79,7 @@
 | `getADSOXml` | 读 | GET /sap/bw/modeling/adso/{id}/m — ADSO 原始 XML | ✅ 0标准: 4678B |
 | `getADSOVersions` | 读 | GET /sap/bw/modeling/adso/{id}/versions — 版本历史 | ✅ 2 版本 |
 | `getADSOConfiguration` | 读 | GET /sap/bw/modeling/adso/{id}/configuration — 配置信息 | ✅ 两样本 |
-| `getADSOTables` | 读 | GET /sap/bw/modeling/adso/{id}/{version} — 关联表名（AT/AQ/CL） | ✅ active=yes；⚠️ 命名空间名(/NS/*) 404（id 未编码） |
+| `getADSOTables` | 读 | GET /sap/bw/modeling/adso/{id}/{version} — 关联表名（AT/AQ/CL） | ✅ active=yes；命名空间名(/NS/*) 修复后实测可读（V4） |
 | `getADSONodePath` | 读 | GET /sap/bw/modeling/repo/nodepath — 仓库节点路径 | ✅ 修复双重编码后实测（3 节点；nodepath 对 adso/iobj URI 均可用，见账本 V5） |
 | `checkADSO` | 读 | POST /sap/bw/modeling/checkruns — 一致性检查 | ✅ success |
 | `validateADSOExists` | 读 | POST /sap/bw/modeling/validation — 存在性 | ✅ valid |
@@ -226,9 +229,6 @@
 |---|---|---|---|
 | `getInfoproviderStructure` | 读 | GET /sap/bw/modeling/repo/infoproviderstructure/area/{area}/{type} — InfoArea 查询树（2026-09-21 真机验证） | ✅ 2026-09-21 实测（cha/kyf/adso 三 type、三入口：门面/api/client；空区域返回空数组不报错） |
 | `parseInfoproviderStructure` | 本地 | 解析结构 feed | — |
-| `infoObjects` | 读 | GET /sap/bc/adt/bw/objects/infoobject — InfoObject 目录查询 | ❌ Resource  /sap/bc/adt/bw/objects/infoobject does not exist. |
-| `infoObjectDetails` | 读 | GET /sap/bc/adt/bw/objects/infoobject — InfoObject 目录详情 | ❌ Resource  /sap/bc/adt/bw/objects/infoobject/0MATERIAL does not exist. |
-| `infoObjectCatalogs` | 读 | GET /sap/bc/adt/bw/objects/infocatalog — InfoObject 目录列表 | ❌ Resource  /sap/bc/adt/bw/objects/infocatalog does not exist. |
 
 ### 系统信息（`systemInfo.ts`）
 

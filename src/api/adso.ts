@@ -436,7 +436,7 @@ export async function getADSO(
 ): Promise<any> {
   const qs = forceCacheUpdate ? { forceCacheUpdate: "true" } : undefined
 
-  const response = await client.request(`/sap/bw/modeling/adso/${adsoId.toLowerCase()}/m`, {
+  const response = await client.request(`/sap/bw/modeling/adso/${encodeURIComponent(adsoId.toLowerCase())}/m`, {
     method: "GET",
     qs,
     headers: {
@@ -545,7 +545,7 @@ export async function getADSOConfiguration(
   adsoId: string
 ): Promise<ADSOConfiguration> {
   const response = await client.request(
-    `/sap/bw/modeling/adso/${adsoId.toLowerCase()}/configuration`,
+    `/sap/bw/modeling/adso/${encodeURIComponent(adsoId.toLowerCase())}/configuration`,
     {
       method: "GET",
       headers: {
@@ -579,7 +579,7 @@ export async function getADSOTables(
   version: "m" | "a" | "d" = "m"
 ): Promise<ADSOTables> {
   const response = await client.request(
-    `/sap/bw/modeling/adso/${adsoId.toLowerCase()}/${version}`,
+    `/sap/bw/modeling/adso/${encodeURIComponent(adsoId.toLowerCase())}/${version}`,
     {
       method: "GET",
       headers: {
@@ -703,7 +703,7 @@ export async function updateADSO(
   }
 
   const response = await client.request(
-    `/sap/bw/modeling/adso/${adsoId.toLowerCase()}/m`,
+    `/sap/bw/modeling/adso/${encodeURIComponent(adsoId.toLowerCase())}/m`,
     {
       method: "PUT",
       qs,
@@ -745,7 +745,7 @@ export async function saveAndActivateADSO(
 ): Promise<SaveAndActivateADSOResult> {
   const { resolveTransportForWrite } = await import("./transport")
 
-  const adsoUri = `/sap/bw/modeling/adso/${adsoId.toLowerCase()}/m`
+  const adsoUri = `/sap/bw/modeling/adso/${encodeURIComponent(adsoId.toLowerCase())}/m`
   const autoActivate = options?.autoActivate ?? true
   const timestamp = options?.timestamp ?? extractADSOTimestamp(xmlContent)
 
@@ -1190,7 +1190,7 @@ export async function getADSOXml(
   forceCacheUpdate: boolean = false
 ): Promise<string> {
   const qs = forceCacheUpdate ? { forceCacheUpdate: "true" } : undefined
-  const response = await client.request(`/sap/bw/modeling/adso/${adsoId.toLowerCase()}/m`, {
+  const response = await client.request(`/sap/bw/modeling/adso/${encodeURIComponent(adsoId.toLowerCase())}/m`, {
     method: "GET",
     qs,
     headers: {
