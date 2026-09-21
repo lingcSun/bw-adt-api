@@ -10,7 +10,7 @@ Status: implemented
 
 （P1 Task 1：`src/domains/registry.ts` + `src/__tests__/domain-registry.test.ts`）
 
-- **`src/domains/registry.ts`** 导出 `DomainKind`（modeling/ops/structure 三分类）、`DomainEntry { name, kind, summary, verbs, notes? }`、`DOMAIN_REGISTRY`（12 域 = 11 现有 + 预注册的 infoArea）、`getDomain(name)` 与动词家族表 `VERB_FAMILIES`。kind 归类与[域分类学提案](../../proposed/architecture/2026-09-21-domain-taxonomy.md)一致，query/ddic 归 structure（只读消费面）。
+- **`src/domains/registry.ts`** 导出 `DomainKind`（modeling/ops/structure 三分类）、`DomainEntry { name, kind, summary, verbs, notes? }`、`DOMAIN_REGISTRY`（12 域 = 11 现有 + 预注册的 infoArea）、`getDomain(name)` 与动词家族表 `VERB_FAMILIES`。kind 归类与[域分类学提案](./2026-09-21-domain-taxonomy.md)一致，query/ddic 归 structure（只读消费面）。
 - **verbs 是"实然"清单**：逐域列门面类的当前实际方法名，与原型 own-properties（去 constructor）逐一相等；注册表不做家族裁判。越族动词（如 `dataSource.replicate/replicateFull`、`dtp.execute`、`adso.getRaw`、寄居的 validate 动词）写进 `notes`。
 - **一致性测试**实例化每个已挂载域（`{} as AdtHTTP`，离线），断言 registry verbs == 原型方法名；注册但未挂载的域由测试内 `EXPECTED_UNATTACHED` 哨兵把守，infoArea 已于 P1 Task 2 挂载、哨兵现为 `[]`（见 [InfoArea 域归位](2026-09-21-infoarea-domain.md)）。
 
@@ -29,5 +29,5 @@ Status: implemented
 
 ## Related
 
-- kind 三分类与动词家族的出处：[域分类学提案](../../proposed/architecture/2026-09-21-domain-taxonomy.md)。
+- kind 三分类与动词家族的出处：[域分类学提案](./2026-09-21-domain-taxonomy.md)。
 - 门面只转发不藏逻辑的两层结构：[api 函数层与 domains 门面层的两层结构](2026-09-18-api-domains-two-layer.md)。

@@ -30,4 +30,4 @@ P1 门面落地后，`BWAdtClient` 上并存两套入口：域门面（`client.a
 
 - 旧位置保留 @deprecated 的先例与委托不变式：[InfoArea 结构域归位](2026-09-21-infoarea-domain.md)。
 - 门面动词的实然清单（本注记映射的对照面）：[域注册表](2026-09-21-domain-registry.md)与[动词族审计](2026-09-22-verb-family-audit.md)。
-- kind 三分类与"structure 域只读消费面"的边界：[域分类学提案](../../proposed/architecture/2026-09-21-domain-taxonomy.md)。
+- kind 三分类与"structure 域只读消费面"的边界：[域分类学提案](./2026-09-21-domain-taxonomy.md)。

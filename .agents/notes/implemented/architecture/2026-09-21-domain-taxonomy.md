@@ -1,6 +1,6 @@
 # Agent Note: 域分类学——三种域 × 动词家族 × infoProvider 多态
 
-Status: proposed
+Status: implemented
 
 ## Problem
 
@@ -17,7 +17,7 @@ Status: proposed
 - **单一 infoProvider 大面**（一个门面，靠参数区分类型）：方法签名被类型分支污染，类型安全退化为运行时判断。
 - **维持现状**（adso 独占 infoProvider 名字，其余类型来了再说）：每次新增类型都重新争论一次，且容器动词继续寄居。
 
-## Proposal
+## Decision
 
 **三种域（kind）× 三套动词家族**，kind 作为域注册表的元数据：
 
@@ -25,18 +25,19 @@ Status: proposed
 |---|---|---|---|---|
 | modeling | XML 文档编辑 + 激活，有锁 | withWriteSession | infoProvider(多态)/trfn/dtp/dataSource/infoObject(创建编辑无账本证据) | details/xml/versions/check/create/saveAndActivate/ensure*/delete |
 | ops | 生命周期动作，无文档编辑 | 否 | processChain、replication(留在 dataSource 内) | execute/stop/logs/status/replicate |
-| structure | 容器/导航/组织，只读或校验 | 否 | infoArea(新)、repository、system、transport | tree/contents/validate/search/lineage |
+| structure | 容器/导航/组织，只读或校验 | 否 | infoArea、repository、system、transport、query、ddic | tree/contents/validate/search/lineage |
 
 **infoProvider 按多态建模**：抽象层持共同动词与类型判别（判别信息源：repository.search 的 objectType、getInfoproviderStructure），`client.infoProvider.adso(name)` 为类型特化面，现 `client.adso` 降为别名糖；未来 `comp(name)` 等按同模式生长。
 
-落地载体与边界：
+落地事实（P1 Wave A/B，2026-09 合入）：
 
-- **P1**：动词表按 kind × 家族起草；infoArea 域归位（validateInfoArea + getInfoproviderStructure 两个既有动词搬迁，零新接口开发）；`client.adso` 别名化。
-- **P2**：`hydrate(name): Promise<InfoProviderModel>` 按判别联合设计签名，variant 先只实现 ADSO（证据最全）。
+- `src/domains/registry.ts` 为 13 个域携带 kind 元数据，一致性测试把注册表与门面方法集锁定。
+- infoArea 域归位：`client.infoArea.tree/validate`；infoProvider 域落地：`.adso(name)/.exists/.details`（ADSO 唯一 variant），`client.adso` 原样保留为快捷方式。
+- 建模域补 `exists`（validate*Exists 薄转发）；`delete` 走 BWObject 通用路径；flat 表面已 @deprecated 指向域等价物。
 - **验证边界不变**：HCPR/MultiProvider/OpenODS 无实测证据，不进 Public 契约（README "no HCPR / Open ODS" 边界保持有效）；每真机验证一种类型，进一种。
-- 毕业条件：P1 实施合入时，本笔记迁入 implemented/（Status 改 implemented，Proposal 内容改写为 Decision，事实性差异同步修正）。
 
-## Notes
+## Consequences
 
-- 与[写会话模型](../../implemented/architecture/2026-09-18-write-session-model.md)的关系：kind=modeling 的域才进入引擎；ops/structure 域无锁、无激活，永不接入写会话。
-- processChain 的 rspc JSON 特化（2026-09-20）与本分类互为印证：它从来不是建模域。
+- 新域接入 = 注册表词条 + kind 归类 + 门面类，接口形状由 kind 决定；ops/structure 域永不接写会话引擎。
+- P2 的 `hydrate(name)` 沿用本笔记的判别联合签名设计；每验证一种 InfoProvider 类型，在 `infoProvider.details` 的判别分支加一个 variant。
+- README 门面表按 kind 分组是本分类的用户可见投影，两者须同步演进。

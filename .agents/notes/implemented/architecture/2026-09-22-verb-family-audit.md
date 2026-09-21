@@ -4,7 +4,7 @@ Status: implemented
 
 ## Problem
 
-[域分类学](../../proposed/architecture/2026-09-21-domain-taxonomy.md)给 modeling 族定的动词家族是 details/xml/versions/check/create/saveAndActivate/ensure*/delete，[域注册表](2026-09-21-domain-registry.md)落地时留了一个洞：adso/trfn/dtp 三个建模域**没有 `delete`**（删除只能绕到 `client.deleteObject`/BWObject 通用路径），`exists` 也只有 infoProvider 多态域有——调用方想知道"这个 ADSO/TRFN/DTP 在不在"，得自己调 api 层 validate 函数并解释 `ValidationResult`，甚至自己处理"对象不存在时服务端直接报错"的语义。动词族审计要回答两个问题：缺的动词补不补、补到哪层；以及 dataSource 为什么**不**补。
+[域分类学](./2026-09-21-domain-taxonomy.md)给 modeling 族定的动词家族是 details/xml/versions/check/create/saveAndActivate/ensure*/delete，[域注册表](2026-09-21-domain-registry.md)落地时留了一个洞：adso/trfn/dtp 三个建模域**没有 `delete`**（删除只能绕到 `client.deleteObject`/BWObject 通用路径），`exists` 也只有 infoProvider 多态域有——调用方想知道"这个 ADSO/TRFN/DTP 在不在"，得自己调 api 层 validate 函数并解释 `ValidationResult`，甚至自己处理"对象不存在时服务端直接报错"的语义。动词族审计要回答两个问题：缺的动词补不补、补到哪层；以及 dataSource 为什么**不**补。
 
 ## Decision
 
@@ -31,7 +31,7 @@ Status: implemented
 
 ## Related
 
-- 动词家族表与三 kind 分类：[域分类学提案](../../proposed/architecture/2026-09-21-domain-taxonomy.md)。
+- 动词家族表与三 kind 分类：[域分类学提案](./2026-09-21-domain-taxonomy.md)。
 - 注册表 verbs == 原型一致性断言：[域注册表](2026-09-21-domain-registry.md)。
 - 门面只转发不藏逻辑：[api 函数层与 domains 门面层的两层结构](2026-09-18-api-domains-two-layer.md)。
 - 删除路径证据（lockHandle 模式与 W1）：`docs/VERIFIED_APIS.md` 第 6/8 节；`src/__tests__/bwObject-delete.test.ts`。

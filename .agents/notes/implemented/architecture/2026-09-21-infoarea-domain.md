@@ -4,7 +4,7 @@ Status: implemented
 
 ## Problem
 
-InfoArea 的两个动词寄居在错误的域：对象树查询（`getInfoproviderStructure`）挂在 `repository.infoproviderStructure`、存在性校验（`validateInfoArea`）挂在 `adso.validateInfoArea`。按[域分类学](../../proposed/architecture/2026-09-21-domain-taxonomy.md)，InfoArea 是 structure kind 的容器域，tree/validate 是它的正名动词；寄居状态下，"在 InfoArea 上导航/校验"这一意图被拆在两个不相关的门面里，注册表也只能给 infoArea 记一条"尚未挂载"的占位词条。
+InfoArea 的两个动词寄居在错误的域：对象树查询（`getInfoproviderStructure`）挂在 `repository.infoproviderStructure`、存在性校验（`validateInfoArea`）挂在 `adso.validateInfoArea`。按[域分类学](./2026-09-21-domain-taxonomy.md)，InfoArea 是 structure kind 的容器域，tree/validate 是它的正名动词；寄居状态下，"在 InfoArea 上导航/校验"这一意图被拆在两个不相关的门面里，注册表也只能给 infoArea 记一条"尚未挂载"的占位词条。
 
 ## Decision
 
@@ -26,6 +26,6 @@ InfoArea 的两个动词寄居在错误的域：对象树查询（`getInfoprovid
 
 ## Related
 
-- kind 三分类与 tree/validate 的家族归属：[域分类学提案](../../proposed/architecture/2026-09-21-domain-taxonomy.md)。
+- kind 三分类与 tree/validate 的家族归属：[域分类学提案](./2026-09-21-domain-taxonomy.md)。
 - 注册表与哨兵机制：[域注册表](2026-09-21-domain-registry.md)。
 - 门面只转发不藏逻辑：[api 函数层与 domains 门面层的两层结构](2026-09-18-api-domains-two-layer.md)。
