@@ -4,7 +4,7 @@ Status: implemented
 
 ## Problem
 
-`client.adso` 一直独占 infoProvider 抽象：InfoProvider 是"可被查询消费"的分层抽象（ADSO/CompositeProvider/MultiProvider/HCPR/…），门面却把 ADSO 特化面当成了抽象本身。[域分类学](../../proposed/architecture/2026-09-21-domain-taxonomy.md)定的多态载体（P1 判别 + 类型特化面）没有落地——调用方拿一个 InfoProvider 名字时，无从得知它是什么类型，也没有诚实的入口；registry 里 infoProvider 词条缺位，`adso` 词条只能自述"当前唯一落地的 infoProvider 类型"。
+`client.adso` 一直独占 infoProvider 抽象：InfoProvider 是"可被查询消费"的分层抽象（ADSO/CompositeProvider/MultiProvider/HCPR/…），门面却把 ADSO 特化面当成了抽象本身。[域分类学](./2026-09-21-domain-taxonomy.md)定的多态载体（P1 判别 + 类型特化面）没有落地——调用方拿一个 InfoProvider 名字时，无从得知它是什么类型，也没有诚实的入口；registry 里 infoProvider 词条缺位，`adso` 词条只能自述"当前唯一落地的 infoProvider 类型"。
 
 ## Decision
 
@@ -27,6 +27,6 @@ Status: implemented
 
 ## Related
 
-- kind 三分类与 infoProvider 多态设计：[域分类学提案](../../proposed/architecture/2026-09-21-domain-taxonomy.md)（P1 全部合入时按其毕业条件迁 implemented）。
+- kind 三分类与 infoProvider 多态设计：[域分类学提案](./2026-09-21-domain-taxonomy.md)（P1 全部合入时按其毕业条件迁 implemented）。
 - 注册表与 verbs==原型断言：[域注册表](2026-09-21-domain-registry.md)。
 - 门面只转发不藏逻辑：[api 函数层与 domains 门面层的两层结构](2026-09-18-api-domains-two-layer.md)。

@@ -56,23 +56,24 @@ await client.logout()
 
 ## Domain Facades (recommended)
 
-Aligned with BW Modeling Tools Project Explorer. Facades live under `src/domains/` and are attached to the client as `client.<domain>`.
+Aligned with BW Modeling Tools Project Explorer. Facades live under `src/domains/` and are attached to the client as `client.<domain>`. Domains come in three kinds — **modeling** (XML edit + activation, shares the `withWriteSession` write sequence), **ops** (lifecycle actions, no document editing), **structure** (containers / navigation / read-only checks):
 
-| Domain | Facade | Role |
-|--------|--------|------|
-| session | `login` / `logout` / … | BW Project connection |
-| repository | `client.repository` | Search, lineage, ADSO↔TRFN/DTP |
-| infoObject | `client.infoObject` | InfoObject read / validate |
-| infoProvider | `client.adso` | ADSO only for now (no HCPR / Open ODS) |
-| dataFlow | `client.trfn` / `client.dtp` | Transformation + DTP |
-| dataSource | `client.dataSource` | RSDS + replication |
-| processChain | `client.processChain` | Ops (execute / logs) |
-| query | `client.query` | BICS / provider preview |
-| system | `client.system` | System info / capabilities |
-| ddic | `client.ddic` | Table describe / data / SQL |
-| transport | `client.transport` | CTS check / create |
+| Kind | Domain | Facade | Role |
+|------|--------|--------|------|
+| modeling | infoProvider | `client.infoProvider` | Polymorphic: `.adso(name)` typed facade, `.exists`, `.details` (ADSO variant; more types as they get verified) |
+| modeling | infoProvider·ADSO | `client.adso` | ADSO read / edit / addField / addKey / exists / delete |
+| modeling | dataFlow | `client.trfn` / `client.dtp` | Transformation (+ ensure routines) / DTP, incl. `exists` / `delete` |
+| modeling | dataSource | `client.dataSource` | RSDS + replication |
+| modeling | infoObject | `client.infoObject` | InfoObject read / validate |
+| ops | processChain | `client.processChain` | Execute / stop / logs |
+| structure | infoArea | `client.infoArea` | Provider tree under an InfoArea / name validation |
+| structure | repository | `client.repository` | Search, lineage, ADSO↔TRFN/DTP |
+| structure | query | `client.query` | BICS / provider preview |
+| structure | system | `client.system` | System info / capabilities |
+| structure | ddic | `client.ddic` | Table describe / data / SQL |
+| structure | transport | `client.transport` | CTS check / create |
 
-**Not Public (out of scope):** Favorites, InfoArea tree navigation, infoSource, openHub, sourceSystem.
+**Not Public (out of scope):** Favorites, infoSource, openHub, sourceSystem, and any InfoProvider type not yet live-verified (HCPR / Open ODS / MultiProvider — see `docs/VERIFIED_APIS.md`).
 
 ### Public vs Advanced
 

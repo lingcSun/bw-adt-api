@@ -1,5 +1,6 @@
 import { AdtHTTP } from "../AdtHTTP"
 import * as adso from "../api/adso"
+import * as bwObject from "../api/bwObject"
 
 /** Public facade for infoProvider (ADSO-only in this change). */
 export class AdsoDomain {
@@ -27,6 +28,20 @@ export class AdsoDomain {
 
   check(adsoId: string) {
     return adso.checkADSO(this.h, adsoId)
+  }
+
+  /**
+   * ADSO 是否存在（动词族审计补齐）。转发 validateADSOExists 并归一为 boolean。
+   * 实测（API_REFERENCE validateADSOExists 行）：存在 → valid=true；
+   * 不存在 → validation 端点直接报错而非 valid=false——异常统一归 false。
+   */
+  async exists(adsoId: string) {
+    try {
+      const result = await adso.validateADSOExists(this.h, adsoId)
+      return result.valid
+    } catch {
+      return false
+    }
   }
 
   saveAndActivate(
@@ -86,5 +101,20 @@ export class AdsoDomain {
   /** Advanced: full parse tree */
   getRaw(adsoId: string, forceCacheUpdate?: boolean) {
     return adso.getADSO(this.h, adsoId, forceCacheUpdate)
+  }
+
+  /**
+   * 删除 ADSO（动词族审计补齐）：BWObject 通用删除路径，lockHandle 模式
+   * （实测：VERIFIED_APIS §8「BWObject 通用路径」，lock → DELETE /m?lockHandle → unlock）。
+   * options 原样透传 BWObject.delete——必须 { lockHandle }（lock() 取），
+   * 可选 transport 作 corrNr；缺 lockHandle 由 BWObject.delete 给出可操作报错。
+   */
+  delete(
+    adsoId: string,
+    options?: { lockHandle?: string; transport?: string }
+  ) {
+    return bwObject
+      .createBWObject(this.h, bwObject.BWObjectType.ADSO, adsoId)
+      .delete(options ?? {})
   }
 }

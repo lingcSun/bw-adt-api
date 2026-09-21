@@ -277,6 +277,7 @@ export class BWAdtClient {
    * 对应请求: GET /sap/bw/modeling/repo/is/systeminfo
    *
    * @returns 系统能力信息
+   * @deprecated 使用 `client.system.info()`（P1 单表面收敛）
    */
   public async systemInfo() {
     const { systemInfo } = await import("./api/systemInfo")
@@ -288,6 +289,7 @@ export class BWAdtClient {
    *
    * @param propertyName - 属性名称
    * @returns 属性值或 undefined
+   * @deprecated 使用 `client.system.getProperty()`（P1 单表面收敛）
    */
   public async getSystemProperty(propertyName: string) {
     const { getSystemProperty } = await import("./api/systemInfo")
@@ -299,6 +301,7 @@ export class BWAdtClient {
    *
    * @param capabilityName - 功能属性名称
    * @returns 是否支持
+   * @deprecated 使用 `client.system.hasCapability()`（P1 单表面收敛）
    */
   public async hasCapability(capabilityName: string) {
     const { hasCapability } = await import("./api/systemInfo")
@@ -315,6 +318,7 @@ export class BWAdtClient {
    *
    * @param options - 搜索选项
    * @returns 搜索结果列表
+   * @deprecated 使用 `client.repository.search()`（P1 单表面收敛）
    */
   public async searchBWObjects(options: {
     searchTerm: string
@@ -334,6 +338,7 @@ export class BWAdtClient {
    * Get Infoprovider Structure - InfoArea 下可用于查询定义的对象树
    * 对应请求: GET /sap/bw/modeling/repo/infoproviderstructure/area/{area}/{type}
    * （2026-09-21 真机验证；type: iobj_cha / iobj_kyf / iobj / adso）
+   * @deprecated 使用 `client.infoArea.tree()`（P1 单表面收敛）
    */
   public async getInfoproviderStructure(
     infoArea: string,
@@ -349,6 +354,7 @@ export class BWAdtClient {
    * @param searchTerm - 搜索关键词
    * @param objectType - 可选的对象类型过滤
    * @returns 搜索结果列表
+   * @deprecated 使用 `client.repository.search()`（P1 单表面收敛）
    */
   public async quickSearch(searchTerm: string, objectType?: string) {
     const { quickSearch } = await import("./api/search")
@@ -363,6 +369,7 @@ export class BWAdtClient {
    *
    * @param adsoName - ADSO 技术名称
    * @returns 关联的 Transformation 列表
+   * @deprecated 使用 `client.repository.transformationsOf()`（P1 单表面收敛）
    */
   public async getADSOTransformations(adsoName: string) {
     const { getTransformationsOf } = await import("./api/search")
@@ -377,6 +384,7 @@ export class BWAdtClient {
    *
    * @param adsoName - ADSO 技术名称
    * @returns 关联的 DTP 列表
+   * @deprecated 使用 `client.repository.dtpsOf()`（P1 单表面收敛）
    */
   public async getADSODataTransferProcesses(adsoName: string) {
     const { getDTPsOf } = await import("./api/search")
@@ -404,6 +412,7 @@ export class BWAdtClient {
    * @param objectType - 起点对象类型 (默认 "ADSO")
    * @param options - 展开选项 (direction, levels)
    * @returns 数据流模型 (含节点和关系)
+   * @deprecated 使用 `client.repository.dataflow()`（P1 单表面收敛）
    */
   public async getDataflow(
     objectName: string,
@@ -423,6 +432,7 @@ export class BWAdtClient {
    * @param sourceName - 源对象名称 (如 "ZL_FID01")
    * @param targetType - 目标对象类型 (默认 "ADSO")
    * @returns 匹配的关系列表 (TRFN + DTPA)
+   * @deprecated 使用 `client.repository.lineage()`（P1 单表面收敛）
    */
   public async getDataflowLineage(
     targetName: string,
@@ -596,6 +606,7 @@ export class BWAdtClient {
    * @param adsoId - ADSO ID (技术名称)
    * @param forceCacheUpdate - 是否强制更新缓存
    * @returns ADSO 详细信息
+   * @deprecated 使用 `client.adso.getRaw()`（P1 单表面收敛）
    */
   public async getADSO(adsoId: string, forceCacheUpdate?: boolean) {
     const { getADSO } = await import("./api/adso")
@@ -608,6 +619,7 @@ export class BWAdtClient {
    * @param adsoId - ADSO ID
    * @param forceCacheUpdate - 是否强制更新缓存
    * @returns ADSO 详细信息
+   * @deprecated 使用 `client.adso.details()`（P1 单表面收敛）
    */
   public async getADSODetails(adsoId: string, forceCacheUpdate?: boolean) {
     const { getADSODetails } = await import("./api/adso")
@@ -620,6 +632,7 @@ export class BWAdtClient {
    *
    * @param adsoId - ADSO ID
    * @returns 版本历史列表
+   * @deprecated 使用 `client.adso.versions()`（P1 单表面收敛）
    */
   public async getADSOVersions(adsoId: string) {
     const { getADSOVersions } = await import("./api/adso")
@@ -668,6 +681,7 @@ export class BWAdtClient {
    *
    * @param adsoId - ADSO ID
    * @returns 检查结果
+   * @deprecated 使用 `client.adso.check()`（P1 单表面收敛）
    */
   public async checkADSO(adsoId: string) {
     const { checkADSO } = await import("./api/adso")
@@ -700,6 +714,7 @@ export class BWAdtClient {
 
   /**
    * Get ADSO Raw XML - 获取 ADSO 原始 XML (供 PUT 使用)
+   * @deprecated 使用 `client.adso.xml()`（P1 单表面收敛）
    */
   public async getADSOXml(adsoId: string, forceCacheUpdate?: boolean) {
     const { getADSOXml } = await import("./api/adso")
@@ -715,8 +730,9 @@ export class BWAdtClient {
    *   3. PUT .../m?corrNr=&lockHandle= (stateless, 可带 timestamp 头)
    *   4. activation (stateless)
    *   5. unlock (stateful)
+   *
+   * @deprecated 使用 `client.adso.saveAndActivate()`（P1 单表面收敛）
    */
-  /** @deprecated Prefer `client.adso.saveAndActivate` */
   public async saveAndActivateADSO(
     adsoId: string,
     xmlContent: string,
@@ -738,6 +754,7 @@ export class BWAdtClient {
    * @param adsoId - ADSO 技术名称
    * @param field - field 类型字段定义
    * @param options - 传输/激活选项
+   * @deprecated 使用 `client.adso.addField()`（P1 单表面收敛）
    */
   public async addADSOField(
     adsoId: string,
@@ -770,6 +787,7 @@ export class BWAdtClient {
    *
    * @param adsoId - ADSO ID
    * @returns ADSO 配置信息
+   * @deprecated 使用 `client.adso.details()`（P1 单表面收敛）
    */
   public async getADSOConfiguration(adsoId: string) {
     const { getADSOConfiguration } = await import("./api/adso")
@@ -782,6 +800,7 @@ export class BWAdtClient {
    *
    * @param infoAreaName - InfoArea 名称
    * @returns 验证结果
+   * @deprecated 使用 `client.infoArea.validate()`（P1 单表面收敛）
    */
   public async validateInfoArea(infoAreaName: string) {
     const { validateInfoArea } = await import("./api/adso")
@@ -794,6 +813,7 @@ export class BWAdtClient {
    *
    * @param templateName - 模板 ADSO 名称
    * @returns 验证结果
+   * @deprecated 使用 `client.adso.validateTemplate()`（P1 单表面收敛）
    */
   public async validateTemplateADSO(templateName: string) {
     const { validateTemplateADSO } = await import("./api/adso")
@@ -806,6 +826,7 @@ export class BWAdtClient {
    *
    * @param adsoName - ADSO 名称
    * @returns 验证结果
+   * @deprecated 使用 `client.adso.validateNewName()`（P1 单表面收敛）
    */
   public async validateNewADSOName(adsoName: string) {
     const { validateNewADSOName } = await import("./api/adso")
@@ -826,6 +847,7 @@ export class BWAdtClient {
    *
    * @param options - 创建选项
    * @returns 创建结果 (包含 lockHandle)
+   * @deprecated 使用 `client.adso.create()`（P1 单表面收敛）
    */
   public async createADSO(options: {
     name: string                          // ADSO 技术名称
@@ -958,6 +980,7 @@ export class BWAdtClient {
    * @param version - 版本 (m=active, a=modified, d=revised)
    * @param options - 获取选项 (forceCacheUpdate)
    * @returns 转换详细信息
+   * @deprecated 使用 `client.trfn.details()`（P1 单表面收敛）
    */
   public async getTransformationDetails(
     trfnId: string,
@@ -974,6 +997,7 @@ export class BWAdtClient {
    *
    * @param trfnId - Transformation ID
    * @returns 版本历史列表
+   * @deprecated 使用 `client.trfn.versions()`（P1 单表面收敛）
    */
   public async getTransformationVersions(trfnId: string) {
     const { getTransformationVersions } = await import("./api/transformation")
@@ -985,6 +1009,7 @@ export class BWAdtClient {
    *
    * @param trfnId - Transformation ID
    * @returns 检查结果
+   * @deprecated 使用 `client.trfn.check()`（P1 单表面收敛）
    */
   public async checkTransformation(trfnId: string) {
     const { checkTransformation } = await import("./api/transformation")
@@ -1013,6 +1038,7 @@ export class BWAdtClient {
 
   /**
    * Get Transformation Raw XML - 获取原始 XML (供 PUT 使用)
+   * @deprecated 使用 `client.trfn.xml()`（P1 单表面收敛）
    */
   public async getTransformationXml(
     trfnId: string,
@@ -1032,6 +1058,7 @@ export class BWAdtClient {
   /**
    * Create Transformation —— 8TRANSIENT 瞬态流创建转换（Eclipse 新建向导同款）。
    * 返回服务器生成的 trfnId 与水合后 XML；packageName 非 $TMP 时需 transport。
+   * @deprecated 使用 `client.trfn.create()`（P1 单表面收敛）
    */
   public async createTransformation(options: {
     sourceObjName: string
@@ -1075,7 +1102,7 @@ export class BWAdtClient {
    * 对照 Eclipse setFields Communication Log:
    *   lock → transportchecks → PUT (lockHandle + Transport-Lock-Holder + timestamp) → activation → unlock
    *
-   * @deprecated Prefer `client.trfn.saveAndActivate`
+   * @deprecated 使用 `client.trfn.saveAndActivate()`（P1 单表面收敛）
    */
   public async saveAndActivateTransformation(
     trfnId: string,
@@ -1097,6 +1124,7 @@ export class BWAdtClient {
    *
    * 对照 Eclipse SetGlobalRoutineFieldsAction:
    * 在 END routine 增加 elementRef, 必要时补 StepNoUpdate 规则。
+   * @deprecated 使用 `client.trfn.setEndRoutineFields()`（P1 单表面收敛）
    */
   public async setEndRoutineFields(
     trfnId: string,
@@ -1130,6 +1158,7 @@ export class BWAdtClient {
   /**
    * Ensure End Routine — 无则创建结束例程（PUT 挂 END + 铸 AMDP 类 → 激活类 → 激活 TRFN）。
    * 对照 2026-09-21 Eclipse 抓包。已有则幂等；fields 勾进 setFields。
+   * @deprecated 使用 `client.trfn.ensureEndRoutine()`（P1 单表面收敛）
    */
   public async ensureEndRoutine(
     trfnId: string,
@@ -1148,6 +1177,7 @@ export class BWAdtClient {
 
   /**
    * Ensure Start Routine — 无则创建开始例程（与 END 同款链路，GLOBAL_START）。
+   * @deprecated 使用 `client.trfn.ensureStartRoutine()`（P1 单表面收敛）
    */
   public async ensureStartRoutine(
     trfnId: string,
@@ -1522,6 +1552,7 @@ export class BWAdtClient {
    * @param iobjName - InfoObject 名称 (如 0NAME, 0CUSTOMER)
    * @param options - 查询选项
    * @returns InfoObject 详细信息
+   * @deprecated 使用 `client.infoObject.get()`（P1 单表面收敛）
    */
   public async getInfoObject(
     iobjName: string,
@@ -1537,6 +1568,7 @@ export class BWAdtClient {
    *
    * @param iobjName - InfoObject 名称
    * @returns InfoObject 元数据
+   * @deprecated 使用 `client.infoObject.get()`（P1 单表面收敛）
    */
   public async getInfoObjectMetadata(iobjName: string) {
     const { getInfoObjectMetadata } = await import("./api/infoobject")
@@ -1570,6 +1602,7 @@ export class BWAdtClient {
    * @param dtpId - DTP ID (格式: DTP_*)
    * @param forceCacheUpdate - 是否强制更新缓存
    * @returns DTP 原始 XML 字符串
+   * @deprecated 使用 `client.dtp.xml()`（P1 单表面收敛）
    */
   public async getDTPXml(dtpId: string, forceCacheUpdate?: boolean) {
     const { getDTPXml } = await import("./api/dtp")
@@ -1582,6 +1615,7 @@ export class BWAdtClient {
    * @param dtpId - DTP ID
    * @param forceCacheUpdate - 是否强制更新缓存
    * @returns DTP 详细信息
+   * @deprecated 使用 `client.dtp.details()`（P1 单表面收敛）
    */
   public async getDTPDetails(dtpId: string, forceCacheUpdate?: boolean) {
     const { getDTPDetails } = await import("./api/dtp")
@@ -1594,6 +1628,7 @@ export class BWAdtClient {
    *
    * @param dtpId - DTP ID
    * @returns 版本历史列表
+   * @deprecated 使用 `client.dtp.versions()`（P1 单表面收敛）
    */
   public async getDTPVersions(dtpId: string) {
     const { getDTPVersions } = await import("./api/dtp")
@@ -1644,6 +1679,7 @@ export class BWAdtClient {
    *
    * @param dtpId - DTP ID
    * @returns 激活结果 + lockHandle
+   * @deprecated 使用 `client.dtp.activate()`（P1 单表面收敛）
    */
   public async activateDTPWithLock(dtpId: string) {
     return this.dtp.activate(dtpId)
@@ -1654,6 +1690,7 @@ export class BWAdtClient {
    *
    * @param dtpId - DTP ID
    * @returns 检查结果
+   * @deprecated 使用 `client.dtp.check()`（P1 单表面收敛）
    */
   public async checkDTP(dtpId: string) {
     const { checkDTP } = await import("./api/dtp")
@@ -1666,6 +1703,7 @@ export class BWAdtClient {
    *
    * @param dtpId - DTP ID
    * @returns 执行结果
+   * @deprecated 使用 `client.dtp.execute()`（P1 单表面收敛）
    */
   public async executeDTP(dtpId: string) {
     const { executeDTP } = await import("./api/dtp")
@@ -1721,6 +1759,7 @@ export class BWAdtClient {
    * @param devclass - 开发包 (可选)
    * @param operation - 操作类型 (默认 "I"=插入)
    * @returns 传输检查信息
+   * @deprecated 使用 `client.transport.check()`（P1 单表面收敛）
    */
   public async transportCheck(
     objectUri: string,
@@ -1739,6 +1778,7 @@ export class BWAdtClient {
    * @param description - 传输请求描述
    * @param devclass - 开发包 (可选)
    * @returns 新建的传输请求号 (如 "BPDK903265")
+   * @deprecated 使用 `client.transport.create()`（P1 单表面收敛）
    */
   public async createTransport(
     refUri: string,
@@ -1764,8 +1804,9 @@ export class BWAdtClient {
    * @param xmlContent - 修改后的 DTP XML 内容
    * @param options - 选项 (transport 已有TR号 / autoActivate 是否自动激活)
    * @returns 保存激活结果 (含使用的 transport 号)
+   *
+   * @deprecated 使用 `client.dtp.saveAndActivate()`（P1 单表面收敛）
    */
-  /** @deprecated Prefer `client.dtp.saveAndActivate` */
   public async saveAndActivateDTP(
     dtpId: string,
     xmlContent: string,
@@ -1808,6 +1849,7 @@ export class BWAdtClient {
    * @param datasource - DataSource 技术名
    * @param sourceSystem - 源系统逻辑名
    * @param forceCacheUpdate - 是否强制更新缓存
+   * @deprecated 使用 `client.dataSource.xml()`（P1 单表面收敛）
    */
   public async getDataSourceXml(
     datasource: string,
@@ -1824,6 +1866,7 @@ export class BWAdtClient {
    * @param datasource - DataSource 技术名
    * @param sourceSystem - 源系统逻辑名
    * @param forceCacheUpdate - 是否强制更新缓存
+   * @deprecated 使用 `client.dataSource.details()`（P1 单表面收敛）
    */
   public async getDataSourceDetails(
     datasource: string,
@@ -1840,6 +1883,7 @@ export class BWAdtClient {
    *
    * @param datasource - DataSource 技术名
    * @param sourceSystem - 源系统逻辑名
+   * @deprecated 使用 `client.dataSource.versions()`（P1 单表面收敛）
    */
   public async getDataSourceVersions(
     datasource: string,
@@ -1855,6 +1899,7 @@ export class BWAdtClient {
    * @param datasource - DataSource 技术名
    * @param sourceSystem - 源系统逻辑名
    * @param forceCacheUpdate - 是否强制更新缓存
+   * @deprecated 使用 `client.dataSource.fields()`（P1 单表面收敛）
    */
   public async getDataSourceFields(
     datasource: string,
@@ -1942,6 +1987,7 @@ export class BWAdtClient {
    * @param datasource - DataSource 技术名
    * @param sourceSystem - 源系统逻辑名
    * @param dataSourceXml - 当前 DataSource XML (通常来自 getDataSourceXml)
+   * @deprecated 使用 `client.dataSource.mergeProposal()`（P1 单表面收敛）
    */
   public async mergeDataSourceProposal(
     datasource: string,
@@ -1966,8 +2012,9 @@ export class BWAdtClient {
    * @param sourceSystem - 源系统逻辑名
    * @param xmlContent - 修改后的 DataSource XML 内容
    * @param options - transport 已有TR号 / transportDescription / autoActivate
+   *
+   * @deprecated 使用 `client.dataSource.saveAndActivate()`（P1 单表面收敛）
    */
-  /** @deprecated Prefer `client.dataSource.saveAndActivate` */
   public async saveAndActivateDataSource(
     datasource: string,
     sourceSystem: string,
@@ -2001,6 +2048,7 @@ export class BWAdtClient {
    *
    * @param sourceSystem - 源系统逻辑名 (如 "S4DCLNT300")
    * @param datasource - DataSource 技术名
+   * @deprecated 使用 `client.dataSource.replicationInfo()`（P1 单表面收敛）
    */
   public async getReplicationInfo(sourceSystem: string, datasource: string) {
     const { getReplicationInfo } = await import("./api/replication")
@@ -2017,6 +2065,7 @@ export class BWAdtClient {
    * @param datasource - DataSource 技术名
    * @param tasks - 从 getReplicationInfo 获取的任务
    * @param options - activate 策略 / 是否后台执行
+   * @deprecated 使用 `client.dataSource.replicate()`（P1 单表面收敛）
    */
   public async replicateDataSource(
     sourceSystem: string,
@@ -2034,6 +2083,7 @@ export class BWAdtClient {
    * @param sourceSystem - 源系统逻辑名
    * @param datasource - DataSource 技术名
    * @param options - activate 策略 / 是否后台执行
+   * @deprecated 使用 `client.dataSource.replicateFull()`（P1 单表面收敛）
    */
   public async replicateDataSourceFull(
     sourceSystem: string,
@@ -2054,6 +2104,7 @@ export class BWAdtClient {
    *
    * @param adsoId - ADSO ID
    * @returns DDIC 表链接信息
+   * @deprecated 使用 `client.ddic.adsoDdicLinks()`（P1 单表面收敛）
    */
   public async getADSODDICLinks(adsoId: string) {
     const { getADSODDICLinks } = await import("./api/ddic")
@@ -2065,6 +2116,7 @@ export class BWAdtClient {
    *
    * @param adsoId - ADSO ID
    * @returns DDIC 表名或 undefined
+   * @deprecated 使用 `client.ddic.adsoDdicTableName()`（P1 单表面收敛）
    */
   public async getADSODDICTableName(adsoId: string) {
     const { getADSODDICTableName } = await import("./api/ddic")
@@ -2077,6 +2129,7 @@ export class BWAdtClient {
    *
    * @param tableName - 表名
    * @returns DDIC 表元数据
+   * @deprecated 使用 `client.ddic.describe()`（P1 单表面收敛）
    */
   public async getDDICTableMetadata(tableName: string) {
     const { getDDICTableMetadata } = await import("./api/ddic")
@@ -2090,6 +2143,7 @@ export class BWAdtClient {
    * @param adsoId - ADSO ID
    * @param version - 版本段：m=active（默认）, a=modified, d=revised
    * @returns ADSO 表信息
+   * @deprecated 使用 `client.adso.details()`（P1 单表面收敛）
    */
   public async getADSOTables(adsoId: string, version?: "m" | "a" | "d") {
     const { getADSOTables } = await import("./api/adso")
@@ -2102,6 +2156,7 @@ export class BWAdtClient {
    *
    * @param tableName - 表名
    * @returns DDIC 表信息
+   * @deprecated 使用 `client.ddic.describe()`（P1 单表面收敛）
    */
   public async getDDICTableInfo(tableName: string) {
     const { getDDICTableInfo } = await import("./api/ddic")
@@ -2113,6 +2168,7 @@ export class BWAdtClient {
    *
    * @param tableName - 表名
    * @returns DDIC 表字段列表
+   * @deprecated 使用 `client.ddic.describe()`（P1 单表面收敛）
    */
   public async getDDICTableFields(tableName: string) {
     const { getDDICTableFields } = await import("./api/ddic")
@@ -2125,6 +2181,7 @@ export class BWAdtClient {
    *
    * @param tableName - 表名
    * @returns 元数据
+   * @deprecated 使用 `client.ddic.describe()`（P1 单表面收敛）
    */
   public async getDDICTableDataMetadata(tableName: string) {
     const { getDDICTableDataMetadata } = await import("./api/ddic")
@@ -2138,6 +2195,7 @@ export class BWAdtClient {
    * @param tableName - 表名
    * @param options - 查询选项
    * @returns DDIC 表数据
+   * @deprecated 使用 `client.ddic.getData()`（P1 单表面收敛）
    */
   public async getDDICTableData(
     tableName: string,
@@ -2162,6 +2220,7 @@ export class BWAdtClient {
    * @param sqlStatement - OpenSQL 语句
    * @param options - maxRows 等
    * @returns 查询结果
+   * @deprecated 使用 `client.ddic.querySql()`（P1 单表面收敛）
    */
   public async getTableDataViaSQL(
     tableName: string,
@@ -2180,6 +2239,7 @@ export class BWAdtClient {
    * Get Reporting Initial View - 获取 BICS 初始视图（元数据 + 默认结果）
    * 对应请求: GET /sap/bw/modeling/comp/reporting?compid=!{name}
    * 适用于 ADSO / 特征 / Composite Provider
+   * @deprecated 使用 `client.query.initialView()`（P1 单表面收敛）
    */
   public async getReportingInitialView(
     compId: string,
@@ -2200,6 +2260,7 @@ export class BWAdtClient {
   /**
    * Update Reporting View - 更新轴布局并刷新 BICS 结果
    * 对应请求: POST /sap/bw/modeling/comp/reporting?compid=!{name}
+   * @deprecated 使用 `client.query.updateView()`（P1 单表面收敛）
    */
   public async updateReportingView(
     compId: string,
@@ -2220,6 +2281,7 @@ export class BWAdtClient {
   /**
    * Query Provider Preview - 按特征名指定行轴后预览数据
    * 内部：GET 元数据 → 重排 ROWS/COLUMNS/FREE → POST 刷新
+   * @deprecated 使用 `client.query.preview()`（P1 单表面收敛）
    */
   public async queryProviderPreview(
     providerName: string,
@@ -2256,6 +2318,7 @@ export class BWAdtClient {
    *
    * @param chainId - Process Chain ID
    * @returns 流程链详细信息
+   * @deprecated 使用 `client.processChain.details()`（P1 单表面收敛）
    */
   public async getProcessChainDetails(chainId: string) {
     const { getProcessChainDetails } = await import("./api/processchain")
@@ -2316,6 +2379,7 @@ export class BWAdtClient {
    *
    * @param chainId - Process Chain ID
    * @returns 检查结果
+   * @deprecated 使用 `client.processChain.check()`（P1 单表面收敛）
    */
   public async checkProcessChain(chainId: string) {
     const { checkProcessChain } = await import("./api/processchain")
@@ -2328,6 +2392,7 @@ export class BWAdtClient {
    *
    * @param chainId - Process Chain ID
    * @returns 执行结果
+   * @deprecated 使用 `client.processChain.execute()`（P1 单表面收敛）
    */
   public async executeProcessChain(chainId: string) {
     const { executeProcessChain } = await import("./api/processchain")
@@ -2340,6 +2405,7 @@ export class BWAdtClient {
    *
    * @param chainId - Process Chain ID
    * @returns 停止结果
+   * @deprecated 使用 `client.processChain.stop()`（P1 单表面收敛）
    */
   public async stopProcessChain(chainId: string) {
     const { stopProcessChain } = await import("./api/processchain")
@@ -2352,6 +2418,7 @@ export class BWAdtClient {
    *
    * @param chainId - Process Chain ID
    * @returns 执行日志列表
+   * @deprecated 使用 `client.processChain.logs()`（P1 单表面收敛）
    */
   public async getProcessChainLogs(chainId: string) {
     const { getProcessChainLogs } = await import("./api/processchain")
@@ -2364,6 +2431,7 @@ export class BWAdtClient {
    *
    * @param chainId - Process Chain ID
    * @returns 运行状态信息
+   * @deprecated 使用 `client.processChain.logs()`（P1 单表面收敛）
    */
   public async getProcessChainStatus(chainId: string) {
     const { getProcessChainStatus } = await import("./api/processchain")
@@ -2452,6 +2520,7 @@ export class BWAdtClient {
 
   /**
    * Validate ADSO Exists - 验证 ADSO 是否存在
+   * @deprecated 使用 `client.adso.exists()`（P1 单表面收敛）
    */
   public async validateADSOExists(adsoId: string) {
     const { validateADSOExists } = await import("./api/adso")
@@ -2460,6 +2529,7 @@ export class BWAdtClient {
 
   /**
    * Validate New ADSO Name - 验证新 ADSO 名称是否可用
+   * @deprecated 使用 `client.adso.validateNewName()`（P1 单表面收敛）
    */
   public async validateADSONewName(adsoId: string) {
     const { validateADSONewName } = await import("./api/adso")
@@ -2472,6 +2542,7 @@ export class BWAdtClient {
 
   /**
    * Validate Transformation Exists - 验证转换是否存在
+   * @deprecated 使用 `client.trfn.exists()`（P1 单表面收敛）
    */
   public async validateTransformationExists(trfnId: string) {
     const { validateTransformationExists } = await import("./api/transformation")
@@ -2492,6 +2563,7 @@ export class BWAdtClient {
 
   /**
    * Validate DTP Exists - 验证 DTP 是否存在
+   * @deprecated 使用 `client.dtp.exists()`（P1 单表面收敛）
    */
   public async validateDTPExists(dtpId: string) {
     const { validateDTPExists } = await import("./api/dtp")
@@ -2511,6 +2583,7 @@ export class BWAdtClient {
 
   /**
    * Validate InfoObject Exists - 验证 InfoObject 是否存在
+   * @deprecated 使用 `client.infoObject.validateExists()`（P1 单表面收敛）
    */
   public async validateInfoObjectExists(iobjName: string) {
     const { validateInfoObjectExists } = await import("./api/infoobject")
@@ -2519,6 +2592,7 @@ export class BWAdtClient {
 
   /**
    * Validate New InfoObject Name - 验证新 InfoObject 名称是否可用
+   * @deprecated 使用 `client.infoObject.validateNewName()`（P1 单表面收敛）
    */
   public async validateInfoObjectNewName(iobjName: string) {
     const { validateInfoObjectNewName } = await import("./api/infoobject")

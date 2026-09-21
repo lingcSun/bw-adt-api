@@ -8,7 +8,7 @@ saveAndActivateADSO/Transformation/DTP/DataSource 是同一已核实序列（VER
 
 ## Decision
 
-新增 `src/api/writeSession.ts` 的 `withWriteSession(client, steps, options, transportResolver?)`：引擎持有顺序、finally 解锁、transport 解析（默认 `resolveTransportForWrite`，可注入以便离线测试）与 autoActivate 分支；域以四个步骤闭包适配各自参数形状（DTP 的 transport/corrNr 差异、RSDS 的 sourceSystem、timestamp 提取留在闭包内）。四域包装函数对外签名不变。离线单测用注入 resolver + 桩步骤锁定顺序与 finally 语义。同批给集成套件落地 `describeLive`/`testLive` 离线守卫（`BW_BASE_URL` 未设即 skip），CI 接入 `npm test`。仅 kind=modeling 的域接入引擎（见 [domain-taxonomy](../../proposed/architecture/2026-09-21-domain-taxonomy.md) 提案笔记）。
+新增 `src/api/writeSession.ts` 的 `withWriteSession(client, steps, options, transportResolver?)`：引擎持有顺序、finally 解锁、transport 解析（默认 `resolveTransportForWrite`，可注入以便离线测试）与 autoActivate 分支；域以四个步骤闭包适配各自参数形状（DTP 的 transport/corrNr 差异、RSDS 的 sourceSystem、timestamp 提取留在闭包内）。四域包装函数对外签名不变。离线单测用注入 resolver + 桩步骤锁定顺序与 finally 语义。同批给集成套件落地 `describeLive`/`testLive` 离线守卫（`BW_BASE_URL` 未设即 skip），CI 接入 `npm test`。仅 kind=modeling 的域接入引擎（见 [domain-taxonomy](./2026-09-21-domain-taxonomy.md) 提案笔记）。
 
 ## Alternatives considered
 
