@@ -6,7 +6,7 @@
  * verbs 列每个域门面"当前实际"的方法名（类是事实，注册表跟随；
  * 见 src/__tests__/domain-registry.test.ts 的一致性断言），
  * 不强制 ⊆ VERB_FAMILIES——越族动词在 notes 里说明（如 dataSource.replicate）。
- * 后续任务（polymorphic infoProvider、动词族审计）以此为起点。
+ * 后续任务（动词族审计）以此为起点；polymorphic infoProvider 已于 P1 Task 3 落地。
  */
 
 /** 域的三种性质：建模 / 运维 / 结构（容器·导航·只读消费）。 */
@@ -43,6 +43,15 @@ export const VERB_FAMILIES: Record<DomainKind, string[]> = {
 }
 
 export const DOMAIN_REGISTRY: DomainEntry[] = [
+  {
+    name: "infoProvider",
+    kind: "modeling",
+    summary:
+      "InfoProvider 多态域（ADSO 判别优先：search 精确名取 objectType，ADSO 转发 AdsoDomain，其余类型未验证即抛错）",
+    verbs: ["details", "exists", "adso"],
+    notes:
+      "P1 Task 3 已落地：details/exists 经 repository.search 判别类型；adso(name) 返回绑定同一 AdtHTTP 的 AdsoDomain（client.adso 是其快捷方式）。HCPR/MultiProvider/OpenODS 无实测证据，命中即抛 not verified yet"
+  },
   {
     name: "adso",
     kind: "modeling",

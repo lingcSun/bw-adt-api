@@ -22,6 +22,7 @@ import {
   DtpDomain,
   InfoAreaDomain,
   InfoObjectDomain,
+  InfoProviderDomain,
   ProcessChainDomain,
   QueryDomain,
   RepositoryDomain,
@@ -43,10 +44,11 @@ const FACADE_CLASSES: Record<string, new (h: AdtHTTP) => unknown> = {
   system: SystemDomain,
   ddic: DdicDomain,
   transport: TransportDomain,
-  infoArea: InfoAreaDomain
+  infoArea: InfoAreaDomain,
+  infoProvider: InfoProviderDomain
 }
 
-/** 未挂载域清单：infoArea 已于 P1 Task 2 挂载，当前应为空。 */
+/** 未挂载域清单：infoArea（P1 Task 2）、infoProvider（P1 Task 3）均已挂载，当前应为空。 */
 const EXPECTED_UNATTACHED: string[] = []
 
 /** 门面原型上的公开方法名（prototype own-properties，去 constructor）。 */
@@ -60,11 +62,11 @@ function attachedNames(): string[] {
   return DOMAIN_REGISTRY.filter(e => FACADE_CLASSES[e.name]).map(e => e.name)
 }
 
-describe("域注册表（12 域 = 11 现有 + infoArea）", () => {
-  test("恰好包含全部 12 域，无重复", () => {
+describe("域注册表（13 域 = 12 现有 + infoProvider）", () => {
+  test("恰好包含全部 13 域，无重复", () => {
     const names = DOMAIN_REGISTRY.map(e => e.name)
-    expect(names).toHaveLength(12)
-    expect(new Set(names).size).toBe(12)
+    expect(names).toHaveLength(13)
+    expect(new Set(names).size).toBe(13)
     expect([...names].sort()).toEqual(
       [
         "adso",
@@ -73,6 +75,7 @@ describe("域注册表（12 域 = 11 现有 + infoArea）", () => {
         "dtp",
         "infoArea",
         "infoObject",
+        "infoProvider",
         "processChain",
         "query",
         "repository",
@@ -98,8 +101,15 @@ describe("域注册表（12 域 = 11 现有 + infoArea）", () => {
 })
 
 describe("kind 三分类（域分类学）", () => {
-  test("modeling: adso/trfn/dtp/dataSource/infoObject", () => {
-    for (const name of ["adso", "trfn", "dtp", "dataSource", "infoObject"]) {
+  test("modeling: infoProvider/adso/trfn/dtp/dataSource/infoObject", () => {
+    for (const name of [
+      "infoProvider",
+      "adso",
+      "trfn",
+      "dtp",
+      "dataSource",
+      "infoObject"
+    ]) {
       expect(getDomain(name)?.kind).toBe("modeling")
     }
   })
@@ -145,6 +155,16 @@ describe("infoArea 预注册（P1 Task 2 落地）", () => {
     expect(e?.kind).toBe("structure")
     expect(e?.verbs).toEqual(["tree", "validate"])
     expect(e?.notes).toContain("P1 Task 2")
+  })
+})
+
+describe("infoProvider 预注册（P1 Task 3 落地）", () => {
+  test("已注册：modeling、details/exists/adso 动词、ADSO 判别优先", () => {
+    const e = getDomain("infoProvider")
+    expect(e).toBeDefined()
+    expect(e?.kind).toBe("modeling")
+    expect(e?.verbs).toEqual(["details", "exists", "adso"])
+    expect(e?.summary).toContain("ADSO")
   })
 
   test("全部注册域均已挂载到 client（EXPECTED_UNATTACHED 为空）", () => {

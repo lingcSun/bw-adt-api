@@ -1,4 +1,5 @@
 export { AdsoDomain } from "./adso"
+export { InfoProviderDomain } from "./infoProvider"
 export { TrfnDomain } from "./trfn"
 export { DtpDomain } from "./dtp"
 export { DataSourceDomain } from "./dataSource"
