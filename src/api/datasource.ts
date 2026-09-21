@@ -2,6 +2,7 @@ import { fullParse, xmlNodeAttr, xmlArray, xmlNode, orUndefined } from "../utili
 import { AdtHTTP, session_types } from "../AdtHTTP"
 import { ActivationResult, LockResult, parseLockResponse, parseActivationResponse , withFreshSessionOnServerError } from "./common"
 import { DataSourceDetails, DataSourceField, DataSourceVersion } from "./types"
+import { withWriteSession } from "./writeSession"
 
 // ============================================================================
 // Constants
@@ -547,49 +548,26 @@ export async function saveAndActivateDataSource(
   xmlContent: string,
   options?: SaveAndActivateDataSourceOptions
 ): Promise<SaveAndActivateDataSourceResult> {
-  const { resolveTransportForWrite } = await import("./transport")
-
-  const dsUri = `/sap/bw/modeling/rsds/${datasource.toLowerCase()}/${sourceSystem.toLowerCase()}/m`
-  const autoActivate = options?.autoActivate ?? true
-
-  const lockResult = await lockDataSource(client, datasource, sourceSystem)
-
-  try {
-    const transport = await resolveTransportForWrite(client, dsUri, {
-      transport: options?.transport,
-      lockCorrNr: lockResult.corrNr,
-      createTransport: options?.createTransport,
-      transportDescription:
-        options?.transportDescription || "API update DataSource"
-    })
-
-    const timestamp = extractDataSourceTimestamp(xmlContent)
-    await updateDataSource(client, datasource, sourceSystem, xmlContent, {
-      lockHandle: lockResult.lockHandle,
-      transport,
-      timestamp
-    })
-
-    let activateResult
-    if (autoActivate) {
-      activateResult = await activateDataSource(
-        client,
-        datasource,
-        sourceSystem,
-        lockResult.lockHandle,
-        transport || ""
-      )
-    }
-
-    return {
-      lockHandle: lockResult.lockHandle,
-      transport,
-      activated: autoActivate,
-      activateResult
-    }
-  } finally {
-    await unlockDataSource(client, datasource, sourceSystem)
-  }
+  const { updateResult, ...rest } = await withWriteSession(client, {
+    lock: c => lockDataSource(c, datasource, sourceSystem),
+    update: (c, xml, io) =>
+      updateDataSource(c, datasource, sourceSystem, xml, {
+        lockHandle: io.lockHandle,
+        transport: io.corrNr,
+        timestamp: io.timestamp ?? extractDataSourceTimestamp(xml),
+      }),
+    activate: (c, lockHandle, corrNr) =>
+      activateDataSource(c, datasource, sourceSystem, lockHandle, corrNr || ""),
+    unlock: c => unlockDataSource(c, datasource, sourceSystem),
+  }, {
+    uri: `/sap/bw/modeling/rsds/${datasource.toLowerCase()}/${sourceSystem.toLowerCase()}/m`,
+    xml: xmlContent,
+    autoActivate: options?.autoActivate,
+    transport: options?.transport,
+    createTransport: options?.createTransport,
+    transportDescription: options?.transportDescription || "API update DataSource",
+  })
+  return rest
 }
 
 /**

@@ -4,6 +4,7 @@ import { AdtHTTP, session_types } from "../AdtHTTP"
 import { ActivationResult, ActivationMessage, LockResult, activateObject, parseActivationResponse, parseLockResponse, parseObjectVersions, ValidationAction, ValidationResult, withFreshSessionOnServerError } from "./common"
 import { BWObject, BWObjectType } from "./bwObject"
 import { TransformationDetails } from "./types"
+import { withWriteSession } from "./writeSession"
 
 // ============================================================================
 // CREATE: 已支持 —— createTransformation() 走 Eclipse 同款 8TRANSIENT 瞬态流
@@ -311,48 +312,25 @@ export async function saveAndActivateTransformation(
   xmlContent: string,
   options?: SaveAndActivateTransformationOptions
 ): Promise<SaveAndActivateTransformationResult> {
-  const { resolveTransportForWrite } = await import("./transport")
-
-  const trfnUri = `/sap/bw/modeling/trfn/${trfnId.toLowerCase()}/m`
-  const autoActivate = options?.autoActivate ?? true
-  const timestamp =
-    options?.timestamp ?? extractTransformationTimestamp(xmlContent)
-
-  const lockResult = await lockTransformation(client, trfnId)
-
-  try {
-    const transport = await resolveTransportForWrite(client, trfnUri, {
-      transport: options?.transport,
-      lockCorrNr: lockResult.corrNr,
-      createTransport: options?.createTransport,
-      transportDescription: options?.transportDescription || "API TRFN update"
-    })
-
-    const updateResult = await updateTransformation(client, trfnId, xmlContent, {
-      lockHandle: lockResult.lockHandle,
-      corrNr: transport,
-      timestamp
-    })
-
-    let activateResult
-    if (autoActivate) {
-      activateResult = await activateTransformation(
-        client,
-        trfnId,
-        lockResult.lockHandle
-      )
-    }
-
-    return {
-      lockHandle: lockResult.lockHandle,
-      transport,
-      updateResult,
-      activated: autoActivate,
-      activateResult
-    }
-  } finally {
-    await unlockTransformation(client, trfnId)
-  }
+  return withWriteSession(client, {
+    lock: c => lockTransformation(c, trfnId),
+    update: (c, xml, io) =>
+      updateTransformation(c, trfnId, xml, {
+        lockHandle: io.lockHandle,
+        corrNr: io.corrNr,
+        timestamp: io.timestamp ?? extractTransformationTimestamp(xml),
+      }),
+    activate: (c, lockHandle) => activateTransformation(c, trfnId, lockHandle),
+    unlock: c => unlockTransformation(c, trfnId),
+  }, {
+    uri: `/sap/bw/modeling/trfn/${trfnId.toLowerCase()}/m`,
+    xml: xmlContent,
+    autoActivate: options?.autoActivate,
+    timestamp: options?.timestamp,
+    transport: options?.transport,
+    createTransport: options?.createTransport,
+    transportDescription: options?.transportDescription || "API TRFN update",
+  })
 }
 
 export interface EnsureRoutineOptions extends SaveAndActivateTransformationOptions {
