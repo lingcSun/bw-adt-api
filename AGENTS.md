@@ -1,13 +1,13 @@
 # bw-adt-api — Agent Instructions
 
-SAP BW/4HANA ADT webservice 接口库（TypeScript）。传输层借用 abap-adt-api（同作者的兄弟仓库，本仓库不内嵌）的 `AdtHTTP`/`AdtException` 结构，域模型独立实现。
+SAP BW/4HANA ADT webservice 接口库（TypeScript）。传输层 `AdtHTTP`/`AdtException` 与兄弟仓库 abap-adt-api 同构、独立演化（不依赖该包），域模型自研。
 
 ## Commands
 
 ```bash
 npm run build   # tsc → build/
 npm run watch   # tsc -w
-npm test        # jest（集成测试需 .env 提供 BW_BASE_URL 等，未配置时跳过）
+npm test        # jest（集成测试需 .env 提供 BW_BASE_URL 等；尚不会离线自动跳过）
 ```
 
 ## Layout
