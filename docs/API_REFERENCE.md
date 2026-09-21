@@ -7,7 +7,7 @@
 
 | 类 | 含义 | 数量 |
 |---|---|---|
-| **读 (R)** | 非变更：GET、搜索、validation/checkruns 探针、数据预览、BICS 会话分析 | 71 |
+| **读 (R)** | 非变更：GET、搜索、validation/checkruns 探针、数据预览、BICS 会话分析 | 72 |
 | **写 (W)** | 变更或建立会话：lock/unlock、create/update/delete/activate、编排、执行、TR 创建 | 43 |
 | **本地 (L)** | 纯函数：XML/解析/工厂辅助，无服务器 I/O | 46 |
 
@@ -31,7 +31,7 @@
 | dataflow | 2 | RepositoryDomain |
 | datasource | 15 | DataSourceDomain |
 | ddic | 10 | DdicDomain |
-| dtp | 14 | DtpDomain |
+| dtp | 15 | DtpDomain |
 | infoobject | 5 | InfoObjectDomain |
 | processchain | 13 | ProcessChainDomain |
 | replication | 6 | DataSourceDomain |
@@ -43,7 +43,7 @@
 | transport | 4 | TransportDomain |
 
 
-## API 层（src/api/*.ts，160 个导出函数）
+## API 层（src/api/*.ts，161 个导出函数）
 
 
 ### 通用（激活/检查/验证/会话恢复）（`common.ts`）
@@ -145,7 +145,8 @@
 | `unlockDTP` | 写 | POST /dtpa/{id}?action=unlock — 解锁 | ✅ 解锁 |
 | `activateDTP` | 写 | POST /sap/bw/modeling/activation — 激活 | ✅ 激活后 active 回读 |
 | `updateDTP` | 写 | PUT /sap/bw/modeling/dtpa/{id}/m — 保存 XML | ✅ extractionSettings.packageSize 编辑 PUT 持久化实测；overview@description 为服务端派生字段（PUT 接受不持久） |
-| `executeDTP` | 写 | POST /dtpa/{id}?action=execute — 运维执行（批量运行） | ❌ W3：?action=execute 本系统「内部错误：不支持 URI」——从未有真机验证记录，需 Eclipse 抓包 |
+| `executeDTP` | 写 | POST /sap/bw/modeling/dtpa/executerun — 触发执行（201+Location 返回 runId；2026-09-21 抓包实证） | ✅ W3 已修复（2026-09-21，Eclipse 抓包实证）：POST /dtpa/executerun → 201 + Location 解析 runId（库路径实测） |
+| `getDTPExecuteRunResult` | 读 | GET /sap/bw/modeling/dtpa/executerun/{id}/{runId}?withLog=true — 执行状态轮询（2026-09-21 抓包实证） | ✅ 新增（2026-09-21 抓包实证）：GET executerun/{dtpId}/{runId}?withLog=true 轮询，requestId 回读匹配 |
 | `createDTP` | 写 | POST /sap/bw/modeling/dtpa/{id}?lockHandle — CREA lock→collection POST 创建 | ✅ CREA lock→collection POST；W2 已处置：TRFN 须 active 预检（inactive 明确报错、active 放行实测）+ description 不生效已文档化 |
 | `saveAndActivateDTP` | 写 | lock→transport→PUT→activate→unlock — 保存并激活编排 | ✅ 编辑→激活→DTP active 回读 |
 | `generateDtpId` | 本地 | 生成 DTP_<26 位> 技术名 | — |
@@ -492,6 +493,7 @@
 | `activateDTPWithLock` | W | = activateDTP |
 | `checkDTP` | 读 | = checkDTP |
 | `executeDTP` | 写 | = executeDTP |
+| `getDTPExecuteRunResult` | R | = getDTPExecuteRunResult |
 | `updateDTP` | 写 | = updateDTP |
 | `transportCheck` | 读 | = transportCheck |
 | `createTransport` | 写 | = createTransport |

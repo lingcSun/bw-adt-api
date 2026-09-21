@@ -52,6 +52,7 @@ export type {
   DTPMetaData,
   DTPVersion,
   DTPExecutionResult,
+  DTPExecuteRunResult,
   CreateDTPOptions
 } from "./dtp"
 
@@ -175,13 +176,14 @@ export {
   lockDTP,
   unlockDTP,
   createDTP,
+  executeDTP,
+  getDTPExecuteRunResult,
   getDTP,
   getDTPXml,
   getDTPDetails,
   getDTPVersions,
   activateDTP,
   checkDTP,
-  executeDTP,
   validateDTPExists,
   updateDTP,
   saveAndActivateDTP

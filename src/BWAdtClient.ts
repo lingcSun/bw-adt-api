@@ -1625,6 +1625,20 @@ export class BWAdtClient {
   }
 
   /**
+   * Get DTP Execute Run Result - 轮询 DTP 执行状态
+   * 对应请求: GET /sap/bw/modeling/dtpa/executerun/{dtp_id}/{run_id}?withLog=true
+   * （runId 来自 executeDTP 返回；2026-09-21 Eclipse 抓包实证）
+   */
+  public async getDTPExecuteRunResult(
+    dtpId: string,
+    runId: string,
+    options?: { withLog?: boolean }
+  ) {
+    const { getDTPExecuteRunResult } = await import("./api/dtp")
+    return getDTPExecuteRunResult(this.h, dtpId, runId, options)
+  }
+
+  /**
    * Update DTP - 更新 DTP 内容
    * 对应请求: PUT /sap/bw/modeling/dtpa/{dtp_id}/m?corrNr={tr}&lockHandle={handle}
    *
