@@ -28,4 +28,4 @@ Eclipse 通信日志（用户 08:51 抓包）暴露了库外的 BW 建模端点�
 
 ## Related
 
-- 发现来源：[nodepath 修复笔记](2026-09-20-nodepath-double-encoding.md)（同一份 Eclipse 日志）、[VERIFIED_APIS 第 7 节 V6](../../../../docs/VERIFIED_APIS.md)。
+- 发现来源：[nodepath 修复笔记](../bug-fix/2026-09-20-nodepath-double-encoding.md)（同一份 Eclipse 日志）、[VERIFIED_APIS 第 7 节 V6](../../../../docs/VERIFIED_APIS.md)。
