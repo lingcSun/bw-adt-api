@@ -248,7 +248,11 @@ npm test -- --testPathPattern=adso-write
 
 用户点名场景全部覆盖：创建后修改、类型调整、字段变迁（含转 IOBJ 引用）、规则类型链、全量/增量翻转。逐项证据在 `.local/probe/write-results2.json`（不入库）。
 
-- **D1 ADSO 类型标志是创建时属性**：`readOnly=true` 翻转——PUT/激活均成功但标志**不持久（静默忽略）**；带键定义翻 write-optimized（activateData=F+changelog=F）——激活**响亮拒绝**（"not allowed to have a hash- and a key-definition"）。类型调整需在创建时定，激活期不可翻。
+- **D1（v2，2026-09-21 用户提供两份 Eclipse 抓包后完全重写；初轮"创建时属性"结论作废）ADSO 类型/属性调整 = 普通 PUT**：无专用端点，服务端接受根属性集的合法组合变更（200 + Information「已成功更改对象」）。属性词表（根元素，实测持久）：标准 = `writeChangelog` / `snapShotScenario` / `uniqueDataRecords`；Staging = `activateData=false`（inbound queue only）+ `isReportingObject` + 无 changelog；DataMart = `readOnly=true` + `withHanaModel=true` + 无 changelog；DirectUpdate = `directUpdate=true`。
+  - **组合约束**：`directUpdate=true` 必须同时 `activateData=false` + `writeChangelog=false`——否则激活报两条明确 Error（"'Direct update' set. 'Activate Data' not allowed" / "'Write Change Log' not allowed"），属性虽写进 inactive 版但不可激活。
+  - **转 Staging 须去 `<keyElement>`**（hash/key 约束同源），**元素全部保留**（0MATERIAL 引用元素原样）——对齐抓包 18:19。
+  - **回环实测**（抓包配方）：标准(cl=T)→Staging(act=F/cl=F/rep=F/去键)→标准(act=T/rep=T/cl=F 保持取消勾选)，两方向激活成功、属性逐项持久、字段全程保留。
+  - 初轮误判原因：用不合法的组合（带键翻 W-O）与孤立翻转（单独 readOnly 不满足 DataMart 伴随条件被归一化）推断"不可翻"——组合正确时全部可翻。
 - **D2 DTP 抽取模式**：创建传 `F` 被服务端**水合为 `D`**（按源能力归一化，本系统源对均为 D）；PUT 翻转 `D↔F` **双向持久**（每步保存+激活+回读）；二次执行各自 201+runId、轮询匹配。
 - **D3 字段改造**：本地字段可**整块替换为 IOBJ 引用元素**（转换而非新增），激活后水合 `inlineType globalElementName`；CHAR→NUMC 改型、+DEC、+IOBJ 引用、删字段均逐步激活+回读通过。
 - **D4 规则链**（同一目标字段）：CONSTANT→FORMULA→NO_UPDATE 全部按写入类型持久；**INITIAL 被服务端规范化**（回读无 StepInitial，与 09-20 键上 INITIAL 规范化证据互补——非键字段亦然）；**键字段 CONSTANT 被接受**（0MATERIAL 常量 X 持久）。
