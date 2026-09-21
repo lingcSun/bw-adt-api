@@ -225,7 +225,7 @@ npm test -- --testPathPattern=adso-write
 - **V5（已修复 2026-09-20）getADSONodePath 双重编码**：根因是调用方预编码 `encodeURIComponent(objectUri)` 后再交给传输层（axios params 单次编码），上线成 `%252F...`，服务端报「Data type "" does not exist」。真机三组对照定位（预编码❌ / 单次编码✅ 200 同字节 / 原始串进 qs✅）；Eclipse 抓包（08:51 日志）线上形态即单次编码。修复后实测 adso URI 返回 3 节点；nodepath 端点本身对 iobj URI 同样可用（iobj 探针 200）。回归锁 `adso-nodepath-encoding.test.ts`：qs 必须收原始串。
   同轮 Eclipse 日志对照发现 5 个库外端点（iobj/versions、iobj/configuration、rules/qprops[需 vendor Accept `…ov_query_props-v3_0_0+xml`]、queryint user_props、repo/infoproviderstructure）均真机 200，未入库待决策。
 
-- **V6（2026-09-21）Eclipse 日志对照批**：`GET /sap/bw/modeling/repo/infoproviderstructure/area/{area}/{type}` 已入库（`getInfoproviderStructure`，门面 `repository.infoproviderStructure`）——atom:feed + bwModel:object（objectName/objectType/objectSubtype/objectStatus + atom:id/atom:title）；实测 iobj_cha/iobj_kyf/iobj/adso 三 type 均 200，无内容返回空 feed 不报错。**qprops（`GET /rules/qprops?objectType=&infoprovider=&version=`）端点存在但 vendor Accept 未知**：服务端 415 报错对两侧内容类型的中间段一律以 `…` 缩写（`application/vnd.sap.bw…ov_query_props-v3_0_0+xml`），17 个候选命名空间全部不中，ADT discovery（atomsvc，148KB）未登记该服务——待 Eclipse 请求头佐证后实现。
+- **V6（2026-09-21）Eclipse 日志对照批**：`GET /sap/bw/modeling/repo/infoproviderstructure/area/{area}/{type}` 已入库（`getInfoproviderStructure`，门面 `repository.infoproviderStructure`）——atom:feed + bwModel:object（objectName/objectType/objectSubtype/objectStatus + atom:id/atom:title）；实测 iobj_cha/iobj_kyf/iobj/adso 三 type 均 200，无内容返回空 feed 不报错。**qprops（`GET /rules/qprops?objectType=&infoprovider=&version=`）端点存在但决定不实现（2026-09-21）**：其 vendor Accept 无法从服务端获取（415 报错对两侧内容类型的中间段一律以 `…` 字面缩写，17 个候选命名空间全部不中，ADT discovery 未登记该服务），实现需 Eclipse 请求头佐证；价值（BICS preview 免 initialView 选特征）不足以支撑该成本。若将来系统升级或抓包暴露了完整类型，以新证据重开。
 
 ## 安全说明
 
