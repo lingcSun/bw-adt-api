@@ -320,6 +320,19 @@ export class BWAdtClient {
   }
 
   /**
+   * Get Infoprovider Structure - InfoArea 下可用于查询定义的对象树
+   * 对应请求: GET /sap/bw/modeling/repo/infoproviderstructure/area/{area}/{type}
+   * （2026-09-21 真机验证；type: iobj_cha / iobj_kyf / iobj / adso）
+   */
+  public async getInfoproviderStructure(
+    infoArea: string,
+    type?: "iobj_cha" | "iobj_kyf" | "iobj" | "adso"
+  ) {
+    const { getInfoproviderStructure } = await import("./api/repository")
+    return getInfoproviderStructure(this.h, infoArea, type)
+  }
+
+  /**
    * Quick Search - 快速搜索 BW 对象
    *
    * @param searchTerm - 搜索关键词

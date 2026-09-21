@@ -7,9 +7,9 @@
 
 | 类 | 含义 | 数量 |
 |---|---|---|
-| **读 (R)** | 非变更：GET、搜索、validation/checkruns 探针、数据预览、BICS 会话分析 | 73 |
+| **读 (R)** | 非变更：GET、搜索、validation/checkruns 探针、数据预览、BICS 会话分析 | 74 |
 | **写 (W)** | 变更或建立会话：lock/unlock、create/update/delete/activate、编排、执行、TR 创建 | 43 |
-| **本地 (L)** | 纯函数：XML/解析/工厂辅助，无服务器 I/O | 45 |
+| **本地 (L)** | 纯函数：XML/解析/工厂辅助，无服务器 I/O | 46 |
 
 读 API 的真机验证状态见状态列（✅/⚠️/❌）与 [VERIFIED_APIS.md](./VERIFIED_APIS.md)。
 
@@ -33,14 +33,14 @@
 | processchain | 13 | ProcessChainDomain |
 | replication | 6 | DataSourceDomain |
 | reporting | 8 | QueryDomain |
-| repository | 3 | RepositoryDomain |
+| repository | 5 | RepositoryDomain |
 | search | 5 | RepositoryDomain |
 | systemInfo | 3 | SystemDomain |
 | transformation | 27 | TrfnDomain |
 | transport | 4 | TransportDomain |
 
 
-## API 层（src/api/*.ts，161 个导出函数）
+## API 层（src/api/*.ts，163 个导出函数）
 
 
 ### 通用（激活/检查/验证/会话恢复）（`common.ts`）
@@ -224,6 +224,8 @@
 
 | 函数 | 类 | 端点/说明 | 读验证状态 |
 |---|---|---|---|
+| `getInfoproviderStructure` | 读 | GET /sap/bw/modeling/repo/infoproviderstructure/area/{area}/{type} — InfoArea 查询树（2026-09-21 真机验证） | ✅ 2026-09-21 实测（cha/kyf/adso 三 type、三入口：门面/api/client；空区域返回空数组不报错） |
+| `parseInfoproviderStructure` | 本地 | 解析结构 feed | — |
 | `infoObjects` | 读 | GET /sap/bc/adt/bw/objects/infoobject — InfoObject 目录查询 | ❌ Resource  /sap/bc/adt/bw/objects/infoobject does not exist. |
 | `infoObjectDetails` | 读 | GET /sap/bc/adt/bw/objects/infoobject — InfoObject 目录详情 | ❌ Resource  /sap/bc/adt/bw/objects/infoobject/0MATERIAL does not exist. |
 | `infoObjectCatalogs` | 读 | GET /sap/bc/adt/bw/objects/infocatalog — InfoObject 目录列表 | ❌ Resource  /sap/bc/adt/bw/objects/infocatalog does not exist. |
@@ -289,7 +291,7 @@
 | `flattenReportingResultSet` | 本地 | 结果集扁平化 | — |
 | `parseQueryView` | 本地 | 视图响应解析 | — |
 
-## 域门面（src/domains/*.ts，62 个方法）
+## 域门面（src/domains/*.ts，63 个方法）
 
 > 门面是对 api 层的薄转发；类（读/写/本地）继承目标函数。
 
@@ -377,6 +379,7 @@
 
 | 方法 | 类 | 目标 |
 |---|---|---|
+| `infoproviderStructure` | 读 | → getInfoproviderStructure |
 | `search` | 读 | → searchBWObjects |
 | `transformationsOf` | 读 | → getTransformationsOf |
 | `dtpsOf` | 读 | → getDTPsOf |
@@ -425,6 +428,7 @@
 | `getSystemProperty` | 读 | = getSystemProperty |
 | `hasCapability` | 读 | = hasCapability |
 | `searchBWObjects` | 读 | = searchBWObjects |
+| `getInfoproviderStructure` | R | = getInfoproviderStructure |
 | `quickSearch` | 读 | = quickSearch |
 | `getADSOTransformations` | R | = getTransformationsOf |
 | `getADSODataTransferProcesses` | R | = getDTPsOf |

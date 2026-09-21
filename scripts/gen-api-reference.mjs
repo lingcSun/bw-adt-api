@@ -198,6 +198,8 @@ const T = {
     ["parseInfoObjectDetails", "L", "—", "解析 InfoObject 详情"],
   ],
   "repository.ts": [
+    ["getInfoproviderStructure", "R", "GET /sap/bw/modeling/repo/infoproviderstructure/area/{area}/{type}", "InfoArea 查询树（2026-09-21 真机验证）"],
+    ["parseInfoproviderStructure", "L", "—", "解析结构 feed"],
     ["infoObjects", "R", "GET /sap/bc/adt/bw/objects/infoobject", "InfoObject 目录查询"],
     ["infoObjectDetails", "R", "GET /sap/bc/adt/bw/objects/infoobject", "InfoObject 目录详情"],
     ["infoObjectCatalogs", "R", "GET /sap/bc/adt/bw/objects/infocatalog", "InfoObject 目录列表"],
@@ -277,7 +279,7 @@ const FACADE_TARGETS = {
   InfoObjectDomain: { get: "getInfoObject", validateExists: "validateInfoObjectExists", validateNewName: "validateInfoObjectNewName" },
   ProcessChainDomain: { details: "getProcessChainDetails", check: "checkProcessChain", execute: "executeProcessChain", stop: "stopProcessChain", logs: "@getProcessChainLogs+Status" },
   QueryDomain: { initialView: "getReportingInitialView", updateView: "updateReportingView", preview: "queryProviderPreview" },
-  RepositoryDomain: { search: "searchBWObjects", transformationsOf: "getTransformationsOf", dtpsOf: "getDTPsOf", dataflow: "getDataflow", lineage: "getDataflowLineage" },
+  RepositoryDomain: { infoproviderStructure: "getInfoproviderStructure", search: "searchBWObjects", transformationsOf: "getTransformationsOf", dtpsOf: "getDTPsOf", dataflow: "getDataflow", lineage: "getDataflowLineage" },
   SystemDomain: { info: "systemInfo", getProperty: "getSystemProperty", hasCapability: "hasCapability" },
   TransportDomain: { check: "transportCheck", create: "createTransport" },
 }
@@ -287,6 +289,7 @@ const CLIENT_EXCEPTIONS = {
   login: ["W", "会话", "登录（建立 stateful 会话）"],
   logout: ["W", "会话", "登出"],
   dropSession: ["W", "会话", "销毁服务端会话"],
+  getInfoproviderStructure: ["R", "= getInfoproviderStructure", "InfoArea 查询树"],
   reentranceTicket: ["W", "会话", "SAP 重入票证"],
   systemInfo: ["R", "GET systeminfo", "系统信息"],
   getADSOTransformations: ["R", "= getTransformationsOf", "ADSO 关联 TRFN"],
