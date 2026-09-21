@@ -259,6 +259,20 @@ npm test -- --testPathPattern=adso-write
 - **D5 例程边界精确形态**：无 END 规则的 TRFN 上 `setEndRoutineFields` 报 "END routine rule not found in TRFN XML"（例程创建无 REST 路径的调用侧形态）。
 - **D6 修改时序**：inactive 期 PUT 持久（autoActivate:false）；**单锁双 PUT 后写生效**；**过期 timestamp（20200101000000）被服务端接受**——服务端不校验时间戳冲突，并发防护不可依赖它。
 
+**D7/D8 选项兼容矩阵（2026-09-21，用户点名门道后七格+六格实测）**
+
+- **D7 标准 ADSO 三选项规则**（writeChangelog/snapShotScenario/uniqueDataRecords）：
+  - `snapShotScenario=true` **要求** `activateData=true` 且 `writeChangelog=true`——缺任一激活报 "'Snapshot Scenario' is set. 'Activate Data', 'Write Change Log' missing."；
+  - `snapShotScenario` 与 `uniqueDataRecords` **互斥**——同设报 "'Snapshot Scenario' is set. 'Unique Data records' cannot be set."；
+  - `uniqueDataRecords` 自由（有无 changelog 均持久）；
+  - 合法组合实测：cl=T ✓、snap+cl ✓、uniq+cl ✓、uniq 单选 ✓、全关 ✓；非法：snap 单选 ✗、snap+uniq ✗。
+- **D8 Staging 持久策略三选一**（activateData/writeChangelog 组合即策略，非自由布尔）：
+  - `(act=F, cl=F)` = **inbound queue only**（无键合法；reporting 不可加——激活报 GET_OBJECT_FOR_EXTRACTION）；
+  - `(act=T, cl=F)` = **compress data log**（**必须有键定义**，无键报 "Key definition missing"；`isReportingObject=true` 可叠加 ✓）；
+  - `(act=T, cl=T)` = 带 changelog（**服务端强制 `isReportingObject=true`**，写 F 归一化为 T）；
+  - `(act=F, cl=T)` = **非法**——"Change log cannot be set without 'Activate Data'"。
+  - MCP 语义层应把 staging 建模为枚举 `mode: inboundQueueOnly | compressDataLog | changeLog` + `reportingEnabled`（仅非 inbound 模式），而非两个自由布尔。
+
 **范围外登记（⚠️，共 19 项）**：RSDS 写×6（源系统对象非本地靶子）、复制×2（系统级影响面）、PC 写×5（需专用可执行测试链）、createTransport（传输组织器写）、例程类写×5（例程创建无 REST 路径，业务 TRFN 的例程类不在授权范围）。
 
 ## 安全说明
