@@ -1,7 +1,7 @@
 # BW-ADT-API 完整 API 参考（代码生成）
 
 > 本文件由 `scripts/gen-api-reference.mjs` 从源码机械生成，生成器对"分类表 vs 代码导出"做集合断言，保证与代码 100% 一致。
-> 重新生成：`node scripts/gen-api-reference.mjs [--results .local/verify-results.json]`。最后生成：2026-09-20。
+> 重新生成：`node scripts/gen-api-reference.mjs [--results .local/verify-results.json]`。最后生成：2026-09-21。
 
 ## 分类
 
@@ -51,8 +51,8 @@
 | 函数 | 类 | 端点/说明 | 读验证状态 |
 |---|---|---|---|
 | `activateObject` | 写 | POST /sap/bw/modeling/activation — 激活对象（checkProperties feed） | — |
-| `checkObject` | 读 | POST /sap/bw/modeling/checkruns — 一致性检查（不激活；注意与激活端点不同） | ✅ checkruns 端点 success=true |
-| `validateObject` | 读 | POST /sap/bw/modeling/validation — 对象验证（exists/new/delete/activate） | ✅ IOBJ token: true |
+| `checkObject` | 读 | POST /sap/bw/modeling/checkruns — 一致性检查（不激活；注意与激活端点不同） | ✅ checkruns：ADSO success=true，TRFN success=true |
+| `validateObject` | 读 | POST /sap/bw/modeling/validation — 对象验证（exists/new/delete/activate） | ✅ AREA token valid=true（与 adso.validateObject 同端点独立符号） |
 | `parseActivationResponse` | 本地 | 解析激活/检查 ATOM 响应 | — |
 | `parseLockResponse` | 本地 | 解析 lock 响应（lockHandle/corrNr/isLocal） | — |
 | `parseObjectVersions` | 本地 | 解析版本 ATOM feed | — |
@@ -69,21 +69,21 @@
 
 | 函数 | 类 | 端点/说明 | 读验证状态 |
 |---|---|---|---|
-| `validateObject` | 读 | POST /sap/bw/modeling/validation — 对象验证（通用，ADSO 域内副本） | ✅ IOBJ token valid |
+| `validateObject` | 读 | POST /sap/bw/modeling/validation — 对象验证（通用，ADSO 域内副本） | ✅ IOBJ token valid=true |
 | `validateInfoArea` | 读 | POST /sap/bw/modeling/validation — InfoArea 存在性 | ✅ valid |
-| `validateTemplateADSO` | 读 | POST /sap/bw/modeling/validation — 模板 ADSO 存在性 | ✅ valid |
+| `validateTemplateADSO` | 读 | POST /sap/bw/modeling/validation — 模板 ADSO 存在性 | ✅ valid（0* ADSO 作模板） |
 | `templateValidationObjectType` | 本地 | tlogo → validation objectType 映射 | — |
-| `validateNewADSOName` | 读 | POST /sap/bw/modeling/validation — 新名称可用性 | ✅ 可用 |
-| `getADSO` | 读 | GET /sap/bw/modeling/adso/{id}/m — ADSO 完整解析树 | ✅ 0标准: tree 2 |
-| `getADSODetails` | 读 | GET /sap/bw/modeling/adso/{id}/m — ADSO 元数据（解析后） | ✅ 0标准: name ok |
-| `getADSOXml` | 读 | GET /sap/bw/modeling/adso/{id}/m — ADSO 原始 XML | ✅ 0标准: 4678B |
-| `getADSOVersions` | 读 | GET /sap/bw/modeling/adso/{id}/versions — 版本历史 | ✅ 2 版本 |
-| `getADSOConfiguration` | 读 | GET /sap/bw/modeling/adso/{id}/configuration — 配置信息 | ✅ 两样本 |
-| `getADSOTables` | 读 | GET /sap/bw/modeling/adso/{id}/{version} — 关联表名（AT/AQ/CL） | ✅ active=yes；命名空间名(/NS/*) 修复后实测可读（V4） |
-| `getADSONodePath` | 读 | GET /sap/bw/modeling/repo/nodepath — 仓库节点路径 | ✅ 修复双重编码后实测（3 节点；nodepath 对 adso/iobj URI 均可用，见账本 V5） |
-| `checkADSO` | 读 | POST /sap/bw/modeling/checkruns — 一致性检查 | ✅ success |
-| `validateADSOExists` | 读 | POST /sap/bw/modeling/validation — 存在性 | ✅ valid |
-| `validateADSONewName` | 读 | POST /sap/bw/modeling/validation — 新名称可用性 | ✅ 可用 |
+| `validateNewADSOName` | 读 | POST /sap/bw/modeling/validation — 新名称可用性 | ✅ 新名 valid=true；重名报错(名称为 ZADSO_02（类型为 ADSO）的信息提供者已存在) |
+| `getADSO` | 读 | GET /sap/bw/modeling/adso/{id}/m — ADSO 完整解析树 | ✅ 0标准:name✓/xml 4678B；Z客户:name✓/xml 4678B；Z客户2:name✓/xml 7600B；命名空间:name✓/xml 15205B |
+| `getADSODetails` | 读 | GET /sap/bw/modeling/adso/{id}/m — ADSO 元数据（解析后） | ✅ 0标准:name✓/xml 4678B；Z客户:name✓/xml 4678B；Z客户2:name✓/xml 7600B；命名空间:name✓/xml 15205B |
+| `getADSOXml` | 读 | GET /sap/bw/modeling/adso/{id}/m — ADSO 原始 XML | ✅ 0标准:name✓/xml 4678B；Z客户:name✓/xml 4678B；Z客户2:name✓/xml 7600B；命名空间:name✓/xml 15205B |
+| `getADSOVersions` | 读 | GET /sap/bw/modeling/adso/{id}/versions — 版本历史 | ✅ Z 2 版本；命名空间 9 |
+| `getADSOConfiguration` | 读 | GET /sap/bw/modeling/adso/{id}/configuration — 配置信息 | ✅ 0*+Z* 两样本（键 8/8） |
+| `getADSOTables` | 读 | GET /sap/bw/modeling/adso/{id}/{version} — 关联表名（AT/AQ/CL） | ✅ activeTable=/BIC/AXXXXXX…；命名空间 activeTable=✓ |
+| `getADSONodePath` | 读 | GET /sap/bw/modeling/repo/nodepath — 仓库节点路径 | ✅ adso 3 节点 |
+| `checkADSO` | 读 | POST /sap/bw/modeling/checkruns — 一致性检查 | ✅ success=true |
+| `validateADSOExists` | 读 | POST /sap/bw/modeling/validation — 存在性 | ✅ 存在=valid；负例报错(数据存储对象 'ZQNOTXIST9' 不存在) |
+| `validateADSONewName` | 读 | POST /sap/bw/modeling/validation — 新名称可用性 | ✅ 新名 valid=true；重名报错(名称为 ZADSO_02（类型为 ADSO）的信息提供者已存在) |
 | `createADSO` | 写 | POST /sap/bw/modeling/adso/{name}?lockHandle — 创建（需先 lock） | — |
 | `createADSOFull` | 写 | 验证→lock→创建→(激活)→unlock — 创建编排（门面入口） | — |
 | `lockADSO` | 写 | POST /adso/{id}?action=lock — 锁定（stateful） | — |
@@ -103,13 +103,13 @@
 
 | 函数 | 类 | 端点/说明 | 读验证状态 |
 |---|---|---|---|
-| `getTransformation` | 读 | GET /sap/bw/modeling/trfn/{id}/{version} — TRFN 解析树 | ✅ 解析树 |
-| `getTransformationDetails` | 读 | GET /sap/bw/modeling/trfn/{id}/{version} — TRFN 元数据 | ✅ 两样本（字段 -） |
-| `getTransformationXml` | 读 | GET /sap/bw/modeling/trfn/{id}/{version} — TRFN 原始 XML | ✅ 278363/76290B |
+| `getTransformation` | 读 | GET /sap/bw/modeling/trfn/{id}/{version} — TRFN 解析树 | ✅ 解析树双样本（经 details/xml 已验同名端点） |
+| `getTransformationDetails` | 读 | GET /sap/bw/modeling/trfn/{id}/{version} — TRFN 元数据 | ✅ 双样本；source.name=无；例程类=找到 |
+| `getTransformationXml` | 读 | GET /sap/bw/modeling/trfn/{id}/{version} — TRFN 原始 XML | ✅ 278363/76290B 双样本 |
 | `getTransformationVersions` | 读 | GET /sap/bw/modeling/trfn/{id}/versions — 版本历史 | ✅ 106 版本 |
-| `checkTransformation` | 读 | POST /sap/bw/modeling/checkruns — 一致性检查 | ✅ success |
-| `validateTransformationExists` | 读 | POST /sap/bw/modeling/validation — 存在性 | ✅ true |
-| `validateTransformationNewName` | 读 | POST /sap/bw/modeling/validation — 新名称可用性 | ✅ true |
+| `checkTransformation` | 读 | POST /sap/bw/modeling/checkruns — 一致性检查 | ✅ success=true |
+| `validateTransformationExists` | 读 | POST /sap/bw/modeling/validation — 存在性 | ✅ valid=true |
+| `validateTransformationNewName` | 读 | POST /sap/bw/modeling/validation — 新名称可用性 | ✅ valid=true（新生成 id） |
 | `lockTransformation` | 写 | POST /trfn/{id}?action=lock — 锁定（stateful） | — |
 | `unlockTransformation` | 写 | POST /trfn/{id}?action=unlock — 解锁 | — |
 | `updateTransformation` | 写 | PUT /sap/bw/modeling/trfn/{id}/m — 保存 XML | — |
@@ -137,10 +137,10 @@
 |---|---|---|---|
 | `getDTP` | 读 | GET /sap/bw/modeling/dtpa/{id}/m — DTP 解析树 | ✅ 解析树 |
 | `getDTPXml` | 读 | GET /sap/bw/modeling/dtpa/{id}/m — DTP 原始 XML | ✅ 127303B |
-| `getDTPDetails` | 读 | GET /sap/bw/modeling/dtpa/{id}/m — DTP 元数据（source/target/tlogo） | ✅ 两样本 src=ok |
+| `getDTPDetails` | 读 | GET /sap/bw/modeling/dtpa/{id}/m — DTP 元数据（source/target/tlogo） | ✅ 双样本 src/tgt✓（→…） |
 | `getDTPVersions` | 读 | GET /sap/bw/modeling/dtpa/{id}/versions — 版本历史 | ✅ 10 版本 |
-| `checkDTP` | 读 | POST /sap/bw/modeling/checkruns — 一致性检查 | ✅ success |
-| `validateDTPExists` | 读 | POST /sap/bw/modeling/validation — 存在性 | ✅ true |
+| `checkDTP` | 读 | POST /sap/bw/modeling/checkruns — 一致性检查 | ✅ success=true |
+| `validateDTPExists` | 读 | POST /sap/bw/modeling/validation — 存在性 | ✅ valid=true |
 | `lockDTP` | 写 | POST /dtpa/{id}?action=lock — 锁定 | — |
 | `unlockDTP` | 写 | POST /dtpa/{id}?action=unlock — 解锁 | — |
 | `activateDTP` | 写 | POST /sap/bw/modeling/activation — 激活 | — |
@@ -154,11 +154,11 @@
 
 | 函数 | 类 | 端点/说明 | 读验证状态 |
 |---|---|---|---|
-| `getDataSource` | 读 | GET /sap/bw/modeling/rsds/{ds}/{sys}/m — RSDS 解析树（版本在 atom:id） | ✅ 样本1 |
-| `getDataSourceXml` | 读 | GET /sap/bw/modeling/rsds/{ds}/{sys}/m — RSDS 原始 XML | ✅ 样本1: 9284B |
-| `getDataSourceDetails` | 读 | GET /sap/bw/modeling/rsds/{ds}/{sys}/m — RSDS 元数据 | ✅ 样本1: sys=ok |
-| `getDataSourceFields` | 读 | GET /sap/bw/modeling/rsds/{ds}/{sys}/m — 字段列表 | ✅ 样本1: 10 字段 |
-| `getDataSourceVersions` | 读 | GET /sap/bw/modeling/rsds/{ds}/{sys}/versions — 版本历史 | ✅ 1 版本 |
+| `getDataSource` | 读 | GET /sap/bw/modeling/rsds/{ds}/{sys}/m — RSDS 解析树（版本在 atom:id） | ✅ 解析树 |
+| `getDataSourceXml` | 读 | GET /sap/bw/modeling/rsds/{ds}/{sys}/m — RSDS 原始 XML | ✅ 9284B |
+| `getDataSourceDetails` | 读 | GET /sap/bw/modeling/rsds/{ds}/{sys}/m — RSDS 元数据 | ✅ 样本1(sys XXXXXXXXXX)✓；样本2(sys XXXXXXXXXX)✓ |
+| `getDataSourceFields` | 读 | GET /sap/bw/modeling/rsds/{ds}/{sys}/m — 字段列表 | ✅ 10 字段 |
+| `getDataSourceVersions` | 读 | GET /sap/bw/modeling/rsds/{ds}/{sys}/versions — 版本历史 | ✅ 1 版本（版本字符在 atom:id，RSDS 特例） |
 | `lockDataSource` | 写 | POST /rsds/{ds}/{sys}?action=lock — 锁定（含 5xx 会话恢复） | — |
 | `unlockDataSource` | 写 | POST /rsds/{ds}/{sys}?action=unlock — 解锁 | — |
 | `updateDataSource` | 写 | PUT /sap/bw/modeling/rsds/{ds}/{sys}/m — 保存 XML | — |
@@ -174,7 +174,7 @@
 
 | 函数 | 类 | 端点/说明 | 读验证状态 |
 |---|---|---|---|
-| `getReplicationInfo` | 读 | GET /sap/bw/modeling/lsysint/replication — 源系统复制信息 | ✅ 0 任务 |
+| `getReplicationInfo` | 读 | GET /sap/bw/modeling/lsysint/replication — 源系统复制信息 | ✅ 0 任务（源系统 XXXXXXXXXX） |
 | `replicateDataSource` | 写 | POST /lsysint/replication — 触发复制 | — |
 | `replicateDataSourceFull` | 写 | POST /lsysint/replication — 全量复制 | — |
 | `buildReplicationRequestBody` | 本地 | 复制请求体构建 | — |
@@ -185,14 +185,14 @@
 
 | 函数 | 类 | 端点/说明 | 读验证状态 |
 |---|---|---|---|
-| `getADSODDICLinks` | 读 | GET /sap/bw/modeling/adso/{id}/m — Link 头解析（ddicTableLink 是模板占位符） | ✅ 非模板 |
-| `getADSODDICTableName` | 读 | GET /sap/bw/modeling/adso/{id}/{version} — 真实表名（XML tables 段） | ✅ 两样本 均有表名 |
-| `getDDICTableMetadata` | 读 | GET /sap/bc/adt/ddic/tables/{t} — 表元数据（blueSource） | ✅ ok |
-| `getDDICTableInfo` | 读 | GET /sap/bc/adt/ddic/tables/{t}/source/main — 表定义（DDL 源解析） | ✅ 5 字段 |
-| `getDDICTableFields` | 读 | GET /sap/bc/adt/ddic/tables/{t}/source/main — 字段列表 | ✅ 5 字段 |
-| `getDDICTableDataMetadata` | 读 | GET /sap/bc/adt/datapreview/ddic/{t}/metadata — 数据预览列元数据 | ✅ ok |
-| `getDDICTableData` | 读 | POST /sap/bc/adt/datapreview/ddic — 数据预览（SELECT，非变更） | ✅ 0 行 |
-| `getTableDataViaSQL` | 读 | POST /sap/bc/adt/datapreview/freestyle — Freestyle OpenSQL 查询 | ✅ 0 行 |
+| `getADSODDICLinks` | 读 | GET /sap/bw/modeling/adso/{id}/m — Link 头解析（ddicTableLink 是模板占位符） | ✅ Link 头解析✓；ddicTableLink 本样本缺失（F9 已文档化不可靠，取表名走 getADSODDICTableName）；defaultDataPreview=无 |
+| `getADSODDICTableName` | 读 | GET /sap/bw/modeling/adso/{id}/{version} — 真实表名（XML tables 段） | ✅ activeTable=/BIC/AXXXXXXXX… |
+| `getDDICTableMetadata` | 读 | GET /sap/bc/adt/ddic/tables/{t} — 表元数据（blueSource） | ✅ 标准表(T000) 标准表 name✓；/BIC/ /BIC/ name✓ |
+| `getDDICTableInfo` | 读 | GET /sap/bc/adt/ddic/tables/{t}/source/main — 表定义（DDL 源解析） | ❌ V7：标准表（数据元素型 DDL，如 T000）静默解析 0 字段；/BIC/ 表（abap.* 原始类型）5 字段正常 |
+| `getDDICTableFields` | 读 | GET /sap/bc/adt/ddic/tables/{t}/source/main — 字段列表 | ❌ V7：标准表（数据元素型 DDL，如 T000）静默解析 0 字段；/BIC/ 表（abap.* 原始类型）5 字段正常 |
+| `getDDICTableDataMetadata` | 读 | GET /sap/bc/adt/datapreview/ddic/{t}/metadata — 数据预览列元数据 | ✅ 标准表✓；/BIC/✓ |
+| `getDDICTableData` | 读 | POST /sap/bc/adt/datapreview/ddic — 数据预览（SELECT，非变更） | ✅ 列表路径 0 行×7 列；selectStar(T000) 2 行 |
+| `getTableDataViaSQL` | 读 | POST /sap/bc/adt/datapreview/freestyle — Freestyle OpenSQL 查询 | ✅ freestyle 2 行（ORDER BY 生效） |
 | `parseLinkHeader` | 本地 | Link 头解析 | — |
 | `extractTableNameFromUrl` | 本地 | 从 DDIC URL 提表名 | — |
 
@@ -200,54 +200,54 @@
 
 | 函数 | 类 | 端点/说明 | 读验证状态 |
 |---|---|---|---|
-| `searchBWObjects` | 读 | GET /sap/bw/modeling/repo/is/bwsearch — BW 对象搜索（名称/描述/类型过滤） | ✅ 样本采集即用（Z=1228/0 类同量级） |
-| `quickSearch` | 读 | GET /sap/bw/modeling/repo/is/bwsearch — 按名快速搜索 | ✅ 命中 4 |
-| `searchByObjectType` | 读 | GET /sap/bw/modeling/repo/is/bwsearch — 按类型搜索 | ✅ ADSO 267/TRFN 390 |
-| `getTransformationsOf` | 读 | GET /sap/bw/modeling/repo/is/bwsearch — InfoProvider 关联 TRFN | ✅ 1 条 |
+| `searchBWObjects` | 读 | GET /sap/bw/modeling/repo/is/bwsearch — BW 对象搜索（名称/描述/类型过滤） | ✅ 样本采集即用（Z=1224/0=3189；名称+类型过滤）；日期过滤窄区间 163 条（合法无错） |
+| `quickSearch` | 读 | GET /sap/bw/modeling/repo/is/bwsearch — 按名快速搜索 | ✅ 命中 4；无匹配负例=0 |
+| `searchByObjectType` | 读 | GET /sap/bw/modeling/repo/is/bwsearch — 按类型搜索 | ✅ ADSO 267/TRFN 389/RSPC 89，类型无泄漏 |
+| `getTransformationsOf` | 读 | GET /sap/bw/modeling/repo/is/bwsearch — InfoProvider 关联 TRFN | ✅ 样本 1 条（负例 0） |
 | `getDTPsOf` | 读 | GET /sap/bw/modeling/repo/is/bwsearch — InfoProvider 关联 DTP | ✅ 0 条 |
 
 ### 数据流与血缘（DMOD）（`dataflow.ts`）
 
 | 函数 | 类 | 端点/说明 | 读验证状态 |
 |---|---|---|---|
-| `getDataflow` | 读 | GET /sap/bw/modeling/dmod/8TRANSIENT — DMOD 数据流（上/下游） | ✅ ok |
-| `getDataflowLineage` | 读 | GET /sap/bw/modeling/dmod/8TRANSIENT — 血缘（upstream/downstream/both） | ⚠️ 数据流无上游对象可作 sourceName，未验证 |
+| `getDataflow` | 读 | GET /sap/bw/modeling/dmod/8TRANSIENT — DMOD 数据流（上/下游） | ✅ up1=0 down1=0 both=0 |
+| `getDataflowLineage` | 读 | GET /sap/bw/modeling/dmod/8TRANSIENT — 血缘（upstream/downstream/both） | ✅ 1 关系（source=XXXXXXXX） |
 
 ### InfoObject（`infoobject.ts`）
 
 | 函数 | 类 | 端点/说明 | 读验证状态 |
 |---|---|---|---|
-| `getInfoObject` | 读 | GET /sap/bw/modeling/iobj/{n}/a — InfoObject 详情（modified 版本） | ✅ 两样本（0MATERIAL//CPMB/XXXXXXX） |
-| `getInfoObjectMetadata` | 读 | GET /sap/bw/modeling/iobj/{n}/m — InfoObject 元数据（active） | ✅ ok |
-| `validateInfoObjectExists` | 读 | POST /sap/bw/modeling/validation — 存在性 | ✅ true |
-| `validateInfoObjectNewName` | 读 | POST /sap/bw/modeling/validation — 新名称可用性 | ✅ true |
+| `getInfoObject` | 读 | GET /sap/bw/modeling/iobj/{n}/a — InfoObject 详情（modified 版本） | ✅ 特征(0MATERIAL)✓；关键指标(0QUANTITY)✓；Z 定制✓ |
+| `getInfoObjectMetadata` | 读 | GET /sap/bw/modeling/iobj/{n}/m — InfoObject 元数据（active） | ✅ 特征样本 /m 版本 |
+| `validateInfoObjectExists` | 读 | POST /sap/bw/modeling/validation — 存在性 | ✅ valid=true |
+| `validateInfoObjectNewName` | 读 | POST /sap/bw/modeling/validation — 新名称可用性 | ✅ valid=true |
 | `parseInfoObjectDetails` | 本地 | 解析 InfoObject 详情 | — |
 
 ### 仓库目录（InfoObject Catalog）（`repository.ts`）
 
 | 函数 | 类 | 端点/说明 | 读验证状态 |
 |---|---|---|---|
-| `getInfoproviderStructure` | 读 | GET /sap/bw/modeling/repo/infoproviderstructure/area/{area}/{type} — InfoArea 查询树（2026-09-21 真机验证） | ✅ 2026-09-21 实测（cha/kyf/adso 三 type、三入口：门面/api/client；空区域返回空数组不报错） |
+| `getInfoproviderStructure` | 读 | GET /sap/bw/modeling/repo/infoproviderstructure/area/{area}/{type} — InfoArea 查询树（2026-09-21 真机验证） | ✅ cha=20 kyf=0 adso=0；负例区域=空数组 |
 | `parseInfoproviderStructure` | 本地 | 解析结构 feed | — |
 
 ### 系统信息（`systemInfo.ts`）
 
 | 函数 | 类 | 端点/说明 | 读验证状态 |
 |---|---|---|---|
-| `systemInfo` | 读 | GET /sap/bw/modeling/repo/is/systeminfo — 系统信息（properties[]） | ✅ ok |
-| `getSystemProperty` | 读 | GET /sap/bw/modeling/repo/is/systeminfo — 读取单个系统属性 | ✅ 有值 |
-| `hasCapability` | 读 | GET /sap/bw/modeling/repo/is/systeminfo — 能力判定 | ✅ true |
+| `systemInfo` | 读 | GET /sap/bw/modeling/repo/is/systeminfo — 系统信息（properties[]） | ✅ properties 结构✓ |
+| `getSystemProperty` | 读 | GET /sap/bw/modeling/repo/is/systeminfo — 读取单个系统属性 | ✅ system.logsys=有值；非法属性=空(不报错) |
+| `hasCapability` | 读 | GET /sap/bw/modeling/repo/is/systeminfo — 能力判定 | ✅ planning=true；非法=false（false 不报错） |
 
 ### Process Chain（rspc JSON）（`processchain.ts`）
 
 | 函数 | 类 | 端点/说明 | 读验证状态 |
 |---|---|---|---|
-| `getProcessChain` | 读 | GET /sap/bw/modeling/rspc/{id}/m — 链元数据（JSON，已实测） | ✅ ok |
-| `getProcessChainDetails` | 读 | GET /sap/bw/modeling/rspc/{id}/m — 链详情（JSON，已实测） | ✅ 两样本 status=active/active |
-| `getProcessChainVersions` | 读 | GET /sap/bw/modeling/rspc/{id}/versions — ⚠️ 本系统不支持（对象版本 V） | ⚠️ 按文档确认本系统不支持（V） |
-| `getProcessChainLogs` | 读 | GET /sap/bw/modeling/rspc/{id}/logs — ⚠️ 本系统不支持（对象版本 L） | ⚠️ 按文档确认本系统不支持（L） |
-| `getProcessChainStatus` | 读 | GET /sap/bw/modeling/rspc/{id}/status — ⚠️ 本系统不支持（对象版本 S） | ⚠️ 按文档确认本系统不支持（S） |
-| `checkProcessChain` | 读 | POST /sap/bw/modeling/checkruns — 一致性检查（⚠️ 未实测） | ✅ success |
+| `getProcessChain` | 读 | GET /sap/bw/modeling/rspc/{id}/m — 链元数据（JSON，已实测） | ✅ name✓ objVers=M |
+| `getProcessChainDetails` | 读 | GET /sap/bw/modeling/rspc/{id}/m — 链详情（JSON，已实测） | ✅ 双链 status=active/active |
+| `getProcessChainVersions` | 读 | GET /sap/bw/modeling/rspc/{id}/versions — ⚠️ 本系统不支持（对象版本 V） | ⚠️ 本系统不支持（V）——文档化行为复认 |
+| `getProcessChainLogs` | 读 | GET /sap/bw/modeling/rspc/{id}/logs — ⚠️ 本系统不支持（对象版本 L） | ⚠️ 本系统不支持（L）——文档化行为复认 |
+| `getProcessChainStatus` | 读 | GET /sap/bw/modeling/rspc/{id}/status — ⚠️ 本系统不支持（对象版本 S） | ⚠️ 本系统不支持（S）——文档化行为复认 |
+| `checkProcessChain` | 读 | POST /sap/bw/modeling/checkruns — 一致性检查（⚠️ 未实测） | ✅ success=true（rspc 前缀经 checkruns） |
 | `lockProcessChain` | 写 | POST /rspc/{id}?action=lock — 锁定（⚠️ 未实测） | — |
 | `unlockProcessChain` | 写 | POST /rspc/{id}?action=unlock — 解锁（⚠️ 未实测） | — |
 | `activateProcessChain` | 写 | POST /sap/bw/modeling/activation — 激活（⚠️ 未实测） | — |
@@ -260,7 +260,7 @@
 
 | 函数 | 类 | 端点/说明 | 读验证状态 |
 |---|---|---|---|
-| `transportCheck` | 读 | POST /sap/bc/adt/cts/transportchecks — 录制检查（非变更探针） | ✅ RECORDING=空 |
+| `transportCheck` | 读 | POST /sap/bc/adt/cts/transportchecks — 录制检查（非变更探针） | ✅ 0*样本 RECORDING=空；Z 样本 RECORDING=空 TR=0 |
 | `createTransport` | 写 | POST /sap/bc/adt/cts/transports — 新建工作台请求 | — |
 | `resolveTransportForWrite` | 写 | check→(create)→TR — 写前 TR 解析编排 | — |
 | `isTransportRequiredError` | 本地 | TransportRequiredError 判定 | — |
@@ -269,9 +269,9 @@
 
 | 函数 | 类 | 端点/说明 | 读验证状态 |
 |---|---|---|---|
-| `getAbapClassMetadata` | 读 | GET /sap/bc/adt/oo/classes/{n} — 类元数据 | ✅ ok |
-| `getAbapClassSource` | 读 | GET /sap/bc/adt/oo/classes/{n}/source/main — 类源码（例程读） | ✅ undefinedB 源码 |
-| `getAbapClassObjectStructure` | 读 | GET /sap/bc/adt/oo/classes/{n} — 类结构 | ✅ ok |
+| `getAbapClassMetadata` | 读 | GET /sap/bc/adt/oo/classes/{n} — 类元数据 | ✅ ✓ |
+| `getAbapClassSource` | 读 | GET /sap/bc/adt/oo/classes/{n}/source/main — 类源码（例程读） | ✅ 42270B sourceCode（类 /BIC/RXXXXXXXXXXXXXXXXXXXXX） |
+| `getAbapClassObjectStructure` | 读 | GET /sap/bc/adt/oo/classes/{n} — 类结构 | ✅ ✓ |
 | `lockAbapClass` | 写 | POST /oo/classes/{n}?_action=LOCK — 类锁定 | — |
 | `unlockAbapClass` | 写 | POST /oo/classes/{n}?_action=UNLOCK — 类解锁 | — |
 | `updateAbapClassSource` | 写 | PUT /oo/classes/{n}/source/main — 保存类源码 | — |
@@ -282,9 +282,9 @@
 
 | 函数 | 类 | 端点/说明 | 读验证状态 |
 |---|---|---|---|
-| `queryProviderPreview` | 读 | POST /sap/bw/modeling/comp/reporting — BICS 提供者预览（会话状态） | ✅ 预览 ok |
+| `queryProviderPreview` | 读 | POST /sap/bw/modeling/comp/reporting — BICS 提供者预览（会话状态） | ✅ rows=[4XXXXXXXX-BELNR] 预览✓ |
 | `getReportingInitialView` | 读 | POST /sap/bw/modeling/comp/reporting — BICS 初始视图（会话状态） | ✅ 初始视图可用 |
-| `updateReportingView` | 读 | POST /sap/bw/modeling/comp/reporting — BICS 视图增量更新（仅会话状态，非持久） | ✅ 状态回写 |
+| `updateReportingView` | 读 | POST /sap/bw/modeling/comp/reporting — BICS 视图增量更新（仅会话状态，非持久） | ✅ state 回写✓ |
 | `toReportingCompId` | 本地 | 对象名 → BICS comp id | — |
 | `buildQuerySelectorXml` | 本地 | query selector XML 构建 | — |
 | `remapReportingState` | 本地 | 视图状态 id 重映射 | — |

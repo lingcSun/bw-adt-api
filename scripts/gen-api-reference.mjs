@@ -353,7 +353,7 @@ const out = []
 out.push(`# BW-ADT-API 完整 API 参考（代码生成）
 
 > 本文件由 \`scripts/gen-api-reference.mjs\` 从源码机械生成，生成器对"分类表 vs 代码导出"做集合断言，保证与代码 100% 一致。
-> 重新生成：\`node scripts/gen-api-reference.mjs [--results .local/verify-results.json]\`。最后生成：2026-09-20。
+> 重新生成：\`node scripts/gen-api-reference.mjs [--results .local/verify-results.json]\`。最后生成：2026-09-21。
 
 ## 分类
 

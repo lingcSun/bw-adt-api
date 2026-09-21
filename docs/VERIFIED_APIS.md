@@ -6,6 +6,7 @@
 验证日期基准：2026-07-15（写会话模型）；后续模块以同模型复测为准。  
 **2026-09-19 全量复测**：61 个域门面方法 + 客户端方法逐一实测，见[第 6 节](#6-2026-09-19-全量复测发现)。  
 **2026-09-20 读 API 全量验证**：86 个读类 API 逐一真机验证（多样本：标准 0\*/客户 Z\*/系统生成 id/双段 RSDS/不同源系统），63 ✅ / 5 ⚠️ / 18 ❌；逐 API 状态见 [API_REFERENCE.md](./API_REFERENCE.md) 状态列，新发现见[第 7 节](#7-2026-09-20-读-api-全量验证发现)。
+**2026-09-21 读 API 复验**：71 个读类 API（V1/V2 移除后的全集）逐项复验——多样本（0\*/Z\*/命名空间/双链/双 RSDS/特征+关键指标/标准表+客户表）、负例（不存在对象/空结果/非法属性）、语义断言（字段回填与样本匹配）；66 ✅ / 3 ⚠️ / 2 ❌（V7 新发现）；71/71 覆盖自检通过。
 
 ---
 
@@ -226,6 +227,8 @@ npm test -- --testPathPattern=adso-write
   同轮 Eclipse 日志对照发现 5 个库外端点（iobj/versions、iobj/configuration、rules/qprops[需 vendor Accept `…ov_query_props-v3_0_0+xml`]、queryint user_props、repo/infoproviderstructure）均真机 200，未入库待决策。
 
 - **V6（2026-09-21）Eclipse 日志对照批**：`GET /sap/bw/modeling/repo/infoproviderstructure/area/{area}/{type}` 已入库（`getInfoproviderStructure`，门面 `repository.infoproviderStructure`）——atom:feed + bwModel:object（objectName/objectType/objectSubtype/objectStatus + atom:id/atom:title）；实测 iobj_cha/iobj_kyf/iobj/adso 三 type 均 200，无内容返回空 feed 不报错。**qprops（`GET /rules/qprops?objectType=&infoprovider=&version=`）端点存在但决定不实现（2026-09-21）**：其 vendor Accept 无法从服务端获取（415 报错对两侧内容类型的中间段一律以 `…` 字面缩写，17 个候选命名空间全部不中，ADT discovery 未登记该服务），实现需 Eclipse 请求头佐证；价值（BICS preview 免 initialView 选特征）不足以支撑该成本。若将来系统升级或抓包暴露了完整类型，以新证据重开。
+
+- **V7（2026-09-21 复验新发现）标准表 DDL 字段解析缺口**：`parseDDICTableSource` 只认原始类型形态（`abap.char(40)`，/BIC/ 生成表的 DDL），标准表用**数据元素类型**（`key mandt : mandt not null;`，无 `abap.` 前缀、无长度括号）时正则不命中——`getDDICTableInfo/getDDICTableFields` 对 T000 等标准表**静默返回 0 字段**（实测 T000=0 vs /BIC/=5）。修法：正则扩展支持数据元素形态，或字段为 0 且 DDL 非空时显式报错（拒绝静默空）。
 
 ## 安全说明
 
