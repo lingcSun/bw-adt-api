@@ -368,7 +368,10 @@ export async function getADSONodePath(
   adsoName: string,
   version: "m" | "a" | "d" = "m"
 ): Promise<NodePathEntry[]> {
-  const objectUri = encodeURIComponent(`/sap/bw/modeling/adso/${adsoName.toLowerCase()}/${version}`)
+  // qs 值由传输层（axios params）单次编码——这里不能预编码，否则上线双重编码
+  // （%252F...），服务端报「Data type "" does not exist」（V5，2026-09-20 真机
+  // 三组对照定位；Eclipse 线上形态即单次编码，nodepath 本身对 adso/iobj URI 均可用）。
+  const objectUri = `/sap/bw/modeling/adso/${adsoName.toLowerCase()}/${version}`
 
   const response = await client.request("/sap/bw/modeling/repo/nodepath", {
     method: "GET",

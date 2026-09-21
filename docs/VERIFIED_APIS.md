@@ -222,7 +222,8 @@ npm test -- --testPathPattern=adso-write
 **库缺陷（新发现，待修）**
 
 - **V4 命名空间对象名未编码**：`/NS/OBJ` 形态的名字拼入 ADSO 读 URL 时未 encodeURIComponent，`/` 被当作路径切开 → 404。getADSO/getADSODetails/getADSOXml/getADSOTables/getADSOConfiguration 同构共享此模式（本轮实测 getADSOTables 复现 404）。
-- **V5 getADSONodePath 实现与服务端契约脱节**：GET repo/nodepath 返回「Data type "" does not exist」——端点参数形态过时，本系统不可用。
+- **V5（已修复 2026-09-20）getADSONodePath 双重编码**：根因是调用方预编码 `encodeURIComponent(objectUri)` 后再交给传输层（axios params 单次编码），上线成 `%252F...`，服务端报「Data type "" does not exist」。真机三组对照定位（预编码❌ / 单次编码✅ 200 同字节 / 原始串进 qs✅）；Eclipse 抓包（08:51 日志）线上形态即单次编码。修复后实测 adso URI 返回 3 节点；nodepath 端点本身对 iobj URI 同样可用（iobj 探针 200）。回归锁 `adso-nodepath-encoding.test.ts`：qs 必须收原始串。
+  同轮 Eclipse 日志对照发现 5 个库外端点（iobj/versions、iobj/configuration、rules/qprops[需 vendor Accept `…ov_query_props-v3_0_0+xml`]、queryint user_props、repo/infoproviderstructure）均真机 200，未入库待决策。
 
 ## 安全说明
 

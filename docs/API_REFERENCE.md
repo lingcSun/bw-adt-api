@@ -77,7 +77,7 @@
 | `getADSOVersions` | 读 | GET /sap/bw/modeling/adso/{id}/versions — 版本历史 | ✅ 2 版本 |
 | `getADSOConfiguration` | 读 | GET /sap/bw/modeling/adso/{id}/configuration — 配置信息 | ✅ 两样本 |
 | `getADSOTables` | 读 | GET /sap/bw/modeling/adso/{id}/{version} — 关联表名（AT/AQ/CL） | ✅ active=yes；⚠️ 命名空间名(/NS/*) 404（id 未编码） |
-| `getADSONodePath` | 读 | GET /sap/bw/modeling/repo/nodepath — 仓库节点路径 | ❌ Data type "" does not exist |
+| `getADSONodePath` | 读 | GET /sap/bw/modeling/repo/nodepath — 仓库节点路径 | ✅ 修复双重编码后实测（3 节点；nodepath 对 adso/iobj URI 均可用，见账本 V5） |
 | `checkADSO` | 读 | POST /sap/bw/modeling/checkruns — 一致性检查 | ✅ success |
 | `validateADSOExists` | 读 | POST /sap/bw/modeling/validation — 存在性 | ✅ valid |
 | `validateADSONewName` | 读 | POST /sap/bw/modeling/validation — 新名称可用性 | ✅ 可用 |
