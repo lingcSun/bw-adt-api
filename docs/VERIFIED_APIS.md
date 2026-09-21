@@ -244,6 +244,17 @@ npm test -- --testPathPattern=adso-write
 - **W3（已修复 2026-09-21）executeDTP 从未可用**：旧形态 `POST /dtpa/{id}?action=execute` 本系统报「内部错误：不支持 URI」。用户提供 Eclipse 抓包（10:44/10:45 两条）实证真实 API：**触发** `POST /sap/bw/modeling/dtpa/executerun`（body `<executeRun dataTransferProcess="{dtpId}"/>`，dtpa-v1_0_0+xml，stateless）→ **201 Created + Location 头** `/executerun/{dtpId}/{runId}`；**轮询** `GET /executerun/{dtpId}/{runId}?withLog=true` → 200 + `<executeRun dataTransferProcess requestId/>`（完成态日志子节点未采样，解析仅取已证实属性）。库已改写 executeDTP 并新增 getDTPExecuteRunResult；库路径端到端实测（201+runId、轮询 requestId 匹配、空载无日志子节点）。
 - **W4（已修复 2026-09-21）createObject 通用路径 parent 校验用错类型**：`BWObject.create` 的父对象校验曾用**对象自身类型**（建 ADSO 时把 InfoArea 名按 ADSO 查 → 404）。已改为 ADSO 的 parent 按 AREA 校验（带 parent 的 createObject 实测通过）；其他类型 parent 语义未验证、保持原行为并注释提示。
 
+**深化复验（第 2 轮，2026-09-21）——多步状态变迁场景，8 ✅ / 2 ⚠️ / 0 ❌**
+
+用户点名场景全部覆盖：创建后修改、类型调整、字段变迁（含转 IOBJ 引用）、规则类型链、全量/增量翻转。逐项证据在 `.local/probe/write-results2.json`（不入库）。
+
+- **D1 ADSO 类型标志是创建时属性**：`readOnly=true` 翻转——PUT/激活均成功但标志**不持久（静默忽略）**；带键定义翻 write-optimized（activateData=F+changelog=F）——激活**响亮拒绝**（"not allowed to have a hash- and a key-definition"）。类型调整需在创建时定，激活期不可翻。
+- **D2 DTP 抽取模式**：创建传 `F` 被服务端**水合为 `D`**（按源能力归一化，本系统源对均为 D）；PUT 翻转 `D↔F` **双向持久**（每步保存+激活+回读）；二次执行各自 201+runId、轮询匹配。
+- **D3 字段改造**：本地字段可**整块替换为 IOBJ 引用元素**（转换而非新增），激活后水合 `inlineType globalElementName`；CHAR→NUMC 改型、+DEC、+IOBJ 引用、删字段均逐步激活+回读通过。
+- **D4 规则链**（同一目标字段）：CONSTANT→FORMULA→NO_UPDATE 全部按写入类型持久；**INITIAL 被服务端规范化**（回读无 StepInitial，与 09-20 键上 INITIAL 规范化证据互补——非键字段亦然）；**键字段 CONSTANT 被接受**（0MATERIAL 常量 X 持久）。
+- **D5 例程边界精确形态**：无 END 规则的 TRFN 上 `setEndRoutineFields` 报 "END routine rule not found in TRFN XML"（例程创建无 REST 路径的调用侧形态）。
+- **D6 修改时序**：inactive 期 PUT 持久（autoActivate:false）；**单锁双 PUT 后写生效**；**过期 timestamp（20200101000000）被服务端接受**——服务端不校验时间戳冲突，并发防护不可依赖它。
+
 **范围外登记（⚠️，共 19 项）**：RSDS 写×6（源系统对象非本地靶子）、复制×2（系统级影响面）、PC 写×5（需专用可执行测试链）、createTransport（传输组织器写）、例程类写×5（例程创建无 REST 路径，业务 TRFN 的例程类不在授权范围）。
 
 ## 安全说明
