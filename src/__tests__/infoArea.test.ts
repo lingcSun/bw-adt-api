@@ -1,4 +1,5 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 import { BWObjectType, createBWObject, XMLBuilderFunction } from "../api/bwObject"
 import { ValidationAction } from "../api/common"
 
@@ -39,7 +40,7 @@ function buildAreaXML(options: {
 </InfoArea:infoArea>`
 }
 
-describe("BW InfoArea Tests (Generic CRUD)", () => {
+describeLive("BW InfoArea Tests (Generic CRUD)", () => {
   let client: BWAdtClient
 
   beforeAll(async () => {

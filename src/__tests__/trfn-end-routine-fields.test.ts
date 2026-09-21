@@ -4,6 +4,7 @@ import {
   isEndRoutineFieldSelected,
   extractTransformationTimestamp
 } from "../api/transformation"
+import { describeLive, testLive } from "./helpers/liveSystem"
 
 /**
  * 结束例程 setFields XML 辅助 — 对照 Eclipse SetGlobalRoutineFieldsAction PUT body
@@ -52,7 +53,7 @@ const SAMPLE_TRFN = `<?xml version="1.0" encoding="UTF-8"?>
   </group>
 </trfn:transformation>`
 
-describe("TRFN end routine setFields XML helpers", () => {
+describeLive("TRFN end routine setFields XML helpers", () => {
   test("extractTransformationTimestamp()", () => {
     expect(extractTransformationTimestamp(SAMPLE_TRFN)).toBe("20260715115914")
   })

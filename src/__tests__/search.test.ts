@@ -1,4 +1,5 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 
 // 测试配置 - 请根据实际情况修改
 const testConfig = {
@@ -9,7 +10,7 @@ const testConfig = {
   language: process.env.BW_LANGUAGE || "EN"
 }
 
-describe("BW Search Tests", () => {
+describeLive("BW Search Tests", () => {
   let client: BWAdtClient
 
   beforeAll(async () => {

@@ -1,4 +1,5 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 
 /**
  * DTP 读取接口验证 - 对照 Eclipse 打开 DTP 的 Communication Log
@@ -19,7 +20,7 @@ const testConfig = {
 // ZL_FID01 -> ZL_FID40 的 DTP (来自 dataflow 测试确认的关系)
 const TEST_DTP = "DTP_ET0916OM0DNHSHAP1BKTB6DJP"
 
-describe("DTP 读取接口验证", () => {
+describeLive("DTP 读取接口验证", () => {
   let client: BWAdtClient
 
   beforeAll(async () => {

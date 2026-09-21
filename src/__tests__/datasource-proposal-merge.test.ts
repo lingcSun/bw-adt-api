@@ -1,4 +1,5 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 import {
   parseDataSourceDetails,
   parseDataSourceFields,
@@ -32,7 +33,7 @@ const testConfig = {
 const DATASOURCE = "0ASSET_ATTR_TEXT"
 const SOURCE_SYSTEM = "S4DCLNT300"
 
-describe(`DataSource Proposal/Merge: ${DATASOURCE}`, () => {
+describeLive(`DataSource Proposal/Merge: ${DATASOURCE}`, () => {
   let client: BWAdtClient
   let originalXml: string
   let mergedXml: string

@@ -1,4 +1,5 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 
 /**
  * DataSource Replication 接口验证 - 对照 Eclipse 右键数据源 "Replicate" 的 Communication Log
@@ -22,7 +23,7 @@ const testConfig = {
 const TEST_DATASOURCE = "ZBW_FI_TASKSTAGE_I"
 const TEST_SOURCE_SYSTEM = "S4DCLNT300"
 
-describe("DataSource Replication 接口验证", () => {
+describeLive("DataSource Replication 接口验证", () => {
   let client: BWAdtClient
 
   beforeAll(async () => {

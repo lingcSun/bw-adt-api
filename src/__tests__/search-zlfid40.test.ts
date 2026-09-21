@@ -1,4 +1,5 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 
 const testConfig = {
   baseUrl: process.env.BW_BASE_URL!,
@@ -8,7 +9,7 @@ const testConfig = {
   language: process.env.BW_LANGUAGE!
 }
 
-test("search ZL_FID40 - compare with communication log", async () => {
+testLive("search ZL_FID40 - compare with communication log", async () => {
   const client = new BWAdtClient(
     testConfig.baseUrl,
     testConfig.username,

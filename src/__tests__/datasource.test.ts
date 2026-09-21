@@ -1,4 +1,5 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 
 /**
  * DataSource (RSDS) 读取接口验证 - 对照 Eclipse 打开 DataSource 的 Communication Log
@@ -20,7 +21,7 @@ const testConfig = {
 const TEST_DATASOURCE = "ZBW_ZFIVTASK_STAGE_H"
 const TEST_SOURCE_SYSTEM = "S4DCLNT300"
 
-describe("DataSource (RSDS) 读取接口验证", () => {
+describeLive("DataSource (RSDS) 读取接口验证", () => {
   let client: BWAdtClient
 
   beforeAll(async () => {

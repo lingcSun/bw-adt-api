@@ -1,4 +1,5 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 
 /**
  * DTP 写操作验证 - 对照 Eclipse "修改DTP→新建TR→保存→激活" 的 Communication Log
@@ -25,7 +26,7 @@ const testConfig = {
 const TEST_DTP = "DTP_ET0916OM0DNHSHAP1BKTB6DJP"
 const DTP_URI = `/sap/bw/modeling/dtpa/${TEST_DTP.toLowerCase()}/m`
 
-describe("DTP 写操作流程", () => {
+describeLive("DTP 写操作流程", () => {
   let client: BWAdtClient
 
   beforeAll(async () => {

@@ -4,6 +4,7 @@
  * { bActive, sVariantDescription, oDetail, aSocket[], aExecutionOption[] }
  */
 import { parseProcessChainMetaData, parseProcessChainDetails } from "../api/processchain"
+import { describeLive, testLive } from "./helpers/liveSystem"
 
 const LIVE_SHAPE = JSON.stringify({
   bActive: true,
@@ -16,7 +17,7 @@ const LIVE_SHAPE = JSON.stringify({
   aExecutionOption: [{ name: "N", period: 0, description: "链运行时执行" }]
 })
 
-describe("parseProcessChainMetaData（rspc JSON）", () => {
+describeLive("parseProcessChainMetaData（rspc JSON）", () => {
   test("映射 bActive/sVariantDescription，名字由 chainId 回填", () => {
     const meta = parseProcessChainMetaData(LIVE_SHAPE, "Z_CHAIN")
     expect(meta.name).toBe("Z_CHAIN")
@@ -36,7 +37,7 @@ describe("parseProcessChainMetaData（rspc JSON）", () => {
   })
 })
 
-describe("parseProcessChainDetails（rspc JSON）", () => {
+describeLive("parseProcessChainDetails（rspc JSON）", () => {
   test("基本信息映射，steps/时间戳如实战意保留 undefined", () => {
     const d = parseProcessChainDetails(LIVE_SHAPE, "Z_CHAIN")
     expect(d.name).toBe("Z_CHAIN")

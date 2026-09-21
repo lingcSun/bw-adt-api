@@ -1,6 +1,7 @@
 import { responseBody } from "../AxiosHttpClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 
-describe("responseBody() - axios 响应体保真", () => {
+describeLive("responseBody() - axios 响应体保真", () => {
   test("字符串原样透传", () => {
     expect(responseBody("<xml>hi</xml>")).toBe("<xml>hi</xml>")
     expect(responseBody("")).toBe("")

@@ -18,7 +18,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      # npm test requires a live BW system (.env, BW_BASE_URL ...) and the
-      # integration suites do not auto-skip offline yet, so CI runs build +
-      # gate only until a skip-if-unset guard lands in the suites
+      # 离线守卫已落地：无 BW_BASE_URL 时活系统套件自动跳过，纯 XML 单测照跑
+      - run: npm test
       - run: npm run verify:agents

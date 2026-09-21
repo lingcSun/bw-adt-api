@@ -1,4 +1,5 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 
 /**
  * TRFN 结束例程源码保存/激活 — 对照 Eclipse Communication Log 20:07–20:09
@@ -22,7 +23,7 @@ const testConfig = {
 const TEST_TRFN = "0BE9X06HU3MN3FB1TO6MNLEGQI6XIJEO"
 const EXPECTED_CLASS = "/BIC/3FB1TO6MNLEGQI6XIJEO_M"
 
-describe("TRFN 结束例程源码写操作", () => {
+describeLive("TRFN 结束例程源码写操作", () => {
   let client: BWAdtClient
 
   beforeAll(async () => {

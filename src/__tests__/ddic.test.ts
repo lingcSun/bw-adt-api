@@ -1,4 +1,5 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 import {
   parseLinkHeader,
   extractTableNameFromUrl,
@@ -23,7 +24,7 @@ const testConfig = {
 
 const TEST_ADSO = process.env.BW_TEST_ADSO || "ZDSO_MK1"
 
-describe("DDIC Utility Functions", () => {
+describeLive("DDIC Utility Functions", () => {
   describe("parseLinkHeader", () => {
     test("should parse valid link header", () => {
       const linkHeader = `<https://example.com/table1>; rel="ddicTableLink", <https://example.com/data>; rel="ddicDataDisplay"`
@@ -73,7 +74,7 @@ describe("DDIC Utility Functions", () => {
   })
 })
 
-describe("DDIC API Tests", () => {
+describeLive("DDIC API Tests", () => {
   let client: BWAdtClient
   let testTableName: string
 

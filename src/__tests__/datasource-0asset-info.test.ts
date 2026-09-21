@@ -1,4 +1,5 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 import { xmlNodeAttr, xmlNode, xmlArray } from "../utilities"
 import { parseDataSourceDetails, parseDataSourceFields } from "../api/datasource"
 
@@ -34,7 +35,7 @@ const testConfig = {
 const DATASOURCE = "0ASSET_ATTR_TEXT"
 const SOURCE_SYSTEM = "S4DCLNT300"
 
-describe(`数据源信息: ${DATASOURCE} (Overview / Extraction / Fields)`, () => {
+describeLive(`数据源信息: ${DATASOURCE} (Overview / Extraction / Fields)`, () => {
   let client: BWAdtClient
   let raw: any
 

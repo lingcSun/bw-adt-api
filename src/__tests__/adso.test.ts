@@ -1,4 +1,5 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 import { getADSO, getADSOTables } from "../api/adso"
 import { getADSODDICTableName } from "../api/ddic"
 import * as dotenv from "dotenv"
@@ -15,7 +16,7 @@ const testConfig = {
 
 const TEST_ADSO = process.env.BW_TEST_ADSO || "ZDSO_MK1"
 
-describe("BW ADSO Tests", () => {
+describeLive("BW ADSO Tests", () => {
   let client: BWAdtClient
 
   beforeAll(async () => {

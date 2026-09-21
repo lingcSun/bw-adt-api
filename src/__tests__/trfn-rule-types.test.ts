@@ -1,4 +1,5 @@
 import { addRule, addTransformationRule } from "../api/transformation"
+import { describeLive, testLive } from "./helpers/liveSystem"
 import { XMLParser } from "fast-xml-parser"
 
 /**
@@ -102,7 +103,7 @@ function stepTypes(xml: string): string[] {
   return [...xml.matchAll(/<step xsi:type="trfn:(Step[A-Za-z]+)"/g)].map(m => m[1])
 }
 
-describe("addRule 通用规则构造 (对照真机 step 形态)", () => {
+describeLive("addRule 通用规则构造 (对照真机 step 形态)", () => {
   test("CONSTANT: 常量规则无 source 块, constant 属性落位, 接线指向 target1", () => {
     const next = addRule(SAMPLE_TRFN_XML, {
       type: "CONSTANT", targetField: "ZACCOUNT2", constant: "AC011601"

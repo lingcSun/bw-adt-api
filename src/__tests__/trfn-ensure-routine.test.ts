@@ -5,6 +5,7 @@ import {
   hasStartRoutineInXml,
   deriveRoutineClassName,
 } from "../api/transformation"
+import { describeLive, testLive } from "./helpers/liveSystem"
 
 /**
  * ensureEnd/StartRoutine XML helpers — 对照 2026-09-21 Eclipse 抓包
@@ -33,7 +34,7 @@ const NO_ROUTINE = `<?xml version="1.0" encoding="UTF-8"?>
   </group>
 </trfn:transformation>`
 
-describe("deriveRoutineClassName", () => {
+describeLive("deriveRoutineClassName", () => {
   test("slice(12)+_M 对齐抓包类名", () => {
     expect(deriveRoutineClassName("0OWVFWFXS8GE8R2VTBF9YQX4QMQST1TV")).toBe(
       "/BIC/8R2VTBF9YQX4QMQST1TV_M"
@@ -44,7 +45,7 @@ describe("deriveRoutineClassName", () => {
   })
 })
 
-describe("ensureEndRoutineInXml", () => {
+describeLive("ensureEndRoutineInXml", () => {
   test("无 END 时注入 G 组 + END 规则（含 classNameM/GLOBAL_END）", () => {
     expect(hasEndRoutineInXml(NO_ROUTINE)).toBe(false)
     const { xml, created, className } = ensureEndRoutineInXml(NO_ROUTINE)
@@ -76,7 +77,7 @@ describe("ensureEndRoutineInXml", () => {
   })
 })
 
-describe("ensureStartRoutineInXml", () => {
+describeLive("ensureStartRoutineInXml", () => {
   test("无 START 时注入 START 规则（同 classNameM + GLOBAL_START）", () => {
     expect(hasStartRoutineInXml(NO_ROUTINE)).toBe(false)
     const { xml, created, className } = ensureStartRoutineInXml(NO_ROUTINE, {

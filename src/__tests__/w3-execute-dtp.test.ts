@@ -7,11 +7,12 @@
  */
 import { executeDTP, getDTPExecuteRunResult } from "../api/dtp"
 import type { AdtHTTP } from "../AdtHTTP"
+import { describeLive, testLive } from "./helpers/liveSystem"
 
 const RUN_ID = "20260921024431000052000"
 const LOCATION = `/sap/bw/modeling/dtpa/executerun/DTP_ET0916OM0DTEST0000000001/${RUN_ID}`
 
-describe("executeDTP（executerun 端点）", () => {
+describeLive("executeDTP（executerun 端点）", () => {
   test("POST executerun 集合，201 + Location 解析 runId", async () => {
     const calls: Array<{ url: string; method: string; body?: string; headers: any }> = []
     const client = {
@@ -38,7 +39,7 @@ describe("executeDTP（executerun 端点）", () => {
   })
 })
 
-describe("getDTPExecuteRunResult（轮询）", () => {
+describeLive("getDTPExecuteRunResult（轮询）", () => {
   test("GET executerun/{dtpId}/{runId}，解析 executeRun 属性", async () => {
     const calls: Array<{ url: string; qs: any }> = []
     const client = {

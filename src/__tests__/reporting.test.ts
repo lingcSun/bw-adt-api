@@ -5,6 +5,7 @@ import {
   parseQueryView,
   flattenReportingResultSet
 } from "../api/reporting"
+import { describeLive, testLive } from "./helpers/liveSystem"
 import { BWAdtClient } from "../BWAdtClient"
 import * as dotenv from "dotenv"
 
@@ -115,7 +116,7 @@ const UPDATED_VIEW_XML = `<?xml version="1.0" encoding="utf-8"?>
   <messages/>
 </queryView>`
 
-describe("Reporting helpers", () => {
+describeLive("Reporting helpers", () => {
   test("toReportingCompId adds ! prefix when missing", () => {
     expect(toReportingCompId("ZL_FID09")).toBe("!ZL_FID09")
     expect(toReportingCompId("!ZC_ASSET")).toBe("!ZC_ASSET")
@@ -170,7 +171,7 @@ describe("Reporting helpers", () => {
   })
 })
 
-describe("parseQueryView", () => {
+describeLive("parseQueryView", () => {
   test("parses GET initial view metadata and default totals", () => {
     const view = parseQueryView(INITIAL_VIEW_XML)
 
@@ -221,7 +222,7 @@ describe("parseQueryView", () => {
   })
 })
 
-describe("Reporting live API", () => {
+describeLive("Reporting live API", () => {
   const hasEnv = !!(
     process.env.BW_BASE_URL &&
     process.env.BW_USERNAME &&

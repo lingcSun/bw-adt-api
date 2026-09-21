@@ -1,4 +1,5 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 
 /**
  * 查找数据源 0ASSET_ATTR* - 验证 DataSource 搜索功能
@@ -15,7 +16,7 @@ const testConfig = {
   language: process.env.BW_LANGUAGE!
 }
 
-describe("查找数据源 0ASSET_ATTR*", () => {
+describeLive("查找数据源 0ASSET_ATTR*", () => {
   let client: BWAdtClient
 
   beforeAll(async () => {

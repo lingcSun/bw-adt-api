@@ -1,4 +1,5 @@
 import { BWAdtClient } from "../BWAdtClient"
+import { describeLive, testLive } from "./helpers/liveSystem"
 
 /**
  * ADSO 关联对象查询验证 - 对照 Eclipse 展开 ZL_FID40 的 Communication Log
@@ -23,7 +24,7 @@ const testConfig = {
 
 const TEST_ADSO = "ZL_FID40"
 
-describe("ADSO 关联对象查询 (搜索封装)", () => {
+describeLive("ADSO 关联对象查询 (搜索封装)", () => {
   let client: BWAdtClient
 
   beforeAll(async () => {
