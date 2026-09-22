@@ -34,6 +34,7 @@ export const VERB_FAMILIES: Record<DomainKind, string[]> = {
     "versions",
     "check",
     "create",
+    "activate",
     "saveAndActivate",
     "ensure*",
     "delete"
@@ -62,6 +63,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "versions",
       "check",
       "exists",
+      "activate",
       "saveAndActivate",
       "addField",
       "addKey",
@@ -73,7 +75,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "delete"
     ],
     notes:
-      "validateTemplate/validateNewName 是寄居的校验动词；validateInfoArea 已归位 client.infoArea.validate（P1 Task 2，旧位置保留 @deprecated）；getRaw 是 Advanced 层原始 XML 访问器。exists 为动词族审计补齐（2026-09-22，归一 validate*Exists 为 boolean）；delete 自管锁（2026-09-22：内部 lockADSO → BWObject.delete，成功不追加门面级 unlock——BWObject.delete 内部自带吞错 unlock（bwObject.ts），lockHandle 不再是调用方输入）；advanced 子面：lock/unlock/activate/update/delete（调用方持锁原语，逐参转发 api 层，非家族动词故不入 verbs）"
+      "validateTemplate/validateNewName 是寄居的校验动词；validateInfoArea 已归位 client.infoArea.validate（P1 Task 2，旧位置保留 @deprecated）；getRaw 是 Advanced 层原始 XML 访问器。exists 为动词族审计补齐（2026-09-22，归一 validate*Exists 为 boolean）；delete 自管锁（2026-09-22：内部 lockADSO → BWObject.delete，成功不追加门面级 unlock——BWObject.delete 内部自带吞错 unlock（bwObject.ts），lockHandle 不再是调用方输入）；activate 自管锁（2026-09-22 正名：重激活已保存对象，lockADSO → activateADSO → 始终 finally 吞错 unlock——激活不释放锁；可选 transport 作 corrNr，ADSO 侧 corrNr 尚待复核）；advanced 子面：lock/unlock/activate/update/delete（调用方持锁原语，逐参转发 api 层，非家族动词故不入 verbs）"
   },
   {
     name: "trfn",
@@ -85,6 +87,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "versions",
       "check",
       "exists",
+      "activate",
       "saveAndActivate",
       "create",
       "setEndRoutineFields",
@@ -94,7 +97,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "delete"
     ],
     notes:
-      "ensure*/setEndRoutineFields 是例程家族扩展动词；switchRuntime 是纯 XML 辅助（不发网络）。exists 为动词族审计补齐（2026-09-22）；delete 自管锁（2026-09-22：内部 lockTransformation → BWObject.delete，成功不域级 unlock，lockHandle 不再是调用方输入）；advanced 子面：lock/unlock/activate/update（调用方持锁原语，逐参转发 api 层，非家族动词故不入 verbs）"
+      "ensure*/setEndRoutineFields 是例程家族扩展动词；switchRuntime 是纯 XML 辅助（不发网络）。exists 为动词族审计补齐（2026-09-22）；delete 自管锁（2026-09-22：内部 lockTransformation → BWObject.delete，成功不域级 unlock，lockHandle 不再是调用方输入）；activate 自管锁（2026-09-22 正名：重激活已保存对象，lockTransformation → activateTransformation → 始终 finally 吞错 unlock——激活不释放锁；api 层签名无 transport 参数）；advanced 子面：lock/unlock/activate/update（调用方持锁原语，逐参转发 api 层，非家族动词故不入 verbs）"
   },
   {
     name: "dtp",
@@ -112,7 +115,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "delete"
     ],
     notes:
-      "execute 是 ops 族动词（DTP 执行入口寄居建模域）；activate 是锁→激活→解锁一站式。exists 为动词族审计补齐（2026-09-22）；delete 自管锁（2026-09-22：内部 lockDTP → BWObject.delete，成功不域级 unlock，lockHandle 不再是调用方输入；W1：本地 DTP 亦实测可删）；advanced 子面：lock/unlock/activate/update（调用方持锁原语，逐参转发 api 层，非家族动词故不入 verbs）"
+      "execute 是 ops 族动词（DTP 执行入口寄居建模域）；activate 是锁→激活→解锁一站式（2026-09-22 正名入 modeling 家族，自管锁：lockDTP → activateDTP → 始终 finally 吞错 unlock——激活不释放锁）。exists 为动词族审计补齐（2026-09-22）；delete 自管锁（2026-09-22：内部 lockDTP → BWObject.delete，成功不域级 unlock，lockHandle 不再是调用方输入；W1：本地 DTP 亦实测可删）；advanced 子面：lock/unlock/activate/update（调用方持锁原语，逐参转发 api 层，非家族动词故不入 verbs）"
   },
   {
     name: "dataSource",

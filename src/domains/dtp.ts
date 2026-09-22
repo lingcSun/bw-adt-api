@@ -43,6 +43,9 @@ export class DtpDomain {
   /**
    * Activate DTP with lock/unlock - 独立激活（锁→激活→解锁）。
    * 用于转换修改后 DTP 被取消激活的场景，无需改动 DTP 内容。
+   * 激活不像 delete 会释放锁，成功路径也要域级 unlock；unlock 失败吞错，
+   * 不掩盖激活的原异常（2026-09-22 修复：此前裸 finally 会用 unlock 错误
+   * 掩盖激活原异常）。自管锁；调用方持锁用 `.advanced.activate`。
    */
   async activate(dtpId: string) {
     const lockResult = await dtp.lockDTP(this.h, dtpId)
@@ -50,7 +53,11 @@ export class DtpDomain {
       const result = await dtp.activateDTP(this.h, dtpId, lockResult.lockHandle)
       return { lockHandle: lockResult.lockHandle, ...result }
     } finally {
-      await dtp.unlockDTP(this.h, dtpId)
+      try {
+        await dtp.unlockDTP(this.h, dtpId)
+      } catch {
+        // 吞错，不掩盖原异常
+      }
     }
   }
 

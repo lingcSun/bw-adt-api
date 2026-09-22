@@ -23,7 +23,7 @@ Status: implemented
 
 | kind | 特征 | 写会话引擎 | 成员 | 动词家族 |
 |---|---|---|---|---|
-| modeling | XML 文档编辑 + 激活，有锁 | withWriteSession | infoProvider(多态)/trfn/dtp/dataSource/infoObject(创建编辑无账本证据) | details/xml/versions/check/create/saveAndActivate/ensure*/delete |
+| modeling | XML 文档编辑 + 激活，有锁 | withWriteSession | infoProvider(多态)/trfn/dtp/dataSource/infoObject(创建编辑无账本证据) | details/xml/versions/check/create/activate/saveAndActivate/ensure*/delete |
 | ops | 生命周期动作，无文档编辑 | 否 | processChain、replication(留在 dataSource 内) | execute/stop/logs/status/replicate |
 | structure | 容器/导航/组织，只读或校验 | 否 | infoArea、repository、system、transport、query、ddic | tree/contents/validate/search/lineage |
 

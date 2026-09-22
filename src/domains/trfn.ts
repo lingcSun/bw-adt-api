@@ -40,6 +40,27 @@ export class TrfnDomain {
     }
   }
 
+  /**
+   * 激活 Transformation（自管锁；2026-09-22 正名为 modeling 家族动词）：重激活
+   * 已保存对象（纯激活场景，如例程变更后重激活）。内部 lockTransformation →
+   * activateTransformation（lockHandle——api 层签名无 transport 参数，账本亦无
+   * TRFN 激活 corrNr 的实测记录）→ 始终 unlock——激活不像 delete 会释放锁，成功路径
+   * 也要域级 unlock；unlock 失败吞错，不掩盖激活的原异常。自管锁；调用方持锁
+   * 用 `.advanced.activate`（两契约隔离）。
+   */
+  async activate(trfnId: string) {
+    const lock = await trfn.lockTransformation(this.h, trfnId)
+    try {
+      return await trfn.activateTransformation(this.h, trfnId, lock.lockHandle)
+    } finally {
+      try {
+        await trfn.unlockTransformation(this.h, trfnId)
+      } catch {
+        // 吞错，不掩盖原异常
+      }
+    }
+  }
+
   saveAndActivate(
     trfnId: string,
     xmlContent: string,

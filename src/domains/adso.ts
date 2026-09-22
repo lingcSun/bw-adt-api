@@ -48,6 +48,32 @@ export class AdsoDomain {
     }
   }
 
+  /**
+   * 激活 ADSO（自管锁；2026-09-22 正名为 modeling 家族动词）：重激活已保存
+   * 对象（纯激活场景，无需改动内容）。内部 lockADSO → activateADSO
+   * （lockHandle + 可选 transport 作 corrNr——必须是请求号而非任务号）→
+   * 始终 unlock——激活不像 delete 会释放锁，成功路径也要域级 unlock；
+   * unlock 失败吞错，不掩盖激活的原异常。自管锁；调用方持锁用
+   * `.advanced.activate`（两契约隔离）。
+   */
+  async activate(adsoId: string, options?: { transport?: string }) {
+    const lock = await adso.lockADSO(this.h, adsoId)
+    try {
+      return await adso.activateADSO(
+        this.h,
+        adsoId,
+        lock.lockHandle,
+        options?.transport ?? ""
+      )
+    } finally {
+      try {
+        await adso.unlockADSO(this.h, adsoId)
+      } catch {
+        // 吞错，不掩盖原异常
+      }
+    }
+  }
+
   saveAndActivate(
     adsoId: string,
     xmlContent: string,
