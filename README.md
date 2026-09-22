@@ -75,6 +75,20 @@ Aligned with BW Modeling Tools Project Explorer. Facades live under `src/domains
 
 **Not Public (out of scope):** Favorites, infoSource, openHub, sourceSystem, and any InfoProvider type not yet live-verified (HCPR / Open ODS / MultiProvider — see `docs/VERIFIED_APIS.md`).
 
+### Hydrated models (modeling domains, pilot: ADSO)
+
+`client.infoProvider.hydrate(name)` loads the object into a typed editing model. Edits are applied to a working XML copy and recorded in an op-log (`plan()` previews them); `saveAndActivate` commits the working copy through the write-session engine:
+
+```typescript
+const m = await client.infoProvider.hydrate("ZL_FID37")   // AdsoModel (ADSO variant)
+m.addField({ name: "ZZLOC_F1", dataType: "CHAR", length: 10 })
+     .addKey("0MATERIAL")
+m.plan()                                    // ["addField ZZLOC_F1 …", "addKey 0MATERIAL …"]
+await m.saveAndActivate({ transport: "BPDK9xxxxx" })
+```
+
+Non-verified InfoProvider types throw a guard error naming the type (see `docs/VERIFIED_APIS.md` for the verification boundary).
+
 ### Public vs Advanced
 
 | Tier | What | Typical use |

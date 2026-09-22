@@ -1,6 +1,6 @@
 {
   "name": "bw-adt-api",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Interface to SAP BW/4HANA ADT (Abap Developer Tools) webservice",
   "outDir": "build",
   "main": "build/index.js",
