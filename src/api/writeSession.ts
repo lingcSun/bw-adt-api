@@ -4,7 +4,7 @@
  *   → activate(stateless, 可选) → unlock(stateful, finally 兜底)
  * 域只提供步骤闭包（适配各自的 lockHandle/corrNr/timestamp 参数形状）；
  * 顺序、finally 解锁、transport 解析、autoActivate 分支只在此维护。
- * 仅 kind=modeling 的域接入本引擎（见 domain-taxonomy 提案笔记）；
+ * 仅 kind=modeling 的域接入本引擎（见 domain-taxonomy 决策笔记）；
  * 新增建模域的写编排不得再手写本序列（见 AGENTS.md Invariants）。
  */
 import type { AdtHTTP } from "../AdtHTTP"

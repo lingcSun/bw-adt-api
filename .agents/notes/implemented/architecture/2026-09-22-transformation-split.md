@@ -8,7 +8,7 @@ Status: implemented
 
 ## Decision
 
-- **布局**：`src/api/trfn/{shared,rules,routines,create}.ts` 四子域 + `transformation.ts` 保留 core 并对全部 31 个搬走的导出名逐名 `export { x } from "./trfn/…"` 重导出（不用 `export *`，双跳被排除）。导出面零变化由新增 `transformation-barrel.test.ts` 快照锁定：52 个导出名（tsc checker 机械枚举）37 个值运行时 `toBeDefined`、19 个纯类型经 `import type` + 映射类型编译期强制。
+- **布局**：`src/api/trfn/{shared,rules,routines,create}.ts` 四子域 + `transformation.ts` 保留 core 并对全部 32 个搬走的导出名逐名 `export { x } from "./trfn/…"` 重导出（不用 `export *`，双跳被排除）。导出面零变化由新增 `transformation-barrel.test.ts` 快照锁定：54 个导出名（37 值 + 19 纯类型 − 2 个 io-ts codec 双名；tsc checker 机械枚举同数）37 个值运行时 `toBeDefined`、19 个纯类型经 `import type` + 映射类型编译期强制。
 - **shared 是真叶子**：只依赖 io-ts/utilities。除 brief 点名的 `extractTransformationTimestamp`、`hasStart/hasEnd/hasExpertRoutine`、`extractRoutineMethodName`、`TransformationMetaData` 外，按"以实际依赖闭包为准"下沉了闭包强制项：`parseTransformationSettings`/`TransformationSettings`/`extractRoutineInfo`/例程三接口（被四个 settings 助手调用）、`deriveRoutineClassName`（core 的 `extractAbapClassName` 与 routines 都要——若按原计划落 routines.ts 会形成 core→子域反向依赖）、`escapeXmlAttr`（create+rules 共用）、`nextRuleId`（rules+routines 共用）。core 对这些名字按名重导出，消费面不变。
 - **允许的向上引用**：`routines.ts`→core 5 个（getTransformationXml/saveAndActivate/lock/activate/unlock），`create.ts`→core 4 个（getTransformationXml/lock/update/unlock）——ensure*/create 的真实闭包，比口头预期"三个"多，但方向与 brief 的单向规则一致；把它们下沉进 shared 反而撕碎 core 自身清单。引用全部只在函数体内解引用（懒），无模块初始化期解引用。
 - **机械搬迁**：新文件正文按原始文件行号区间 sed 抽取拼接，函数体零编辑。全量行集校验（多集比较）确认与原文仅 4 类差异：动态 import 说明符 `"./abapClass"`→`"../abapClass"`（随位置，唯一函数体内改动）、`escapeXmlAttr`/`nextRuleId` 补 `export` 关键字、authored 的头/尾 import|export 行、校验脚本自身的标记行。
@@ -28,5 +28,5 @@ Status: implemented
 
 ## Related
 
-- 单向依赖与兼容面约束的出处：P1B Task 3 brief（`.superpowers/sdd/p1b-task-3-brief.md`）。
+- 单向依赖与兼容面约束（原 P1B Task 3 brief 未入库，约束内联于此）：trfn 子域（shared/create/rules/routines）只准被 barrel 单向引用，不得反向 import barrel；桶兼容面只增不破。
 - 兼容面"只增不破"先例：[flat 表面 @deprecated](2026-09-22-flat-deprecation.md)。
