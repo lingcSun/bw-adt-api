@@ -43,6 +43,7 @@
     "build/utilities.d.ts",
     "build/api",
     "build/domains",
+    "build/model",
     "README.md",
     "docs"
   ],

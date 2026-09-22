@@ -48,9 +48,9 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
     kind: "modeling",
     summary:
       "InfoProvider 多态域（ADSO 判别优先：search 精确名取 objectType，ADSO 转发 AdsoDomain，其余类型未验证即抛错）",
-    verbs: ["details", "exists", "adso"],
+    verbs: ["details", "exists", "adso", "hydrate"],
     notes:
-      "P1 Task 3 已落地：details/exists 经 repository.search 判别类型；adso(name) 返回绑定同一 AdtHTTP 的 AdsoDomain（client.adso 是其快捷方式）。HCPR/MultiProvider/OpenODS 无实测证据，命中即抛 not verified yet"
+      "P1 Task 3 已落地：details/exists 经 repository.search 判别类型；adso(name) 返回绑定同一 AdtHTTP 的 AdsoDomain（client.adso 是其快捷方式）。hydrate 为 P2 水合编辑模型入口（AdsoModel）；P2 Task 2 落真实分发。HCPR/MultiProvider/OpenODS 无实测证据，命中即抛 not verified yet"
   },
   {
     name: "adso",

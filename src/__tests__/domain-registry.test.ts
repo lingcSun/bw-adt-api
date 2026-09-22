@@ -159,11 +159,12 @@ describe("infoArea 预注册（P1 Task 2 落地）", () => {
 })
 
 describe("infoProvider 预注册（P1 Task 3 落地）", () => {
-  test("已注册：modeling、details/exists/adso 动词、ADSO 判别优先", () => {
+  test("已注册：modeling、details/exists/adso/hydrate 动词、ADSO 判别优先", () => {
     const e = getDomain("infoProvider")
     expect(e).toBeDefined()
     expect(e?.kind).toBe("modeling")
-    expect(e?.verbs).toEqual(["details", "exists", "adso"])
+    // hydrate 是 P2 水合编辑模型入口（P2 Task 1 登记，Task 2 落真实分发）
+    expect(e?.verbs).toEqual(["details", "exists", "adso", "hydrate"])
     expect(e?.summary).toContain("ADSO")
   })
 

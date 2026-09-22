@@ -1,6 +1,7 @@
 import { AdtHTTP } from "../AdtHTTP"
 import * as search from "../api/search"
 import { AdsoDomain } from "./adso"
+import type { InfoProviderModel } from "../model"
 
 /**
  * 精确名匹配：BW 技术名服务端归大写，判别两侧统一大写比较
@@ -63,5 +64,14 @@ export class InfoProviderDomain {
    */
   adso(_name: string) {
     return new AdsoDomain(this.h)
+  }
+
+  /**
+   * P2 占位：水合编辑模型入口（ADSO → AdsoModel，见 src/model/）。
+   * registry verbs 已在 P2 Task 1 登记 `hydrate`（占位桩保持
+   * verbs ⇄ 原型一致性断言绿色）；P2 Task 2 替换为真实分发。
+   */
+  async hydrate(_name: string): Promise<InfoProviderModel> {
+    throw new Error("P2 Task 2")
   }
 }
