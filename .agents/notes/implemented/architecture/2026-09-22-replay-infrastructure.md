@@ -29,3 +29,9 @@ P3 要离线验证写路径编排：withWriteSession 引擎的序列合规、§2
 - 写路径编排回归从此可离线进 CI（后续任务接入）；`.sent` 是线语义断言的唯一入口。
 - URL 归一化不做百分号解码：卡带 url 与请求 url 必须用同一编码书写，编码不一致按显式不匹配失败（显式失败好过静默误配）。
 - 卡带可手写（引擎合规测试）也可真机录制（RecordingHttpClient 落盘）；录制 CLI 留待确有需要时另立。
+
+## Related
+
+- 第一个消费者（P3 Task 2）：[写引擎回放测试](../../../../src/__tests__/write-engine-replay.test.ts)——手工「§2 规约服务端」卡带离线驱动 `new AdtHTTP(replay, …)` + `saveAndActivateADSO` 全链路，对 `.sent` 断言 §2 线语义（stateful/stateless 会话头、contextid 只随 stateful、PUT URL 带 lockHandle、activation 失败仍 finally 解锁）；并用引擎变异（stateless 携带 contextid / 丢 finally 解锁 / 丢 lockHandle / 从不携带 contextid）逐一证实断言有牙。
+- `.sent` 不含 `qs`（axios 才把 params 拼进 URL）：涉及 qs 的断言（PUT 的 lockHandle/corrNr）由该测试在测试侧包一层快照完整 options 补齐，本设施保持不动。
+- 会话模型本体：[写操作会话模型](2026-09-18-write-session-model.md)；编排引擎：[withWriteSession 引擎](2026-09-21-write-session-engine.md)。
