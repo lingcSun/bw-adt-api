@@ -181,6 +181,38 @@ describe("AdsoModel.plan", () => {
   })
 })
 
+describe("AdsoModel op 不可变（冻结账本，P2 遗留收口）", () => {
+  test("入账的 op 记录与 args 数组均被 Object.freeze", async () => {
+    const model = await hydrated()
+    model.addField({ name: "ZAPI_FLD", dataType: "CHAR" as const, length: 20 })
+    model.addKey("0MATERIAL")
+
+    const [addFieldOp, addKeyOp] = model.ops
+    expect(Object.isFrozen(addFieldOp)).toBe(true)
+    expect(Object.isFrozen(addFieldOp.args)).toBe(true)
+    expect(Object.isFrozen(addKeyOp)).toBe(true)
+    expect(Object.isFrozen(addKeyOp.args)).toBe(true)
+  })
+
+  test("strict 模式下变异冻结 op 抛 TypeError，账本值不被改写", async () => {
+    const model = await hydrated()
+    model.removeField("AUGBL")
+    const op = model.ops[0]
+
+    expect(() => {
+      op.kind = "addField"
+    }).toThrow(TypeError)
+    expect(() => {
+      op.args.push("intrusion")
+    }).toThrow(TypeError)
+
+    expect(op.kind).toBe("removeField")
+    expect(op.args).toEqual(["AUGBL"])
+    // ops 快照返回的是账本内同一批（冻结）对象
+    expect(model.ops[0]).toBe(op)
+  })
+})
+
 describe("AdsoModel.saveAndActivate", () => {
   /** 桩返回值：断言只认同一引用（返回值透传）。 */
   const SAVE_RESULT: adsoApi.SaveAndActivateADSOResult = {
