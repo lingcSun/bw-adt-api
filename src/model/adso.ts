@@ -119,6 +119,8 @@ export class AdsoModel {
    * saveAndActivateADSO——lock → transport → PUT → activate → unlock
    * 全程走 withWriteSession 引擎（会话模型不变量不豁免）。
    * options 原样透传；无 op 时提交的即 hydrate 读到的原文。
+   * hydrate→commit 之间为 last-writer-wins：服务端变更会被工作副本覆盖，
+   * 不确定时先重新 hydrate。
    */
   saveAndActivate(
     options?: SaveAndActivateADSOOptions

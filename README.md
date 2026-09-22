@@ -60,7 +60,7 @@ Aligned with BW Modeling Tools Project Explorer. Facades live under `src/domains
 
 | Kind | Domain | Facade | Role |
 |------|--------|--------|------|
-| modeling | infoProvider | `client.infoProvider` | Polymorphic: `.adso(name)` typed facade, `.exists`, `.details` (ADSO variant; more types as they get verified) |
+| modeling | infoProvider | `client.infoProvider` | Polymorphic: `.adso(name)` typed facade, `.hydrate`, `.exists`, `.details` (ADSO variant; more types as they get verified) |
 | modeling | infoProvider·ADSO | `client.adso` | ADSO read / edit / addField / addKey / exists / delete |
 | modeling | dataFlow | `client.trfn` / `client.dtp` | Transformation (+ ensure routines) / DTP, incl. `exists` / `delete` |
 | modeling | dataSource | `client.dataSource` | RSDS + replication |
@@ -83,9 +83,11 @@ Aligned with BW Modeling Tools Project Explorer. Facades live under `src/domains
 const m = await client.infoProvider.hydrate("ZL_FID37")   // AdsoModel (ADSO variant)
 m.addField({ name: "ZZLOC_F1", dataType: "CHAR", length: 10 })
      .addKey("0MATERIAL")
-m.plan()                                    // ["addField ZZLOC_F1 …", "addKey 0MATERIAL …"]
+m.plan()                                    // ["1. addField — add field ZZLOC_F1", "2. addKey — add key 0MATERIAL"]
 await m.saveAndActivate({ transport: "BPDK9xxxxx" })
 ```
+
+Hydrate→commit is last-writer-wins: server-side changes made in between will be overwritten by your working copy — re-hydrate first if unsure.
 
 Non-verified InfoProvider types throw a guard error naming the type (see `docs/VERIFIED_APIS.md` for the verification boundary).
 
