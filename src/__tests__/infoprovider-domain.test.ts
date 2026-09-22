@@ -9,25 +9,21 @@
  * - hydrate(name) 走同一判别：ADSO → AdsoModel.hydrate（全新读工作副本）；
  *   其余类型/无命中与 details 同一守卫口径。
  *
- * api/search 以 jest.mock 替换、api/adso.getADSOXml 与 AdsoDomain.details 以
- * spyOn 拦截（getADSOXml 刻意不设 jest.mock 工厂：工厂与多入口的 ../model
- * 导入图相遇会产生第二份模块实例，见 2026-09-22-adso-model.md）——
+ * api/search、api/adso.getADSOXml 与 AdsoDomain.details 全部以 jest.spyOn
+ * 就地替换（一律不设 jest.mock 工厂：工厂与多入口的 ../model 导入图相遇
+ * 会产生第二份模块实例，见 2026-09-22-adso-model.md）——
  * 不发网络请求、不读 .env、不用 describeLive。
  */
 import type { AdtHTTP } from "../AdtHTTP"
-import { searchBWObjects } from "../api/search"
+import * as searchApi from "../api/search"
 import * as adsoApi from "../api/adso"
 import { AdsoDomain } from "../domains/adso"
 import { InfoProviderDomain } from "../domains/infoProvider"
 import { AdsoModel } from "../model"
 import { BWAdtClient } from "../BWAdtClient"
 
-jest.mock("../api/search", () => ({
-  searchBWObjects: jest.fn()
-}))
-
-const mockedSearch = searchBWObjects as jest.Mock
 // 只 mock 读，AdsoModel.hydrate 的真实水合路径保持真身
+const mockedSearch = jest.spyOn(searchApi, "searchBWObjects")
 const mockedGetXml = jest.spyOn(adsoApi, "getADSOXml")
 
 const h = {} as AdtHTTP

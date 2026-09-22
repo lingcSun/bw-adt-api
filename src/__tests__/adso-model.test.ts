@@ -79,6 +79,22 @@ describe("AdsoModel.addField", () => {
     expect(Number.isNaN(Date.parse(model.ops[0].at))).toBe(false)
   })
 
+  test("账本持有入参浅快照：调用后改写传入对象不影响已记 op", async () => {
+    const model = await hydrated()
+    const field = { name: "ZAPI_FLD", dataType: "CHAR" as const, length: 20 }
+
+    model.addField(field)
+    field.name = "ZMUTATED"
+    field.length = 999
+
+    const recorded = model.ops[0].args[0]
+    expect(recorded).not.toBe(field)
+    expect(recorded).toEqual({ name: "ZAPI_FLD", dataType: "CHAR", length: 20 })
+    // 工作副本由记录时刻的纯函数产出，同样不受事后改写影响
+    expect(model.xml).toContain('name="ZAPI_FLD"')
+    expect(model.xml).not.toContain("ZMUTATED")
+  })
+
   test("重复加同名字段抛错且 xml/ops 皆不变", async () => {
     const model = await hydrated()
     model.addField({ name: "ZAPI_FLD", length: 20 })

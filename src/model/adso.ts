@@ -18,7 +18,7 @@ export interface ModelOp {
   kind: "addField" | "removeField" | "addKey"
   /** ISO 8601 时间戳（编辑成功落账的时刻）。 */
   at: string
-  /** 调用者传入的实参（不含 xml 自身）。 */
+  /** 调用者传入的实参（不含 xml 自身）；对象实参在记录时做浅快照，账本免疫调用侧事后改写。 */
   args: unknown[]
   /** 人类可读的一句话意图（含对象技术名）。 */
   summary: string
@@ -79,7 +79,7 @@ export class AdsoModel {
     this.opLog.push({
       kind: "addField",
       at: new Date().toISOString(),
-      args: [field],
+      args: [{ ...field }],
       summary: `add field ${field.name}`
     })
     return this
@@ -101,6 +101,8 @@ export class AdsoModel {
   /**
    * 加键（InfoObject 键 = keyElement + 同名引用元素，实测形态见
    * addADSOKeyToXml）。length 透传给纯函数（仅实测过 40）。
+   * 键已存在时纯函数幂等返回原 XML：幂等 no-op 也会记录一条 op；
+   * plan() 可能预览不产生实际差异的编辑。
    */
   addKey(infoObjectName: string, length?: number): this {
     const next = addADSOKeyToXml(this.xmlContent, infoObjectName, { length })

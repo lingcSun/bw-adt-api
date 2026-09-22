@@ -2,7 +2,7 @@
  * 域注册表 —— BW 域门面的单一事实源（P1 Task 1）。
  *
  * kind 三分类与动词家族表出自域分类学笔记
- * .agents/notes/proposed/architecture/2026-09-21-domain-taxonomy.md。
+ * .agents/notes/implemented/architecture/2026-09-21-domain-taxonomy.md。
  * verbs 列每个域门面"当前实际"的方法名（类是事实，注册表跟随；
  * 见 src/__tests__/domain-registry.test.ts 的一致性断言），
  * 不强制 ⊆ VERB_FAMILIES——越族动词在 notes 里说明（如 dataSource.replicate）。
