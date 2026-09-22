@@ -3,7 +3,8 @@
  *
  * - exists → api 层 validateXxxExists，归一为 boolean：实测（API_REFERENCE
  *   validateADSOExists 行）对象不存在时 validation 端点直接报错而非 valid=false，
- *   门面把异常归一为 false。
+ *   门面把 AdtError 归一为 false；HttpClientException（网络/会话等传输层失败）
+ *   原样重抛（2026-09-22 exists 错误语义收窄，不伪装成「不存在」）。
  * - delete → createBWObject + BWObject.delete 通用路径，options 原样透传
  *   （ADSO/TRFN/DTP 为 lockHandle 模式，VERIFIED_APIS §8 / W1）。
  * - dataSource 明确不加 exists/delete（RSDS 删除无实测证据；分类学边界）。
@@ -12,6 +13,8 @@
  * 不用 describeLive。
  */
 import type { AdtHTTP } from "../AdtHTTP"
+import { HttpClientException } from "../AdtHTTP"
+import { AdtErrorException } from "../AdtException"
 import * as adsoApi from "../api/adso"
 import * as trfnApi from "../api/transformation"
 import * as dtpApi from "../api/dtp"
@@ -81,10 +84,38 @@ describe("exists 薄转发（validate *Exists → boolean 归一）", () => {
     await expect(new AdsoDomain(h).exists("ZTEST")).resolves.toBe(false)
   })
 
-  test("api 层抛错（负例报错，实测语义）归一为 false（不抛错）", async () => {
-    mockedTrfnExists.mockRejectedValue(new Error("转换 'ZNOPE' 不存在"))
+  test("api 层抛 HttpClientException（网络/会话等传输层失败）→ 原样重抛（不伪装为 false）", async () => {
+    const cases = [
+      [new AdsoDomain(h), mockedADSOExists],
+      [new TrfnDomain(h), mockedTrfnExists],
+      [new DtpDomain(h), mockedDTPExists]
+    ] as const
+    for (const [domain, mocked] of cases) {
+      const transport = new HttpClientException(
+        "session expired / network down",
+        "ECONNRESET",
+        undefined,
+        undefined,
+        { url: "/sap/bc/adt/validate" }
+      )
+      mocked.mockRejectedValue(transport)
+      // 同一异常实例原样上抛（ rejects.toBe 锁引用恒等，即「原样」）
+      await expect(domain.exists("ZTEST")).rejects.toBe(transport)
+    }
+  })
+
+  test("api 层抛 AdtError（not-found 形态，实测语义）→ 归一为 false（不抛错）", async () => {
+    mockedADSOExists.mockRejectedValue(
+      new AdtErrorException(404, {}, "", "ADSO ZNOPE 不存在")
+    )
+    await expect(new AdsoDomain(h).exists("ZNOPE")).resolves.toBe(false)
+    mockedTrfnExists.mockRejectedValue(
+      new AdtErrorException(404, {}, "", "转换 'ZNOPE' 不存在")
+    )
     await expect(new TrfnDomain(h).exists("ZNOPE")).resolves.toBe(false)
-    mockedDTPExists.mockRejectedValue(new Error("DTP 'ZNOPE' 不存在"))
+    mockedDTPExists.mockRejectedValue(
+      new AdtErrorException(404, {}, "", "DTP 'ZNOPE' 不存在")
+    )
     await expect(new DtpDomain(h).exists("ZNOPE")).resolves.toBe(false)
   })
 })

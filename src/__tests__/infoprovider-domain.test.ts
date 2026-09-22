@@ -94,7 +94,7 @@ describe("InfoProviderDomain.details 判别", () => {
     expect(detailsSpy).toHaveBeenCalledWith("ZTEST_IP")
   })
 
-  test("非 ADSO 类型 → 抛 not verified yet（消息含 objectType 与分类学笔记指针）", async () => {
+  test("非 ADSO 类型 → 抛 not verified yet（消息含 objectType 与已验证 API 文档指针）", async () => {
     mockedSearch.mockResolvedValue([
       { ...adsoHit("ZTEST_CUBE"), objectType: "INFOCUBE" }
     ])
@@ -102,7 +102,7 @@ describe("InfoProviderDomain.details 判别", () => {
       "InfoProvider type INFOCUBE not verified yet"
     )
     await expect(domain.details("ZTEST_CUBE")).rejects.toThrow(
-      /2026-09-21-domain-taxonomy\.md/
+      /docs\/VERIFIED_APIS\.md/
     )
     expect(detailsSpy).not.toHaveBeenCalled()
   })
@@ -175,7 +175,7 @@ describe("InfoProviderDomain.hydrate 判别（P2 Task 2：ADSO → AdsoModel）"
       "InfoProvider type INFOCUBE not verified yet"
     )
     await expect(domain.hydrate("ZTEST_CUBE")).rejects.toThrow(
-      /2026-09-21-domain-taxonomy\.md/
+      /docs\/VERIFIED_APIS\.md/
     )
     expect(mockedGetXml).not.toHaveBeenCalled()
   })

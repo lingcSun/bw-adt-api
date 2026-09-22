@@ -1,4 +1,4 @@
-import { AdtHTTP } from "../AdtHTTP"
+import { AdtHTTP, isHttpClientException } from "../AdtHTTP"
 import * as trfn from "../api/transformation"
 import * as bwObject from "../api/bwObject"
 
@@ -26,13 +26,16 @@ export class TrfnDomain {
    * Transformation 是否存在（动词族审计补齐）。转发 validateTransformationExists
    * 并归一为 boolean。实测（API_REFERENCE validateTransformationExists 行）：
    * 存在 → valid=true；不存在 → validation 端点直接报错而非 valid=false——
-   * 异常统一归 false。
+   * AdtError（含 not-found 形态；消息可能随 BW_LANGUAGE 本地化，不做消息匹配）
+   * 归 false。HttpClientException（传输层失败）原样重抛——网络故障不伪装成
+   * 「不存在」（语义见 2026-09-22-exists-error-semantics.md）。
    */
   async exists(trfnId: string) {
     try {
       const result = await trfn.validateTransformationExists(this.h, trfnId)
       return result.valid
-    } catch {
+    } catch (e) {
+      if (isHttpClientException(e)) throw e
       return false
     }
   }
