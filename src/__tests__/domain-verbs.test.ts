@@ -6,9 +6,10 @@
  *   门面把 AdtError 归一为 false；HttpClientException（网络/会话等传输层失败）
  *   原样重抛（2026-09-22 exists 错误语义收窄，不伪装成「不存在」）。
  * - delete 自管锁（2026-09-22）：门面内部先取域锁（lockADSO/lockTransformation/
- *   lockDTP）→ BWObject.delete({lockHandle, transport?})；成功路径**不** unlock
- *   ——真机卡带 lock→DELETE /m 全 200 即成立（删除即释放锁）；delete 失败才
- *   best-effort unlock（吞错）并原样上抛。options 只剩 { transport? }（0.x 行为
+ *   lockDTP）→ BWObject.delete({lockHandle, transport?})；成功路径不追加门面级
+ *   unlock——BWObject.delete 内部已含一次吞错的 unlock（bwObject.ts），卡带
+ *   证据为 lock→DELETE→unlock 全 200；delete 失败才 best-effort unlock（吞错）
+ *   并原样上抛。options 只剩 { transport? }（0.x 行为
  *   变化：lockHandle 不再是调用方输入，倒挂的弃用 flat lock 依赖就此移除）。
  * - dataSource 明确不加 exists/delete（RSDS 删除无实测证据；分类学边界）。
  *
@@ -158,7 +159,8 @@ describe("delete 自管锁（域 lock → BWObject.delete → 失败才域 unloc
         lockHandle: "LOCKHANDLE1",
         transport: "BPDK903312"
       })
-      // 成功路径不 unlock：删除即释放锁（真机卡带 lock→DELETE 即成立），
+      // 成功路径不追加门面级 unlock：BWObject.delete 内部已含一次吞错的
+      // unlock（bwObject.ts，卡带证据 lock→DELETE→unlock 全 200），
       // 域级再 unlock 是多余请求
       expect(unlockSpy).not.toHaveBeenCalled()
     }

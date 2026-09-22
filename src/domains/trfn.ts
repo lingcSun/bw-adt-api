@@ -113,8 +113,9 @@ export class TrfnDomain {
   /**
    * 删除 Transformation（自管锁）：内部先取域锁（lockTransformation，stateful）→
    * BWObject.delete lockHandle 模式（VERIFIED_APIS 第 6/8 节端到端实测）→ 成功即
-   * 返回、**不再**域级 unlock——删除即释放锁（真机卡带 lock→DELETE /m 全 200）。
-   * delete 失败时锁还挂着，做一次 best-effort unlock（吞错，不掩盖原异常）再上抛。
+   * 返回、不追加门面级 unlock——BWObject.delete 内部已含一次吞错的 unlock
+   * （bwObject.ts），卡带证据为 lock→DELETE→unlock 全 200；delete 失败时锁还
+   * 挂着，做一次 best-effort unlock（吞错，不掩盖原异常）再上抛。
    * 可选 transport 作 corrNr——必须是请求号而非任务号（见 BWObject.delete）。
    * 0.x 行为变化（2026-09-22）：lockHandle 不再是调用方输入；此前只能经已弃用的
    * flat client.lockTransformation 自取锁，锁的获取倒挂在调用方身上。

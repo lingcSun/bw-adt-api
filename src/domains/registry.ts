@@ -73,7 +73,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "delete"
     ],
     notes:
-      "validateTemplate/validateNewName 是寄居的校验动词；validateInfoArea 已归位 client.infoArea.validate（P1 Task 2，旧位置保留 @deprecated）；getRaw 是 Advanced 层原始 XML 访问器。exists 为动词族审计补齐（2026-09-22，归一 validate*Exists 为 boolean）；delete 自管锁（2026-09-22：内部 lockADSO → BWObject.delete，成功不域级 unlock——删除即释放锁，lockHandle 不再是调用方输入）；advanced 子面：lock/unlock/activate/update/delete（调用方持锁原语，逐参转发 api 层，非家族动词故不入 verbs）"
+      "validateTemplate/validateNewName 是寄居的校验动词；validateInfoArea 已归位 client.infoArea.validate（P1 Task 2，旧位置保留 @deprecated）；getRaw 是 Advanced 层原始 XML 访问器。exists 为动词族审计补齐（2026-09-22，归一 validate*Exists 为 boolean）；delete 自管锁（2026-09-22：内部 lockADSO → BWObject.delete，成功不追加门面级 unlock——BWObject.delete 内部自带吞错 unlock（bwObject.ts），lockHandle 不再是调用方输入）；advanced 子面：lock/unlock/activate/update/delete（调用方持锁原语，逐参转发 api 层，非家族动词故不入 verbs）"
   },
   {
     name: "trfn",
