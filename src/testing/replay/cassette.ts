@@ -4,6 +4,8 @@
  * 磁盘格式为 JSON：`{ "interactions": [ { "request": {...}, "response": {...} } ] }`。
  * 手写卡带（引擎合规测试用）只须给出 `request.method`/`request.url`，
  * 其余字段由 cassetteInteraction()/normalizeCassette() 兜底默认值。
+ * `request.qs` 可选记录（快照/诊断参考）；回放匹配只看 method+路径，qs 不参与。
+ * 旧形状卡带（缺 qs）照常回放——qs 字段缺省即不落。
  *
  * 诚实原则：卡带只用于断言「引擎遵从会话规约」；凡断言服务端真实行为的测试
  * 必须走活系统（describeLive），不得用手工卡带冒充实测证据。
@@ -12,11 +14,12 @@ import { readFileSync } from "fs"
 import { HttpClientOptions, ResponseHeaders } from "../../AdtHTTP"
 import { hasMessage, isObject, isString } from "../../utilities"
 
-/** 一次发出的请求的快照（headers 深拷贝，后续篡改不影响已捕获内容） */
+/** 一次发出的请求的快照（headers/qs 拷贝，后续篡改不影响已捕获内容；qs 仅供诊断参考） */
 export interface SentRequest {
   method: string
   url: string
   headers: Record<string, string>
+  qs?: Record<string, string>
   body?: string
 }
 
@@ -43,6 +46,8 @@ export interface CassetteInteractionInput {
     method: string
     url: string
     headers?: Record<string, string>
+    /** 可选记录（仅供参考，不参与回放匹配——匹配仍只看 method+路径）；缺省即不落字段 */
+    qs?: Record<string, string>
     body?: string
   }
   response?: {
@@ -53,10 +58,11 @@ export interface CassetteInteractionInput {
   }
 }
 
+/** headers 浅拷贝 + 值为数组的一律浅拷贝数组（set-cookie 等多值头的变异隔离） */
 const cloneHeaders = (headers: ResponseHeaders): ResponseHeaders => {
-  const cloned: ResponseHeaders = { ...headers }
-  const setCookie = cloned["set-cookie"] as string[] | undefined
-  if (setCookie) cloned["set-cookie"] = [...setCookie]
+  const cloned: ResponseHeaders = {}
+  for (const [key, value] of Object.entries(headers))
+    cloned[key] = Array.isArray(value) ? [...value] : value
   return cloned
 }
 
@@ -68,6 +74,7 @@ export const snapshotRequest = (options: HttpClientOptions): SentRequest => ({
   method: options.method || "GET",
   url: options.url,
   headers: { ...(options.headers || {}) },
+  ...(options.qs === undefined ? {} : { qs: { ...(options.qs || {}) } }),
   ...(options.body === undefined ? {} : { body: options.body })
 })
 
@@ -105,6 +112,7 @@ export const cassetteInteraction = (
       method,
       url,
       headers: { ...(input.request.headers || {}) },
+      ...(input.request.qs === undefined ? {} : { qs: { ...(input.request.qs || {}) } }),
       ...(input.request.body === undefined ? {} : { body: input.request.body })
     },
     response: {

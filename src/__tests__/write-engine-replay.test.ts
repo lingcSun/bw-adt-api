@@ -4,9 +4,10 @@
  * 手工卡带在这里扮演「§2 规约服务端」：按 §2 典型写序列预置响应
  * （lock=stateful → [transportchecks=stateless] → PUT=stateless → activation=stateless
  * → unlock=stateful），用 ReplayHttpClient 离线驱动真实 AdtHTTP +
- * saveAndActivateADSO 全链路，再对实际发出的请求（client.sent / 完整 options 快照）
- * 断言线语义：X-sap-adt-sessiontype 头、Cookie 上的 sap-contextid、
- * PUT 的 lockHandle query、activation 的 lockHandle body、finally 解锁。
+ * saveAndActivateADSO 全链路，再对实际发出的请求（client.sent，含
+ * headers/body/qs 快照）断言线语义：X-sap-adt-sessiontype 头、Cookie 上的
+ * sap-contextid、PUT 的 lockHandle query、activation 的 lockHandle body、
+ * finally 解锁。
  *
  * 诚实原则：这套测试证明的是「本仓库写引擎遵从 §2 规约」，不是 SAP 服务端的真实行为；
  * 卡带里的响应体是为让引擎走通而仿制的夹具（形状对照 parse* 的期望），凡断言
@@ -20,7 +21,7 @@
  * - stateless 请求（transportchecks/PUT/activation）：绝不携带 contextid。
  * 全流程不存在「stateless + contextid」由第 ③ 组测试对三个流程统一断言。
  */
-import { AdtHTTP, HttpClient, HttpClientOptions, HttpClientResponse, session_types } from "../AdtHTTP"
+import { AdtHTTP, session_types } from "../AdtHTTP"
 import { AdtErrorException, isAdtError } from "../AdtException"
 import { SaveAndActivateADSOResult, saveAndActivateADSO } from "../api/adso"
 import { Cassette, CassetteInteractionInput, cassette } from "../testing/replay/cassette"
@@ -130,48 +131,15 @@ const adsoWriteTape = (opts: TapeOptions = {}): Cassette => {
   return cassette(...interactions)
 }
 
-/**
- * ReplayHttpClient 的 .sent 只存 method/url/headers/body；而本仓库的 PUT/activation
- * 经 qs 传 lockHandle/corrNr（axios 在线上把 params 拼进 URL），qs 不进 .sent。
- * 这里在测试侧包一层把完整 HttpClientOptions（含 qs）也快照下来，与 inner.sent 同序——
- * 「PUT URL 带 lockHandle」的断言即来自此处（不改 src/testing/**）。
- */
-class QsCapturingReplay implements HttpClient {
-  private readonly inner: ReplayHttpClient
-  private readonly capturedOptions: HttpClientOptions[] = []
-
-  constructor(tape: Cassette) {
-    this.inner = new ReplayHttpClient(tape)
-  }
-
-  get sent() {
-    return this.inner.sent
-  }
-
-  get remaining() {
-    return this.inner.remaining
-  }
-
-  /** 完整请求选项快照（含 qs），与 inner.sent 同序 */
-  get sentOptions(): readonly HttpClientOptions[] {
-    return this.capturedOptions
-  }
-
-  async request(options: HttpClientOptions): Promise<HttpClientResponse> {
-    this.capturedOptions.push({ ...options })
-    return this.inner.request(options)
-  }
-}
-
 interface ReplayFlow {
-  client: QsCapturingReplay
+  client: ReplayHttpClient
   result?: SaveAndActivateADSOResult
   error?: unknown
 }
 
 /** 构造 AdtHTTP over Replay 并跑完 saveAndActivateADSO，捕获结果/错误 */
 const replayAdsoSave = async (opts: TapeOptions = {}): Promise<ReplayFlow> => {
-  const client = new QsCapturingReplay(adsoWriteTape(opts))
+  const client = new ReplayHttpClient(adsoWriteTape(opts))
   const http = new AdtHTTP(client, "DEVELOPER", "secret", SAP_CLIENT, "EN")
   try {
     const result = await saveAndActivateADSO(http, ADSO_ID, ADSO_XML,
@@ -245,8 +213,7 @@ describe("写引擎回放——§2 规约的线上断言（离线卡带，零网
       `PUT 必须走 stateless 会话头（实际 ${JSON.stringify(sessionTypeOf(put))}）`)
     s2(!carriesContextId(put),
       "stateless PUT 不得携带 sap-contextid（携带会把请求路由进 stateful 会话并销毁它）")
-    const putOptions = client.sentOptions[2]
-    const putQs = putOptions?.qs as Record<string, string> | undefined
+    const putQs = put.qs
     s2(putQs != null && putQs["lockHandle"] === LOCK_HANDLE,
       `PUT 的 URL query 必须带 lockHandle=${LOCK_HANDLE}（实际 qs: ${JSON.stringify(putQs)}）；` +
       `服务端用 enqueue 锁表校验 URL 上的 lockHandle`)
@@ -262,8 +229,7 @@ describe("写引擎回放——§2 规约的线上断言（离线卡带，零网
     s2(!carriesContextId(activation),
       "stateless activation 不得携带 sap-contextid")
     expect(activation.body).toContain(`lockHandle="${LOCK_HANDLE}"`)
-    const activationOptions = client.sentOptions[3]
-    expect((activationOptions?.qs as Record<string, string> | undefined)?.["corrNr"]).toBe("TR1")
+    expect(activation.qs?.["corrNr"]).toBe("TR1")
 
     // 4. unlock：§2.4 回到持锁的 stateful 会话——stateful 头 + contextid（lock 响应颁发）
     expect(unlock.url).toBe(`/sap/bw/modeling/adso/${URI_NAME}?action=unlock`)
