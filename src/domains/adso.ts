@@ -108,17 +108,57 @@ export class AdsoDomain {
   }
 
   /**
-   * 删除 ADSO（动词族审计补齐）：BWObject 通用删除路径，lockHandle 模式
-   * （实测：VERIFIED_APIS §8「BWObject 通用路径」，lock → DELETE /m?lockHandle → unlock）。
-   * options 原样透传 BWObject.delete——必须 { lockHandle }（lock() 取），
-   * 可选 transport 作 corrNr；缺 lockHandle 由 BWObject.delete 给出可操作报错。
+   * Advanced 子面：调用方持锁原语（lock/unlock/activate/update/delete），
+   * 逐参镜像 api 层裸函数——锁的获取与释放归调用方，与门面自管动词
+   * （saveAndActivate/delete：内部 lock→…→unlock/finally）的锁契约相互隔离。
+   * 子面访问器，不属于 verbs 家族表（domain-registry 一致性断言显式排除
+   * `advanced`）。弃用的 flat 方法（client.lockADSO 等）由此有了正名入口。
    */
-  delete(
-    adsoId: string,
-    options?: { lockHandle?: string; transport?: string }
-  ) {
-    return bwObject
-      .createBWObject(this.h, bwObject.BWObjectType.ADSO, adsoId)
-      .delete(options ?? {})
+  get advanced() {
+    return Object.freeze({
+      lock: (adsoId: string) => adso.lockADSO(this.h, adsoId),
+      unlock: (adsoId: string) => adso.unlockADSO(this.h, adsoId),
+      activate: (adsoId: string, lockHandle?: string, corrNr?: string) =>
+        adso.activateADSO(this.h, adsoId, lockHandle ?? "", corrNr ?? ""),
+      update: (
+        adsoId: string,
+        xmlContent: string,
+        io: adso.UpdateADSOOptions
+      ) => adso.updateADSO(this.h, adsoId, xmlContent, io),
+      /** 调用方持锁原样：lockHandle 由调用方 lock() 取得并自行释放。 */
+      delete: (
+        adsoId: string,
+        options: { lockHandle: string; transport?: string }
+      ) =>
+        bwObject
+          .createBWObject(this.h, bwObject.BWObjectType.ADSO, adsoId)
+          .delete(options)
+    })
+  }
+
+  /**
+   * 删除 ADSO（自管锁）：内部先取域锁（lockADSO，stateful）→ BWObject.delete
+   * lockHandle 模式（VERIFIED_APIS §8）→ 成功即返回、不追加门面级 unlock——
+   * BWObject.delete 内部已含一次吞错的 unlock（bwObject.ts），卡带证据为
+   * lock→DELETE→unlock 全 200（2026-09-22 录制）；delete 失败时锁还挂着，
+   * 做一次 best-effort unlock（吞错，不掩盖原异常）再上抛。
+   * 可选 transport 作 corrNr——必须是请求号而非任务号（见 BWObject.delete）。
+   * 0.x 行为变化（2026-09-22）：lockHandle 不再是调用方输入；此前只能经已弃用的
+   * flat client.lockADSO 自取锁，锁的获取倒挂在调用方身上。
+   */
+  async delete(adsoId: string, options?: { transport?: string }) {
+    const lock = await adso.lockADSO(this.h, adsoId)
+    try {
+      return await bwObject
+        .createBWObject(this.h, bwObject.BWObjectType.ADSO, adsoId)
+        .delete({ lockHandle: lock.lockHandle, transport: options?.transport })
+    } catch (e) {
+      try {
+        await adso.unlockADSO(this.h, adsoId)
+      } catch {
+        // best-effort：unlock 失败不掩盖 delete 的原异常
+      }
+      throw e
+    }
   }
 }

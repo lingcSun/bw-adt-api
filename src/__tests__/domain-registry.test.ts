@@ -51,10 +51,14 @@ const FACADE_CLASSES: Record<string, new (h: AdtHTTP) => unknown> = {
 /** 未挂载域清单：infoArea（P1 Task 2）、infoProvider（P1 Task 3）均已挂载，当前应为空。 */
 const EXPECTED_UNATTACHED: string[] = []
 
-/** 门面原型上的公开方法名（prototype own-properties，去 constructor）。 */
+/**
+ * 门面原型上的公开方法名（prototype own-properties，去 constructor）。
+ * `advanced` 显式排除：它是子面访问器（caller-held-lock 原语的命名空间，
+ * 内容见各域 registry notes 的「advanced 子面」行），不是家族动词。
+ */
 function facadeMethods(facade: unknown): string[] {
   return Object.getOwnPropertyNames(Object.getPrototypeOf(facade)).filter(
-    n => n !== "constructor"
+    n => n !== "constructor" && n !== "advanced"
   )
 }
 
@@ -201,5 +205,12 @@ describe("注册表 verbs ⇄ 门面实际方法名（一致性）", () => {
     expect(Facade).toBeDefined()
     const facade = new Facade({} as AdtHTTP)
     expect(entry?.verbs).toEqual(facadeMethods(facade))
+  })
+
+  test("advanced 子面访问器不进 verbs（子面访问器，非家族动词；内容记 notes）", () => {
+    for (const name of ["adso", "trfn", "dtp", "dataSource"]) {
+      expect(getDomain(name)?.verbs).not.toContain("advanced")
+      expect(getDomain(name)?.notes).toContain("advanced 子面")
+    }
   })
 })

@@ -645,6 +645,7 @@ export class BWAdtClient {
    *
    * @param adsoId - ADSO ID
    * @returns 锁定结果（包含 lockHandle）
+   * @deprecated 使用 `client.adso.advanced.lock()`（P1 单表面收敛）
    */
   public async lockADSO(adsoId: string) {
     const { lockADSO } = await import("./api/adso")
@@ -656,6 +657,7 @@ export class BWAdtClient {
    * 对应请求: POST /sap/bw/modeling/adso/{adso_id}?action=unlock
    *
    * @param adsoId - ADSO ID
+   * @deprecated 使用 `client.adso.advanced.unlock()`（P1 单表面收敛）
    */
   public async unlockADSO(adsoId: string) {
     const { unlockADSO } = await import("./api/adso")
@@ -670,6 +672,7 @@ export class BWAdtClient {
    * @param lockHandle - 锁定句柄
    * @param corrNr - 传输请求号（可选）
    * @returns 激活结果
+   * @deprecated 使用 `client.adso.advanced.activate()`（P1 单表面收敛）
    */
   public async activateADSO(adsoId: string, lockHandle?: string, corrNr?: string) {
     const { activateADSO } = await import("./api/adso")
@@ -697,6 +700,7 @@ export class BWAdtClient {
    * @param lockHandle - 锁定句柄
    * @param options - 其他选项（corrNr, timestamp）
    * @returns 更新结果
+   * @deprecated 使用 `client.adso.advanced.update()`（P1 单表面收敛）
    */
   public async updateADSO(
     adsoId: string,
@@ -910,6 +914,7 @@ export class BWAdtClient {
    *
    * @param trfnId - Transformation ID
    * @returns 锁定结果（包含 lockHandle）
+   * @deprecated 使用 `client.trfn.advanced.lock()`（P1 单表面收敛）
    */
   public async lockTransformation(trfnId: string) {
     const { lockTransformation } = await import("./api/transformation")
@@ -921,6 +926,7 @@ export class BWAdtClient {
    * 对应请求: POST /sap/bw/modeling/trfn/{trfn_id}?action=unlock
    *
    * @param trfnId - Transformation ID
+   * @deprecated 使用 `client.trfn.advanced.unlock()`（P1 单表面收敛）
    */
   public async unlockTransformation(trfnId: string) {
     const { unlockTransformation } = await import("./api/transformation")
@@ -967,6 +973,7 @@ export class BWAdtClient {
    *
    * @param trfnId - Transformation ID
    * @returns 激活结果
+   * @deprecated 使用 `client.trfn.advanced.activate()`（P1 单表面收敛）
    */
   public async activateTransformation(trfnId: string, lockHandle?: string) {
     const { activateTransformation } = await import("./api/transformation")
@@ -1025,6 +1032,7 @@ export class BWAdtClient {
    * @param lockHandle - 锁定句柄
    * @param version - 版本 (默认 "m" = active)
    * @returns 更新结果
+   * @deprecated 使用 `client.trfn.advanced.update()`（P1 单表面收敛）
    */
   public async updateTransformation(
     trfnId: string,
@@ -1641,6 +1649,7 @@ export class BWAdtClient {
    *
    * @param dtpId - DTP ID
    * @returns 锁定结果（包含 lockHandle）
+   * @deprecated 使用 `client.dtp.advanced.lock()`（P1 单表面收敛）
    */
   public async lockDTP(dtpId: string) {
     const { lockDTP } = await import("./api/dtp")
@@ -1652,6 +1661,7 @@ export class BWAdtClient {
    * 对应请求: POST /sap/bw/modeling/dtpa/{dtp_id}?action=unlock
    *
    * @param dtpId - DTP ID
+   * @deprecated 使用 `client.dtp.advanced.unlock()`（P1 单表面收敛）
    */
   public async unlockDTP(dtpId: string) {
     const { unlockDTP } = await import("./api/dtp")
@@ -1666,6 +1676,7 @@ export class BWAdtClient {
    * @param lockHandle - 锁定句柄
    * @param corrNr - 传输请求号（可选）
    * @returns 激活结果
+   * @deprecated 使用 `client.dtp.advanced.activate()`（P1 单表面收敛）
    */
   public async activateDTP(dtpId: string, lockHandle?: string, corrNr?: string) {
     const { activateDTP } = await import("./api/dtp")
@@ -1733,6 +1744,7 @@ export class BWAdtClient {
    * @param lockHandle - 锁定句柄
    * @param transport - 传输请求号 (作为 corrNr 传递)
    * @returns 更新结果
+   * @deprecated 使用 `client.dtp.advanced.update()`（P1 单表面收敛）
    */
   public async updateDTP(
     dtpId: string,
@@ -1917,6 +1929,7 @@ export class BWAdtClient {
    *
    * @param datasource - DataSource 技术名
    * @param sourceSystem - 源系统逻辑名
+   * @deprecated 使用 `client.dataSource.advanced.lock()`（P1 单表面收敛）
    */
   public async lockDataSource(datasource: string, sourceSystem: string) {
     const { lockDataSource } = await import("./api/datasource")
@@ -1930,6 +1943,7 @@ export class BWAdtClient {
    *
    * @param datasource - DataSource 技术名
    * @param sourceSystem - 源系统逻辑名
+   * @deprecated 使用 `client.dataSource.advanced.unlock()`（P1 单表面收敛）
    */
   public async unlockDataSource(datasource: string, sourceSystem: string) {
     const { unlockDataSource } = await import("./api/datasource")
@@ -1945,6 +1959,7 @@ export class BWAdtClient {
    * @param sourceSystem - 源系统逻辑名
    * @param xmlContent - 修改后的 DataSource XML 内容
    * @param options - lockHandle (必填) / transport / timestamp
+   * @deprecated 使用 `client.dataSource.advanced.update()`（P1 单表面收敛）
    */
   public async updateDataSource(
     datasource: string,
@@ -1965,6 +1980,7 @@ export class BWAdtClient {
    * @param sourceSystem - 源系统逻辑名
    * @param lockHandle - 锁定句柄
    * @param corrNr - 传输请求号 (可选)
+   * @deprecated 使用 `client.dataSource.advanced.activate()`（P1 单表面收敛）
    */
   public async activateDataSource(
     datasource: string,

@@ -67,18 +67,50 @@ export class DtpDomain {
   }
 
   /**
-   * 删除 DTP（动词族审计补齐）：BWObject 通用删除路径，lockHandle 模式
-   * （实测：VERIFIED_APIS §8 W1——本地 DTP 走 lock → DELETE /dtpa/{id}/m?lockHandle
-   * → unlock，200 + 回读消失）。options 原样透传 BWObject.delete——必须
-   * { lockHandle }（lock() 取），可选 transport 作 corrNr；缺 lockHandle 由
-   * BWObject.delete 给出可操作报错。
+   * Advanced 子面：调用方持锁原语（lock/unlock/activate/update），逐参镜像
+   * api 层裸函数——锁的获取与释放归调用方，与门面自管动词
+   * （activate/saveAndActivate/delete：内部 lock→…→unlock/finally）的锁契约
+   * 相互隔离。子面访问器，不属于 verbs 家族表（domain-registry 一致性断言
+   * 显式排除 `advanced`）。弃用的 flat 方法（client.lockDTP 等）由此有了
+   * 正名入口。
    */
-  delete(
-    dtpId: string,
-    options?: { lockHandle?: string; transport?: string }
-  ) {
-    return bwObject
-      .createBWObject(this.h, bwObject.BWObjectType.DTP, dtpId)
-      .delete(options ?? {})
+  get advanced() {
+    return Object.freeze({
+      lock: (dtpId: string) => dtp.lockDTP(this.h, dtpId),
+      unlock: (dtpId: string) => dtp.unlockDTP(this.h, dtpId),
+      activate: (dtpId: string, lockHandle?: string, corrNr?: string) =>
+        dtp.activateDTP(this.h, dtpId, lockHandle ?? "", corrNr ?? ""),
+      update: (
+        dtpId: string,
+        xmlContent: string,
+        io: { lockHandle: string; transport?: string }
+      ) => dtp.updateDTP(this.h, dtpId, xmlContent, io)
+    })
+  }
+
+  /**
+   * 删除 DTP（自管锁）：内部先取域锁（lockDTP，stateful）→ BWObject.delete
+   * lockHandle 模式（VERIFIED_APIS §8 W1——本地 DTP 实测 200 + 回读消失）→
+   * 成功即返回、不追加门面级 unlock——BWObject.delete 内部已含一次吞错的
+   * unlock（bwObject.ts），卡带证据为 lock→DELETE→unlock 全 200。delete 失败时
+   * 锁还挂着，做一次 best-effort unlock（吞错，不掩盖原异常）再上抛。
+   * 可选 transport 作 corrNr——必须是请求号而非任务号
+   * （见 BWObject.delete）。0.x 行为变化（2026-09-22）：lockHandle 不再是调用方
+   * 输入；此前只能经已弃用的 flat client.lockDTP 自取锁，锁的获取倒挂在调用方身上。
+   */
+  async delete(dtpId: string, options?: { transport?: string }) {
+    const lock = await dtp.lockDTP(this.h, dtpId)
+    try {
+      return await bwObject
+        .createBWObject(this.h, bwObject.BWObjectType.DTP, dtpId)
+        .delete({ lockHandle: lock.lockHandle, transport: options?.transport })
+    } catch (e) {
+      try {
+        await dtp.unlockDTP(this.h, dtpId)
+      } catch {
+        // best-effort：unlock 失败不掩盖 delete 的原异常
+      }
+      throw e
+    }
   }
 }
