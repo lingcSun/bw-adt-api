@@ -13,7 +13,7 @@ Status: implemented
   - `delete(id, options?)` → `createBWObject(h, <该域 objectType>, id).delete(options)`，options 原样透传 `{ lockHandle?, transport? }`。ADSO/TRFN/DTP 都是 lockHandle 模式（VERIFIED_APIS 第 6/8 节端到端实测；W1 补验本地 DTP），缺 lockHandle 由 `BWObject.delete` 抛出可操作报错（`bwObject-delete.test.ts` 回归网），门面不重复校验、不自动 lock——保持转发薄度，锁的获取时机留给调用方编排。
 - **dataSource 刻意不加**（两理由，已写进 registry notes）：RSDS 删除无实测证据（taxonomy 边界纪律：没验证过的不进公共面）；`BWObject` 通用单段 URI 不适用于双段 RSDS 标识（`/rsds/{datasource}/{sourceSystem}/m`），通用路径本来就不覆盖它。
 - **registry verbs 同步追加** `exists`/`delete`（三域），notes 各记一笔审计结论；verbs == 原型方法名的一致性断言天然覆盖新增动词（类是事实，注册表跟随）。
-- 离线测试 `src/__tests__/domain-verbs.test.ts`：三域 exists 委托与布尔归一（true / AdtError→false / HttpClientException→重抛）、delete 的 objectType 与 options 透传、dataSource 原型无 exists/delete 的边界哨兵。api 模块用极简 jest.mock 工厂（不带 requireActual，见 Consequences）。
+- 离线测试 `src/__tests__/domain-verbs.test.ts`：三域 exists 委托与布尔归一（true / AdtError→false / HttpClientException→重抛）、delete 的 objectType 与 options 透传、dataSource 原型无 exists/delete 的边界哨兵。api 模块以 jest.spyOn 原位打桩（2026-09-22 由极简工厂迁出，见 Consequences）。
 
 ## Alternatives considered
 
@@ -26,7 +26,7 @@ Status: implemented
 
 - 三个建模域动词表对齐分类学 modeling 家族（delete 补齐；`exists` 是校验族动词，寄居建模域与 validateTemplate/validateNewName 同理）；dataSource 的 verbs/notes 成为"审计后刻意缺席"的显式记录，后人不必重新论证。
 - **exists 的归一曾是有损的，现已收窄**：网络故障 / 会话失效曾同样得到 `false`；2026-09-22 起 HttpClientException 原样重抛（[exists 错误语义收窄](2026-09-22-exists-error-semantics.md)）。AdtError 归 false 的边界仍在：需要区分"确认不存在"与"业务层查不到"的调用方应改用 `client.validateADSOExists`（api 面原样抛错）。门面语义 = "validation 语义层的尽力回答"，不是"保证回答在不在"。
-- **测试基础设施教训**：极简 jest.mock 工厂里 `...jest.requireActual(...)` 会把 real 模块图拖进 mock 注册表，让同一 api 模块在不同 importer 处产生双实例（域拿到 A、测试断言 B，`mock.calls` 恒 0）——本仓库离线域测试一律用极简工厂（只提供被测路径触达的符号）。
+- **测试基础设施教训**：极简 jest.mock 工厂里 `...jest.requireActual(...)` 会把 real 模块图拖进 mock 注册表，让同一 api 模块在不同 importer 处产生双实例（域拿到 A、测试断言 B，`mock.calls` 恒 0）——本仓库离线域测试用 spyOn 就地打桩（真模块单实例；2026-09-22 起 domain-verbs / infoarea-domain 两套件也由工厂迁 spyOn，与 infoprovider-domain / adso-model 同款）。
 - 兼容面（`BWAdtClient.validateADSOExists` 等 api 直通方法、`client.deleteObject`）原样保留；现有集成测试继续作为兼容面回归网（不迁移到域表面）。
 
 ## Related

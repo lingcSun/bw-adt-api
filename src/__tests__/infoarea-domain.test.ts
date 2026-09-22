@@ -2,8 +2,10 @@
  * InfoArea 结构域归位（P1 Task 2，离线）。
  *
  * 只断言委托链：client.infoArea.tree → api/repository.getInfoproviderStructure、
- * client.infoArea.validate → api/adso.validateInfoArea。api 模块以 jest.mock
- * 替换，不发网络请求、不读 .env、不用 describeLive。
+ * client.infoArea.validate → api/adso.validateInfoArea。api 模块以 jest.spyOn
+ * 就地打桩（P1-B 遗留工厂迁移；一律不设 jest.mock 工厂：工厂与多入口导入图
+ * 相遇会产生第二份模块实例，见 2026-09-22-adso-model.md）——
+ * 不发网络请求、不读 .env、不用 describeLive。
  * 两个旧位置（repository.infoproviderStructure / adso.validateInfoArea）按约束
  * 保留原方法体并标 @deprecated，这里同时锁其委托行为不变。
  */
@@ -15,15 +17,8 @@ import { RepositoryDomain } from "../domains/repository"
 import { AdsoDomain } from "../domains/adso"
 import { BWAdtClient } from "../BWAdtClient"
 
-jest.mock("../api/repository", () => ({
-  getInfoproviderStructure: jest.fn()
-}))
-jest.mock("../api/adso", () => ({
-  validateInfoArea: jest.fn()
-}))
-
-const mockedTree = repository.getInfoproviderStructure as jest.Mock
-const mockedValidate = adsoApi.validateInfoArea as jest.Mock
+const mockedTree = jest.spyOn(repository, "getInfoproviderStructure") as jest.Mock
+const mockedValidate = jest.spyOn(adsoApi, "validateInfoArea") as jest.Mock
 
 const h = {} as AdtHTTP
 

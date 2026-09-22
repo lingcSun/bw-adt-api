@@ -63,12 +63,17 @@ describeLive("BWObject.delete query building", () => {
     expect(cap[0].qs).toEqual({ lockHandle: "LOCKHANDLE1" })
   })
 
-  test("TRFN deletes by transport, with no version suffix", async () => {
+  // 现契约（src/api/bwObject.ts delete()）：ADSO/INFO_AREA/TRFN/DTP 走 lockHandle
+  // 模式（DELETE /{name}/{m|a}?lockHandle，transport 可选作 corrNr）；其余类型必须
+  // transport。TRFN 曾按旧 transport 模式断言，此处对齐实测过的 lockHandle 路径
+  // （VERIFIED_APIS §6/§8）。
+  test("TRFN deletes by lockHandle on the /m version (same contract as ADSO)", async () => {
     const cap: Cap[] = []
     const obj = createBWObject(fakeClient(cap), BWObjectType.TRANSFORMATION, "0ABC")
-    await obj.delete({ transport: "BPDK903312" })
-    expect(cap[0].uri).toBe("/sap/bw/modeling/trfn/0abc")
-    expect(cap[0].qs).toEqual({ transport: "BPDK903312" })
+    await obj.delete({ lockHandle: "LOCKHANDLE1" })
+    expect(cap[0].method).toBe("DELETE")
+    expect(cap[0].uri).toBe("/sap/bw/modeling/trfn/0abc/m")
+    expect(cap[0].qs).toEqual({ lockHandle: "LOCKHANDLE1" })
   })
 
   test("ADSO without lockHandle is rejected before any request", async () => {
@@ -78,10 +83,10 @@ describeLive("BWObject.delete query building", () => {
     expect(cap).toHaveLength(0)
   })
 
-  test("TRFN without transport is rejected before any request", async () => {
+  test("TRFN without lockHandle is rejected before any request", async () => {
     const cap: Cap[] = []
     const obj = createBWObject(fakeClient(cap), BWObjectType.TRANSFORMATION, "0ABC")
-    await expect(obj.delete({ lockHandle: "X" })).rejects.toThrow(/requires options\.transport/)
+    await expect(obj.delete({ transport: "BPDK903312" })).rejects.toThrow(/requires options\.lockHandle/)
     expect(cap).toHaveLength(0)
   })
 })
@@ -98,12 +103,14 @@ describeLive("BWObject.delete confirmation", () => {
     })
   })
 
+  // transport 模式的确认路径用真正 transport-mode 的类型（PC 走 /rspc、
+  // preserveCase）锁——TRFN 已归 lockHandle 模式，不再承担 transport 例证。
   test("transport-mode delete confirms too", async () => {
-    const obj = createBWObject(fakeClient([]), BWObjectType.TRANSFORMATION, "0ABC")
+    const obj = createBWObject(fakeClient([]), BWObjectType.PROCESS_CHAIN, "ZPC")
     await expect(obj.delete({ transport: "BPDK903312" })).resolves.toEqual({
       deleted: true,
-      objectType: "trfn",
-      objectName: "0ABC"
+      objectType: "pc",
+      objectName: "ZPC"
     })
   })
 })

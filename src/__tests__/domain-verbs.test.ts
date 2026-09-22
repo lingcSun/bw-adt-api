@@ -9,8 +9,8 @@
  *   （ADSO/TRFN/DTP 为 lockHandle 模式，VERIFIED_APIS §8 / W1）。
  * - dataSource 明确不加 exists/delete（RSDS 删除无实测证据；分类学边界）。
  *
- * 全部断言离线可得：jest.mock api 模块 + {} as AdtHTTP，不发网络请求、不读 .env、
- * 不用 describeLive。
+ * 全部断言离线可得：api 模块 spyOn 原位打桩 + {} as AdtHTTP，不发网络请求、
+ * 不读 .env、不用 describeLive。
  */
 import type { AdtHTTP } from "../AdtHTTP"
 import { HttpClientException } from "../AdtHTTP"
@@ -24,32 +24,21 @@ import { TrfnDomain } from "../domains/trfn"
 import { DtpDomain } from "../domains/dtp"
 import { DataSourceDomain } from "../domains/dataSource"
 
-// 极简工厂（与 infoarea-domain.test.ts 同款）：只提供被测路径触达的符号，
-// 不 requireActual——real 模块图会把别的域文件拖进 mock 注册表，产生双实例。
-jest.mock("../api/adso", () => ({
-  validateADSOExists: jest.fn()
-}))
-jest.mock("../api/transformation", () => ({
-  validateTransformationExists: jest.fn()
-}))
-jest.mock("../api/dtp", () => ({
-  validateDTPExists: jest.fn()
-}))
-// BWObjectType 取值与真实枚举逐一核对（src/api/bwObject.ts）：
-// ADSO="adso"、TRANSFORMATION="trfn"、DTP="dtpa"
-jest.mock("../api/bwObject", () => ({
-  createBWObject: jest.fn(),
-  BWObjectType: {
-    ADSO: "adso",
-    TRANSFORMATION: "trfn",
-    DTP: "dtpa"
-  }
-}))
-
-const mockedADSOExists = adsoApi.validateADSOExists as jest.Mock
-const mockedTrfnExists = trfnApi.validateTransformationExists as jest.Mock
-const mockedDTPExists = dtpApi.validateDTPExists as jest.Mock
-const mockedCreateBWObject = bwObjectApi.createBWObject as jest.Mock
+// spyOn 原位打桩（与 infoprovider-domain.test.ts / adso-model.test.ts 同款，P1-B
+// 遗留工厂迁移）：被测门面是命名空间属性访问（adso.validateADSOExists(...)），
+// 真模块单实例、就地替换，无需 jest.mock 工厂——工厂（含 requireActual 展开）
+// 会把 real 模块图拖进 mock 注册表产生双实例（见 verb-family-audit 笔记）。
+// BWObjectType 直接用真枚举（不再手拷字面量）。
+const mockedADSOExists = jest.spyOn(adsoApi, "validateADSOExists") as jest.Mock
+const mockedTrfnExists = jest.spyOn(
+  trfnApi,
+  "validateTransformationExists"
+) as jest.Mock
+const mockedDTPExists = jest.spyOn(dtpApi, "validateDTPExists") as jest.Mock
+const mockedCreateBWObject = jest.spyOn(
+  bwObjectApi,
+  "createBWObject"
+) as jest.Mock
 
 const h = {} as AdtHTTP
 
