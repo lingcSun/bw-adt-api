@@ -108,6 +108,35 @@ export class AdsoDomain {
   }
 
   /**
+   * Advanced 子面：调用方持锁原语（lock/unlock/activate/update/delete），
+   * 逐参镜像 api 层裸函数——锁的获取与释放归调用方，与门面自管动词
+   * （saveAndActivate/delete：内部 lock→…→unlock/finally）的锁契约相互隔离。
+   * 子面访问器，不属于 verbs 家族表（domain-registry 一致性断言显式排除
+   * `advanced`）。弃用的 flat 方法（client.lockADSO 等）由此有了正名入口。
+   */
+  get advanced() {
+    return Object.freeze({
+      lock: (adsoId: string) => adso.lockADSO(this.h, adsoId),
+      unlock: (adsoId: string) => adso.unlockADSO(this.h, adsoId),
+      activate: (adsoId: string, lockHandle?: string, corrNr?: string) =>
+        adso.activateADSO(this.h, adsoId, lockHandle ?? "", corrNr ?? ""),
+      update: (
+        adsoId: string,
+        xmlContent: string,
+        io: adso.UpdateADSOOptions
+      ) => adso.updateADSO(this.h, adsoId, xmlContent, io),
+      /** 调用方持锁原样：lockHandle 由调用方 lock() 取得并自行释放。 */
+      delete: (
+        adsoId: string,
+        options: { lockHandle: string; transport?: string }
+      ) =>
+        bwObject
+          .createBWObject(this.h, bwObject.BWObjectType.ADSO, adsoId)
+          .delete(options)
+    })
+  }
+
+  /**
    * 删除 ADSO（自管锁）：内部先取域锁（lockADSO，stateful）→ BWObject.delete
    * lockHandle 模式（VERIFIED_APIS §8）→ 成功即返回、**不再**域级 unlock——
    * 删除即释放锁（真机卡带 lock→DELETE /m 全 200，2026-09-22 录制）。

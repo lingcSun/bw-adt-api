@@ -88,6 +88,29 @@ export class TrfnDomain {
   }
 
   /**
+   * Advanced 子面：调用方持锁原语（lock/unlock/activate/update），逐参镜像
+   * api 层裸函数——锁的获取与释放归调用方，与门面自管动词
+   * （saveAndActivate/delete：内部 lock→…→unlock/finally）的锁契约相互隔离。
+   * 子面访问器，不属于 verbs 家族表（domain-registry 一致性断言显式排除
+   * `advanced`）。弃用的 flat 方法（client.lockTransformation 等）由此有了
+   * 正名入口。
+   */
+  get advanced() {
+    return Object.freeze({
+      lock: (trfnId: string) => trfn.lockTransformation(this.h, trfnId),
+      unlock: (trfnId: string) => trfn.unlockTransformation(this.h, trfnId),
+      activate: (trfnId: string, lockHandle?: string) =>
+        trfn.activateTransformation(this.h, trfnId, lockHandle ?? ""),
+      update: (
+        trfnId: string,
+        xmlContent: string,
+        io: trfn.UpdateTransformationOptions,
+        version: "m" | "a" | "d" = "m"
+      ) => trfn.updateTransformation(this.h, trfnId, xmlContent, io, version)
+    })
+  }
+
+  /**
    * 删除 Transformation（自管锁）：内部先取域锁（lockTransformation，stateful）→
    * BWObject.delete lockHandle 模式（VERIFIED_APIS 第 6/8 节端到端实测）→ 成功即
    * 返回、**不再**域级 unlock——删除即释放锁（真机卡带 lock→DELETE /m 全 200）。

@@ -10,7 +10,7 @@ P1 门面落地后，`BWAdtClient` 上并存两套入口：域门面（`client.a
 
 - **判定口径**：flat 方法当且仅当能力已有门面等价物才标注。等价物分两档：直接转发（门面动词转发同一 api 函数，如 `client.trfn.check` ← `checkTransformation`）；合并超集（门面 P1 合并动词内部含该能力，如 `client.ddic.describe` 四合一、`client.adso.details` 含 configuration/tables/ddicTableName、`client.processChain.logs` 含 status）。逐方法映射依据 `src/domains/registry.ts` verbs 与门面类实现逐一核对。
 - **标注 75 个**（71 新增 + 4 归一）：`saveAndActivateADSO/Transformation/DTP/DataSource` 原有英文 `@deprecated Prefer …` 散块归一为统一措辞。统一格式：`@deprecated 使用 \`client.<domain>.<verb>()\`（P1 单表面收敛）`，追加在既有 JSDoc 块尾；纯注记，零签名/实现变化。
-- **不标注 47 个**：泛型 objectType 方法（createObject/updateObject/deleteObject/getObject/bwObject/activateObject/validateObjectExists/validateNewObjectName——等价物按类型分散在多个门面，单条 `client.<domain>.<verb>()` 无法诚实表达）；门面无对应动词的锁/激活/更新/裸读方法（lock*/unlock*/activate*/update*/getDTP 等）；纯 XML 辅助与例程类方法；validateTransformationNewName（trfn 门面无 validateNewName）。宁可漏标不可错标——这批是门面下一步补动词的真实缺口清单。
+- **不标注 47 个**：泛型 objectType 方法（createObject/updateObject/deleteObject/getObject/bwObject/activateObject/validateObjectExists/validateNewObjectName——等价物按类型分散在多个门面，单条 `client.<domain>.<verb>()` 无法诚实表达）；门面无对应动词的锁/激活/更新/裸读方法（lock*/unlock*/activate*/update*/getDTP 等）；纯 XML 辅助与例程类方法；validateTransformationNewName（trfn 门面无 validateNewName）。宁可漏标不可错标——这批是门面下一步补动词的真实缺口清单。（2026-09-22 修订：16 个 lock/unlock/activate/update flat 方法——adso/trfn/dtp/dataSource 四域——已改标 `@deprecated 使用 \`client.<domain>.advanced.<verb>()\``，advanced 子面落地后它们有了门面正名入口，见 [advanced 子面](2026-09-22-advanced-subsurface.md)；泛型方法与其余 unmapped 仍不标注。）
 - **排除**：login/logout/dropSession/reentranceTicket（会话）、属性访问器与 clone、私有助手。
 
 ## Alternatives considered

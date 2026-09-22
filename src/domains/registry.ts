@@ -73,7 +73,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "delete"
     ],
     notes:
-      "validateTemplate/validateNewName 是寄居的校验动词；validateInfoArea 已归位 client.infoArea.validate（P1 Task 2，旧位置保留 @deprecated）；getRaw 是 Advanced 层原始 XML 访问器。exists/delete 为动词族审计补齐（2026-09-22）：exists 归一 validate*Exists 为 boolean；delete 走 BWObject lockHandle 模式"
+      "validateTemplate/validateNewName 是寄居的校验动词；validateInfoArea 已归位 client.infoArea.validate（P1 Task 2，旧位置保留 @deprecated）；getRaw 是 Advanced 层原始 XML 访问器。exists 为动词族审计补齐（2026-09-22，归一 validate*Exists 为 boolean）；delete 自管锁（2026-09-22：内部 lockADSO → BWObject.delete，成功不域级 unlock——删除即释放锁，lockHandle 不再是调用方输入）；advanced 子面：lock/unlock/activate/update/delete（调用方持锁原语，逐参转发 api 层，非家族动词故不入 verbs）"
   },
   {
     name: "trfn",
@@ -94,7 +94,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "delete"
     ],
     notes:
-      "ensure*/setEndRoutineFields 是例程家族扩展动词；switchRuntime 是纯 XML 辅助（不发网络）。exists/delete 为动词族审计补齐（2026-09-22），delete 走 BWObject lockHandle 模式"
+      "ensure*/setEndRoutineFields 是例程家族扩展动词；switchRuntime 是纯 XML 辅助（不发网络）。exists 为动词族审计补齐（2026-09-22）；delete 自管锁（2026-09-22：内部 lockTransformation → BWObject.delete，成功不域级 unlock，lockHandle 不再是调用方输入）；advanced 子面：lock/unlock/activate/update（调用方持锁原语，逐参转发 api 层，非家族动词故不入 verbs）"
   },
   {
     name: "dtp",
@@ -112,7 +112,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "delete"
     ],
     notes:
-      "execute 是 ops 族动词（DTP 执行入口寄居建模域）；activate 是锁→激活→解锁一站式。exists/delete 为动词族审计补齐（2026-09-22），delete 走 BWObject lockHandle 模式（W1：本地 DTP 亦实测可删）"
+      "execute 是 ops 族动词（DTP 执行入口寄居建模域）；activate 是锁→激活→解锁一站式。exists 为动词族审计补齐（2026-09-22）；delete 自管锁（2026-09-22：内部 lockDTP → BWObject.delete，成功不域级 unlock，lockHandle 不再是调用方输入；W1：本地 DTP 亦实测可删）；advanced 子面：lock/unlock/activate/update（调用方持锁原语，逐参转发 api 层，非家族动词故不入 verbs）"
   },
   {
     name: "dataSource",
@@ -130,7 +130,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "replicateFull"
     ],
     notes:
-      "replicate/replicateFull/replicationInfo 是 ops 族动词；分类学明示复制运维留在 dataSource 内，不拆独立域。动词族审计结论（2026-09-22）：不加 exists/delete——RSDS 删除无实测证据，且 BWObject 通用单段 URI 不适用于双段 RSDS 标识（src/api/bwObject.ts DATA_SOURCE 登记）"
+      "replicate/replicateFull/replicationInfo 是 ops 族动词；分类学明示复制运维留在 dataSource 内，不拆独立域。动词族审计结论（2026-09-22）：不加 exists/delete——RSDS 删除无实测证据，且 BWObject 通用单段 URI 不适用于双段 RSDS 标识（src/api/bwObject.ts DATA_SOURCE 登记）；advanced 子面：lock/unlock/activate/update（调用方持锁原语，逐参转发 api 层，非家族动词故不入 verbs）"
   },
   {
     name: "infoObject",
