@@ -1,9 +1,9 @@
 /**
  * 桶导出面快照 —— transformation.ts 拆分基线（P1B Task 3, 2026-09-22）。
  *
- * 符号清单机械推导自拆分前的 src/api/transformation.ts：用 tsc checker
- * getExportsOfModule 枚举出 52 个导出名（16 纯类型 + 2 个 io-ts codec 双名
- * + 34 值），此处逐一断言。拆分后本测试必须仍绿 —— 证明导出面零变化。
+ * 符号清单机械推导自拆分前的 src/api/transformation.ts：tsc checker
+ * getExportsOfModule 枚举出 54 个导出名（37 值 + 19 纯类型 − 2 个
+ * io-ts codec 双名），此处逐一断言。拆分后本测试必须仍绿 —— 证明导出面零变化。
  *
  * 校验机制：
  * - 值导出（37 个）：运行时 toBeDefined() + typeof；
@@ -110,7 +110,7 @@ describe("transformation.ts 桶导出面快照", () => {
     expect(typeof value).toBe(expectedType)
   })
 
-  test("快照清单完整性（37 值 + 19 纯类型 = 52 名）", () => {
+  test("快照清单完整性（37 值 + 19 纯类型 − 2 双名 codec = 54 名）", () => {
     expect(VALUE_EXPORTS).toHaveLength(37)
     // 19 个纯类型的运行时无可断言之物；其存在性由顶部 import type +
     // TypeExportSnapshot 在 tsc --noEmit / build / ts-jest 编译期强制，

@@ -13,6 +13,8 @@ import {
 /**
  * 一条模型操作日志：记录「调用者可见意图」（kind + args + summary），
  * 不是 XML diff 片段——v1 不做三方合并/冲突重放（P3+），`plan()` 即 diff 预览。
+ * 入账时 op 记录与 args 数组均被 `Object.freeze`（账本语义不可变；
+ * args 内的对象引用已是浅拷贝，账本免疫调用侧事后改写）。
  */
 export interface ModelOp {
   kind: "addField" | "removeField" | "addKey"
@@ -22,6 +24,12 @@ export interface ModelOp {
   args: unknown[]
   /** 人类可读的一句话意图（含对象技术名）。 */
   summary: string
+}
+
+/** 入账前冻结一条 op：记录对象与 args 数组都不可变（args 元素在记录处已是浅拷贝）。 */
+const freezeOp = (op: ModelOp): ModelOp => {
+  Object.freeze(op.args)
+  return Object.freeze(op)
 }
 
 /**
@@ -76,12 +84,14 @@ export class AdsoModel {
   addField(field: ADSOFieldDefinition): this {
     const next = addADSOFieldToXml(this.xmlContent, field)
     this.xmlContent = next
-    this.opLog.push({
-      kind: "addField",
-      at: new Date().toISOString(),
-      args: [{ ...field }],
-      summary: `add field ${field.name}`
-    })
+    this.opLog.push(
+      freezeOp({
+        kind: "addField",
+        at: new Date().toISOString(),
+        args: [{ ...field }],
+        summary: `add field ${field.name}`
+      })
+    )
     return this
   }
 
@@ -89,12 +99,14 @@ export class AdsoModel {
   removeField(name: string): this {
     const next = removeADSOFieldFromXml(this.xmlContent, name)
     this.xmlContent = next
-    this.opLog.push({
-      kind: "removeField",
-      at: new Date().toISOString(),
-      args: [name],
-      summary: `remove field ${name}`
-    })
+    this.opLog.push(
+      freezeOp({
+        kind: "removeField",
+        at: new Date().toISOString(),
+        args: [name],
+        summary: `remove field ${name}`
+      })
+    )
     return this
   }
 
@@ -107,12 +119,14 @@ export class AdsoModel {
   addKey(infoObjectName: string, length?: number): this {
     const next = addADSOKeyToXml(this.xmlContent, infoObjectName, { length })
     this.xmlContent = next
-    this.opLog.push({
-      kind: "addKey",
-      at: new Date().toISOString(),
-      args: [infoObjectName, length],
-      summary: `add key ${infoObjectName.toUpperCase()}`
-    })
+    this.opLog.push(
+      freezeOp({
+        kind: "addKey",
+        at: new Date().toISOString(),
+        args: [infoObjectName, length],
+        summary: `add key ${infoObjectName.toUpperCase()}`
+      })
+    )
     return this
   }
 

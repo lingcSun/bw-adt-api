@@ -27,7 +27,7 @@ async function findExact(h: AdtHTTP, name: string) {
 /**
  * Public facade for InfoProvider（多态域，P1 Task 3）。
  *
- * 唯一诚实可用的判别（见 .agents/notes/implemented/architecture/2026-09-21-domain-taxonomy.md）：
+ * 唯一诚实可用的判别（验证状态见 docs/VERIFIED_APIS.md「验证状态总览」）：
  * details/exists 经 repository.search 精确名取 objectType；ADSO 转发
  * AdsoDomain（证据最全的已验证类型），其余类型抛错不猜——每真机验证
  * 一种类型，进一种。
@@ -46,7 +46,7 @@ export class InfoProviderDomain {
     if (hit.objectType !== "ADSO") {
       throw new Error(
         `InfoProvider type ${hit.objectType} not verified yet — see ` +
-          ".agents/notes/implemented/architecture/2026-09-21-domain-taxonomy.md"
+          "docs/VERIFIED_APIS.md"
       )
     }
     return new AdsoDomain(this.h).details(name)
@@ -78,7 +78,7 @@ export class InfoProviderDomain {
     if (hit.objectType !== "ADSO") {
       throw new Error(
         `InfoProvider type ${hit.objectType} not verified yet — see ` +
-          ".agents/notes/implemented/architecture/2026-09-21-domain-taxonomy.md"
+          "docs/VERIFIED_APIS.md"
       )
     }
     return AdsoModel.hydrate(this.h, name)

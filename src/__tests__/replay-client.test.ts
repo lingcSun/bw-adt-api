@@ -243,6 +243,47 @@ describe("ReplayHttpClient .sent 请求捕获（离线）", () => {
     expect(replay.sent[0].headers.Cookie).toBe("sap-contextid=CTX")
   })
 
+  it("qs 捕获进 .sent：快照隔离；匹配不受 qs 影响（卡带 qs 仅供参考）", async () => {
+    const replay = new ReplayHttpClient(
+      cassette({
+        request: { method: "PUT", url: "/sap/bc/adt/objects" },
+        response: { body: "ok" }
+      })
+    )
+    const qs = { lockHandle: "LH1", corrNr: "TR1" }
+    await expect(
+      replay.request({ url: "/sap/bc/adt/objects", method: "PUT", qs })
+    ).resolves.toBeDefined()
+    expect(replay.sent).toHaveLength(1)
+    expect(replay.sent[0].qs).toEqual({ lockHandle: "LH1", corrNr: "TR1" })
+    // 快照隔离：调用方事后篡改原 qs 对象，不影响已捕获记录
+    qs.lockHandle = "TAMPERED"
+    expect(replay.sent[0].qs?.lockHandle).toBe("LH1")
+    // 请求缺 qs → 快照里不落 qs 字段
+    const replay2 = new ReplayHttpClient(
+      cassette({ request: { method: "GET", url: "/a" }, response: {} })
+    )
+    await expect(replay2.request({ url: "/a" })).resolves.toBeDefined()
+    expect("qs" in replay2.sent[0]).toBe(false)
+  })
+
+  it("旧形状卡带（交互无 qs 字段）照常规范与回放：匹配只看 method+路径", () => {
+    const legacy = normalizeCassette(
+      {
+        interactions: [
+          { request: { method: "GET", url: "/a" }, response: { body: "ok" } }
+        ]
+      },
+      "legacy.json"
+    )
+    expect("qs" in legacy.interactions[0].request).toBe(false)
+    const replay = new ReplayHttpClient(legacy)
+    // 请求侧带 qs 也不影响匹配（qs 不参与匹配，避免破坏既有手工卡带）
+    return expect(
+      replay.request({ url: "/a", qs: { "sap-client": "001" } })
+    ).resolves.toBeDefined()
+  })
+
   it("失配不消耗、成功才前进：sent 记录每一次尝试", async () => {
     const replay = new ReplayHttpClient(
       cassette({ request: { method: "GET", url: "/a" }, response: {} })
@@ -389,6 +430,23 @@ describe("RecordingHttpClient 透传与落盘（离线）", () => {
     expect(replayed.statusText).toBe("Created")
     expect(replayed.body).toBe("<created/>")
     expect(replayed.headers["set-cookie"]).toEqual(["sap-contextid=REC; path=/"])
+  })
+
+  it("非 set-cookie 数组头也做变异隔离（cloneHeaders 泛化数组拷贝）", async () => {
+    const raw: HttpClientResponse = {
+      status: 200,
+      statusText: "OK",
+      headers: { "x-multi-value": ["a", "b"] },
+      body: ""
+    }
+    const rec = new RecordingHttpClient({ request: async () => raw })
+    await rec.request({ url: "/a" })
+    // 事后篡改原数组，已记录的快照不变
+    ;(raw.headers["x-multi-value"] as string[]).push("c")
+    expect(rec.interactions[0].response.headers["x-multi-value"]).toEqual([
+      "a",
+      "b"
+    ])
   })
 
   it("inner 抛错时原样上抛且不记录", async () => {

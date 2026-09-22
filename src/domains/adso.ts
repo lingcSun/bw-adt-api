@@ -1,4 +1,4 @@
-import { AdtHTTP } from "../AdtHTTP"
+import { AdtHTTP, isHttpClientException } from "../AdtHTTP"
 import * as adso from "../api/adso"
 import * as bwObject from "../api/bwObject"
 
@@ -33,13 +33,17 @@ export class AdsoDomain {
   /**
    * ADSO 是否存在（动词族审计补齐）。转发 validateADSOExists 并归一为 boolean。
    * 实测（API_REFERENCE validateADSOExists 行）：存在 → valid=true；
-   * 不存在 → validation 端点直接报错而非 valid=false——异常统一归 false。
+   * 不存在 → validation 端点直接报错而非 valid=false——AdtError（含 not-found
+   * 形态；消息可能随 BW_LANGUAGE 本地化，不做消息匹配）归 false。
+   * HttpClientException（网络/会话等传输层失败）原样重抛——网络故障不伪装成
+   * 「不存在」（语义见 2026-09-22-exists-error-semantics.md）。
    */
   async exists(adsoId: string) {
     try {
       const result = await adso.validateADSOExists(this.h, adsoId)
       return result.valid
-    } catch {
+    } catch (e) {
+      if (isHttpClientException(e)) throw e
       return false
     }
   }

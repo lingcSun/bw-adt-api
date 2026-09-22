@@ -8,7 +8,7 @@ Status: implemented
 
 ## Decision
 
-- **`src/domains/infoProvider.ts`** 新建 `InfoProviderDomain`（三动词，modeling kind）：`details(name)` 经 `searchBWObjects` 精确名搜索取 objectType——ADSO 转发 `new AdsoDomain(h).details`，其余类型抛 `InfoProvider type <X> not verified yet — see …2026-09-21-domain-taxonomy.md`，无命中抛 `InfoProvider <name> not found`；`exists(name)` = 精确名命中；`adso(name)` 返回绑定同一 AdtHTTP 的 AdsoDomain。api 层零新函数，门面纯转发+判别（两层结构不变）。
+- **`src/domains/infoProvider.ts`** 新建 `InfoProviderDomain`（三动词，modeling kind）：`details(name)` 经 `searchBWObjects` 精确名搜索取 objectType——ADSO 转发 `new AdsoDomain(h).details`，其余类型抛 `InfoProvider type <X> not verified yet — see docs/VERIFIED_APIS.md`，无命中抛 `InfoProvider <name> not found`；`exists(name)` = 精确名命中；`adso(name)` 返回绑定同一 AdtHTTP 的 AdsoDomain。api 层零新函数，门面纯转发+判别（两层结构不变）。
 - **精确名判别口径**：服务端 contains 搜索，命中项须 `objectName` 与入参完全同名（两侧统一大写比较——BW 技术名服务端归大写，与 `getTransformationsOf` 的 title 比较同口径）；`searchInDescription=false` 防描述词噪音。
 - **挂载与登记**：`BWAdtClient.infoProvider`（第 13 个域门面字段）、`src/domains/index.ts` 导出、registry 词条 verbs=`["details","exists","adso"]`（一致性断言 verbs == 原型方法名，故判别 helper 放模块级不进原型）。
 - **`client.adso` 原样保留**，仅 JSDoc 注明它是 `client.infoProvider.adso()` 的快捷方式。
@@ -22,7 +22,7 @@ Status: implemented
 ## Consequences
 
 - InfoProvider 名字有了正名入口：ADSO 透明直达全功能面；CompProvider/HCPR 等类型每真机验证一种，`details` 进一种分支，无需再争论层级。
-- 未验证类型的报错自带分类学笔记指针，验证边界可自解释；`.adso(name)` 与 `client.adso` 是同类实例（各自 new），语义等价。
+- 未验证类型的报错自带已验证 API 文档指针（`docs/VERIFIED_APIS.md`「验证状态总览」，包消费者可见——原指向 `.agents/` 内部笔记，2026-09-22 台账清理时改为可交付路径）；`.adso(name)` 与 `client.adso` 是同类实例（各自 new），语义等价。
 - 离线测试新增 spyOn 原型 + jest.mock search 组合（`src/__tests__/infoprovider-domain.test.ts`），`domain-registry.test.ts` 哨兵 `EXPECTED_UNATTACHED` 保持 `[]`。
 
 ## Related
