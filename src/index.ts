@@ -58,6 +58,10 @@ export {
   InfoAreaDomain
 } from "./domains"
 
+// Hydrated edit models (P2)
+export { AdsoModel } from "./model"
+export type { InfoProviderModel, ModelOp } from "./model"
+
 // Logging
 export { LogCallback, LogData } from "./requestLogger"
 

@@ -1,6 +1,7 @@
 import { AdtHTTP } from "../AdtHTTP"
 import * as search from "../api/search"
 import { AdsoDomain } from "./adso"
+import { AdsoModel, type InfoProviderModel } from "../model"
 
 /**
  * 精确名匹配：BW 技术名服务端归大写，判别两侧统一大写比较
@@ -63,5 +64,23 @@ export class InfoProviderDomain {
    */
   adso(_name: string) {
     return new AdsoDomain(this.h)
+  }
+
+  /**
+   * InfoProvider 水合编辑模型：search 判别 objectType 后按类型分发
+   * （P2 Task 2 落地，替换 Task 1 占位桩）。
+   * ADSO → AdsoModel.hydrate（全新读工作副本）；其余类型/未命中
+   * 与 details 同一守卫口径（not verified yet / not found，不猜未验证类型）。
+   */
+  async hydrate(name: string): Promise<InfoProviderModel> {
+    const hit = await findExact(this.h, name)
+    if (!hit) throw new Error(`InfoProvider ${name} not found`)
+    if (hit.objectType !== "ADSO") {
+      throw new Error(
+        `InfoProvider type ${hit.objectType} not verified yet — see ` +
+          ".agents/notes/proposed/architecture/2026-09-21-domain-taxonomy.md"
+      )
+    }
+    return AdsoModel.hydrate(this.h, name)
   }
 }

@@ -60,7 +60,7 @@ Aligned with BW Modeling Tools Project Explorer. Facades live under `src/domains
 
 | Kind | Domain | Facade | Role |
 |------|--------|--------|------|
-| modeling | infoProvider | `client.infoProvider` | Polymorphic: `.adso(name)` typed facade, `.exists`, `.details` (ADSO variant; more types as they get verified) |
+| modeling | infoProvider | `client.infoProvider` | Polymorphic: `.adso(name)` typed facade, `.hydrate`, `.exists`, `.details` (ADSO variant; more types as they get verified) |
 | modeling | infoProvider·ADSO | `client.adso` | ADSO read / edit / addField / addKey / exists / delete |
 | modeling | dataFlow | `client.trfn` / `client.dtp` | Transformation (+ ensure routines) / DTP, incl. `exists` / `delete` |
 | modeling | dataSource | `client.dataSource` | RSDS + replication |
@@ -74,6 +74,22 @@ Aligned with BW Modeling Tools Project Explorer. Facades live under `src/domains
 | structure | transport | `client.transport` | CTS check / create |
 
 **Not Public (out of scope):** Favorites, infoSource, openHub, sourceSystem, and any InfoProvider type not yet live-verified (HCPR / Open ODS / MultiProvider — see `docs/VERIFIED_APIS.md`).
+
+### Hydrated models (modeling domains, pilot: ADSO)
+
+`client.infoProvider.hydrate(name)` loads the object into a typed editing model. Edits are applied to a working XML copy and recorded in an op-log (`plan()` previews them); `saveAndActivate` commits the working copy through the write-session engine:
+
+```typescript
+const m = await client.infoProvider.hydrate("ZL_FID37")   // AdsoModel (ADSO variant)
+m.addField({ name: "ZZLOC_F1", dataType: "CHAR", length: 10 })
+     .addKey("0MATERIAL")
+m.plan()                                    // ["1. addField — add field ZZLOC_F1", "2. addKey — add key 0MATERIAL"]
+await m.saveAndActivate({ transport: "BPDK9xxxxx" })
+```
+
+Hydrate→commit is last-writer-wins: server-side changes made in between will be overwritten by your working copy — re-hydrate first if unsure.
+
+Non-verified InfoProvider types throw a guard error naming the type (see `docs/VERIFIED_APIS.md` for the verification boundary).
 
 ### Public vs Advanced
 
