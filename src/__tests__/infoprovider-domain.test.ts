@@ -1,19 +1,25 @@
 /**
- * infoProvider 多态域（P1 Task 3，离线）。
+ * infoProvider 多态域（P1 Task 3 判别 + P2 Task 2 hydrate 分发，离线）。
  *
  * 判别规则（唯一诚实可用版，见域分类学笔记）：
  * - details(name) 经 api/search 精确名搜索取 objectType：
  *   ADSO → 转发 AdsoDomain.details；其余类型 → 抛 not verified yet；无命中 → not found；
  * - exists(name) = 精确名命中与否；
- * - adso(name) 返回绑定同一 AdtHTTP 的 AdsoDomain（与 client.adso 同类）。
+ * - adso(name) 返回绑定同一 AdtHTTP 的 AdsoDomain（与 client.adso 同类）；
+ * - hydrate(name) 走同一判别：ADSO → AdsoModel.hydrate（全新读工作副本）；
+ *   其余类型/无命中与 details 同一守卫口径。
  *
- * api/search 以 jest.mock 替换、AdsoDomain.details 以 spyOn 拦截——
+ * api/search 以 jest.mock 替换、api/adso.getADSOXml 与 AdsoDomain.details 以
+ * spyOn 拦截（getADSOXml 刻意不设 jest.mock 工厂：工厂与多入口的 ../model
+ * 导入图相遇会产生第二份模块实例，见 2026-09-22-adso-model.md）——
  * 不发网络请求、不读 .env、不用 describeLive。
  */
 import type { AdtHTTP } from "../AdtHTTP"
 import { searchBWObjects } from "../api/search"
+import * as adsoApi from "../api/adso"
 import { AdsoDomain } from "../domains/adso"
 import { InfoProviderDomain } from "../domains/infoProvider"
+import { AdsoModel } from "../model"
 import { BWAdtClient } from "../BWAdtClient"
 
 jest.mock("../api/search", () => ({
@@ -21,11 +27,14 @@ jest.mock("../api/search", () => ({
 }))
 
 const mockedSearch = searchBWObjects as jest.Mock
+// 只 mock 读，AdsoModel.hydrate 的真实水合路径保持真身
+const mockedGetXml = jest.spyOn(adsoApi, "getADSOXml")
 
 const h = {} as AdtHTTP
 
 beforeEach(() => {
   mockedSearch.mockReset()
+  mockedGetXml.mockReset()
 })
 
 /** 精确名命中（ADSO）的桩搜索结果。 */
@@ -132,6 +141,55 @@ describe("InfoProviderDomain.exists 精确名命中", () => {
   test("命中不区分大小写（BW 技术名服务端归大写，判别两侧统一大写比较）", async () => {
     mockedSearch.mockResolvedValue([adsoHit("ZTEST_IP")])
     await expect(domain.exists("ztest_ip")).resolves.toBe(true)
+  })
+})
+
+describe("InfoProviderDomain.hydrate 判别（P2 Task 2：ADSO → AdsoModel）", () => {
+  const domain = new InfoProviderDomain(h)
+
+  // 最小可用 ADSO XML（只验证「读到的 XML 成为工作副本」，不含结构断言）
+  const HYDRATE_XML = `<?xml version="1.0" encoding="UTF-8"?>
+<adso:dataStore xmlns:adso="http://www.sap.com/bw/modeling/adso.ecore" name="ZTEST_IP"/>`
+
+  test("ADSO 命中 → 真实分发 AdsoModel.hydrate：实例绑定 name，全新读 XML 为工作副本", async () => {
+    mockedGetXml.mockResolvedValue(HYDRATE_XML)
+    mockedSearch.mockResolvedValue([adsoHit("ZTEST_IP")])
+
+    const model = await domain.hydrate("ZTEST_IP")
+
+    expect(model).toBeInstanceOf(AdsoModel)
+    expect(model.id).toBe("ZTEST_IP")
+    expect(model.xml).toBe(HYDRATE_XML)
+    expect(mockedSearch).toHaveBeenCalledTimes(1)
+    expect(mockedSearch).toHaveBeenCalledWith(h, {
+      searchTerm: "ZTEST_IP",
+      searchInName: true,
+      searchInDescription: false
+    })
+    // 全新读（forceCacheUpdate=true），与 AdsoModel.hydrate 的契约一致
+    expect(mockedGetXml).toHaveBeenCalledTimes(1)
+    expect(mockedGetXml).toHaveBeenCalledWith(h, "ZTEST_IP", true)
+  })
+
+  test("非 ADSO 类型 → 既有 not verified yet 守卫错误（与 details 同口径，不读 XML）", async () => {
+    mockedSearch.mockResolvedValue([
+      { ...adsoHit("ZTEST_CUBE"), objectType: "INFOCUBE" }
+    ])
+    await expect(domain.hydrate("ZTEST_CUBE")).rejects.toThrow(
+      "InfoProvider type INFOCUBE not verified yet"
+    )
+    await expect(domain.hydrate("ZTEST_CUBE")).rejects.toThrow(
+      /2026-09-21-domain-taxonomy\.md/
+    )
+    expect(mockedGetXml).not.toHaveBeenCalled()
+  })
+
+  test("无命中 → InfoProvider <name> not found（不读 XML）", async () => {
+    mockedSearch.mockResolvedValue([])
+    await expect(domain.hydrate("ZTEST_MISSING")).rejects.toThrow(
+      "InfoProvider ZTEST_MISSING not found"
+    )
+    expect(mockedGetXml).not.toHaveBeenCalled()
   })
 })
 

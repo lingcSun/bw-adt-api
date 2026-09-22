@@ -2,25 +2,27 @@
  * AdsoModel——水合式 ADSO 编辑模型（P2 Task 1，离线）。
  *
  * 语义契约：
- * - hydrate 用 forceCacheUpdate=true 全新读（getADSOXml jest.mock）；
+ * - hydrate 用 forceCacheUpdate=true 全新读（getADSOXml spyOn 拦截）；
  * - 三个编辑方法（addField/removeField/addKey）只调 src/api/adso.ts 的纯变换，
  *   成功才替换工作副本并追加 op；抛错则两者皆不变、异常原样上抛；
- * - op-log 记录调用者可见意图（kind + args + summary），plan() 即 diff 预览。
+ * - op-log 记录调用者可见意图（kind + args + summary），plan() 即 diff 预览；
+ * - saveAndActivate 把编辑后的工作副本 XML 与 options 原样交给 api 层
+ *   saveAndActivateADSO（spyOn 桩），返回值透传——提交的就是工作副本。
  *
  * fixture XML 削自 src/__tests__/adso-field-xml.test.ts 的 SAMPLE_ADSO_XML
  * （同一批纯函数的最小可用形态：一个 element + 一个 keyElement + 闭合标签）。
- * 全部断言离线可得：不发网络请求、不读 .env、不用 describeLive。
+ * mock 用 jest.spyOn 就地替换模块导出、不设 jest.mock 工厂：工厂（含
+ * requireActual 展开）与多入口的 ../model 导入图相遇时会产生第二份模块
+ * 实例，getADSOXml 拿到未配置副本（jest 30 + ts-jest 29 实测，见
+ * 2026-09-22-adso-model.md）。全部断言离线可得：不发网络请求、不读
+ * .env、不用 describeLive。
  */
 import type { AdtHTTP } from "../AdtHTTP"
-import { getADSOXml } from "../api/adso"
+import * as adsoApi from "../api/adso"
 import { AdsoModel } from "../model"
 
-jest.mock("../api/adso", () => ({
-  ...jest.requireActual("../api/adso"),
-  getADSOXml: jest.fn()
-}))
-
-const mockedGetXml = getADSOXml as jest.Mock
+const mockedGetXml = jest.spyOn(adsoApi, "getADSOXml")
+const mockedSaveAndActivate = jest.spyOn(adsoApi, "saveAndActivateADSO")
 
 const ADSO_ID = "ZTEST_ADSO"
 
@@ -44,6 +46,7 @@ async function hydrated(): Promise<AdsoModel> {
 
 beforeEach(() => {
   mockedGetXml.mockReset().mockResolvedValue(FIXTURE_XML)
+  mockedSaveAndActivate.mockReset()
 })
 
 describe("AdsoModel.hydrate", () => {
@@ -159,5 +162,66 @@ describe("AdsoModel.plan", () => {
     expect(plan[2]).toContain("removeField")
     expect(plan[2]).toContain("AUGBL")
     expect(plan).not.toContain("(no pending ops)")
+  })
+})
+
+describe("AdsoModel.saveAndActivate", () => {
+  /** 桩返回值：断言只认同一引用（返回值透传）。 */
+  const SAVE_RESULT: adsoApi.SaveAndActivateADSOResult = {
+    lockHandle: "LOCKHANDLE1",
+    transport: "BPDK900001",
+    updateResult: { success: true, messages: [] },
+    activated: true
+  }
+
+  beforeEach(() => {
+    mockedSaveAndActivate.mockResolvedValue(SAVE_RESULT)
+  })
+
+  test("提交编辑后的工作副本 XML（非 hydrate fixture），options 原样透传，返回值透传", async () => {
+    const model = await hydrated()
+    const field = { name: "ZAPI_FLD", dataType: "CHAR" as const, length: 20 }
+    model.addField(field)
+
+    const options = { transport: "BPDK900001", autoActivate: true }
+    const ret = await model.saveAndActivate(options)
+
+    expect(mockedSaveAndActivate).toHaveBeenCalledTimes(1)
+    expect(mockedSaveAndActivate).toHaveBeenCalledWith(
+      h,
+      ADSO_ID,
+      model.xml,
+      options
+    )
+    // 第三参必须是编辑后的工作副本，不是 hydrate 读到的原始 fixture
+    const xmlArg = mockedSaveAndActivate.mock.calls[0][2]
+    expect(xmlArg).not.toBe(FIXTURE_XML)
+    expect(xmlArg).toContain('name="ZAPI_FLD"')
+    expect(ret).toBe(SAVE_RESULT)
+  })
+
+  test("无 op 时提交 hydrate 原样副本；options 省略 → 第四参 undefined", async () => {
+    const model = await hydrated()
+
+    const ret = await model.saveAndActivate()
+
+    expect(mockedSaveAndActivate).toHaveBeenCalledTimes(1)
+    expect(mockedSaveAndActivate).toHaveBeenCalledWith(
+      h,
+      ADSO_ID,
+      FIXTURE_XML,
+      undefined
+    )
+    expect(ret).toBe(SAVE_RESULT)
+  })
+
+  test("hydrate 用同一 AdtHTTP，saveAndActivate 收到的也是它（同一会话绑定）", async () => {
+    const model = await hydrated()
+    model.removeField("AUGBL")
+
+    await model.saveAndActivate()
+
+    expect(mockedGetXml).toHaveBeenCalledWith(h, ADSO_ID, true)
+    expect(mockedSaveAndActivate.mock.calls[0][0]).toBe(h)
   })
 })

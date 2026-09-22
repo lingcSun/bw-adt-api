@@ -1,10 +1,13 @@
 import type { AdtHTTP } from "../AdtHTTP"
 import {
   getADSOXml,
+  saveAndActivateADSO,
   addADSOFieldToXml,
   removeADSOFieldFromXml,
   addADSOKeyToXml,
-  type ADSOFieldDefinition
+  type ADSOFieldDefinition,
+  type SaveAndActivateADSOOptions,
+  type SaveAndActivateADSOResult
 } from "../api/adso"
 
 /**
@@ -28,12 +31,15 @@ export interface ModelOp {
  * 三个链式编辑方法只把工作副本喂给 src/api/adso.ts 的纯变换函数——
  * 纯函数成功返回新 XML 才替换副本并追加 op；纯函数抛错（如重名字段）
  * 则副本与 op-log 皆保持不变、异常原样上抛。模型自身不重写任何 XML 手术逻辑。
+ * 落盘走 `saveAndActivate(options?)`：工作副本原样交给 api 层
+ * `saveAndActivateADSO`（withWriteSession 引擎），模型不自带写编排。
  */
 export class AdsoModel {
   private xmlContent: string
   private opLog: ModelOp[] = []
 
   private constructor(
+    private readonly h: AdtHTTP,
     /** ADSO 技术名。 */
     readonly id: string,
     xml: string
@@ -47,7 +53,7 @@ export class AdsoModel {
    */
   static async hydrate(h: AdtHTTP, adsoId: string): Promise<AdsoModel> {
     const xml = await getADSOXml(h, adsoId, true)
-    return new AdsoModel(adsoId, xml)
+    return new AdsoModel(h, adsoId, xml)
   }
 
   /** 当前工作副本 XML（编辑方法返回的新 XML）。 */
@@ -106,5 +112,17 @@ export class AdsoModel {
       summary: `add key ${infoObjectName.toUpperCase()}`
     })
     return this
+  }
+
+  /**
+   * 落盘：把当前工作副本（全部已应用 op 的 XML）交给 api 层
+   * saveAndActivateADSO——lock → transport → PUT → activate → unlock
+   * 全程走 withWriteSession 引擎（会话模型不变量不豁免）。
+   * options 原样透传；无 op 时提交的即 hydrate 读到的原文。
+   */
+  saveAndActivate(
+    options?: SaveAndActivateADSOOptions
+  ): Promise<SaveAndActivateADSOResult> {
+    return saveAndActivateADSO(this.h, this.id, this.xmlContent, options)
   }
 }
