@@ -91,6 +91,8 @@ Hydrate→commit is last-writer-wins: server-side changes made in between will b
 
 Non-verified InfoProvider types throw a guard error naming the type (see `docs/VERIFIED_APIS.md` for the verification boundary).
 
+**Cassette recording (record/replay):** `node scripts/record-cassette.mjs` runs a full self-built-object lifecycle (create → saveAndActivate → addField → delete, auto-cleaned) against your live system and records every HTTP round-trip into a sanitized cassette under `.local/cassettes/`; `node scripts/record-cassette.mjs --replay <cassette>` replays the identical flow offline. Cassettes contain real system data — review before committing anywhere.
+
 ### Public vs Advanced
 
 | Tier | What | Typical use |
