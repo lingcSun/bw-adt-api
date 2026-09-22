@@ -127,10 +127,34 @@ describe("ReplayHttpClient FIFO 匹配（离线）", () => {
     ).resolves.toBeDefined()
   })
 
-  it("前缀按路径段对齐：/foo 匹配 /foo/bar 但不匹配 /foobar", () => {
+  it("前缀按路径段对齐：/foo 匹配 /foo/bar 但不匹配 /foobar；尾部斜杠不对称", () => {
     expect(urlMatches("/sap/bc/adt/foo", "/sap/bc/adt/foo/bar")).toBe(true)
     expect(urlMatches("/sap/bc/adt/foo", "/sap/bc/adt/foobar")).toBe(false)
     expect(urlMatches("/sap/bc/adt/foo", "/sap/bc/adt/foo")).toBe(true)
+    // 尾部斜杠不对称：/a 匹配 /a/，但 /a/ 不匹配 /a
+    expect(urlMatches("/a", "/a/")).toBe(true)
+    expect(urlMatches("/a/", "/a")).toBe(false)
+  })
+
+  it("\"/\" 是通配前缀：匹配一切请求路径", () => {
+    expect(urlMatches("/", "/foo/bar")).toBe(true)
+    expect(urlMatches("/", "/")).toBe(true)
+    expect(urlMatches("https://host:44300/", "/anything?q=1")).toBe(true)
+  })
+
+  it("通配前缀在回放里可用：卡带 url \"/\" 匹配任意请求", async () => {
+    const replay = new ReplayHttpClient(
+      cassette({ request: { method: "GET", url: "/" }, response: { body: "any" } })
+    )
+    await expect(
+      replay.request({ url: "/sap/bc/adt/whatever", method: "GET" })
+    ).resolves.toBeDefined()
+    const replay2 = new ReplayHttpClient(
+      cassette({ request: { method: "GET", url: "/" }, response: { body: "any" } })
+    )
+    await expect(
+      replay2.request({ url: "sap-client-scoped", method: "GET" })
+    ).resolves.toBeDefined()
   })
 
   it("method 大小写不敏感；缺省 method 视为 GET", async () => {

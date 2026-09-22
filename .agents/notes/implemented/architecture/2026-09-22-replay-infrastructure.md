@@ -20,6 +20,7 @@ P3 要离线验证写路径编排：withWriteSession 引擎的序列合规、§2
 
 - **每测试自写一次性桩 HttpClient**：无复用、无标准诊断、没有 `.sent` 这类统一捕获面；被本设施取代。
 - **nock / axios-mock-adapter 拦截库**：违反零新依赖约束，且只拦 axios 层，拿不到 HttpClient 抽象的请求快照语义。
+- **按请求 key（method+url）索引匹配而非 FIFO**：keyed 匹配允许乱序消费，但 ADT 流程的顺序本身是规约的一部分（lock→PUT→activate→unlock），keyed 会把顺序 bug 吞成「通过」；选 FIFO，失配诊断同时给出期望的下一条交互，顺序偏离直接显式失败。
 - **录制异常也进卡带**：格式膨胀成 union，P3 写路径测试只关心成功往返 + 引擎请求语义；异常透传上抛即可。
 
 ## Consequences
