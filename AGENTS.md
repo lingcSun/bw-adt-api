@@ -7,7 +7,7 @@ SAP BW/4HANA ADT webservice 接口库（TypeScript）。传输层 `AdtHTTP`/`Adt
 ```bash
 npm run build   # tsc → build/
 npm run watch   # tsc -w
-npm test        # jest（集成测试需 .env 提供 BW_BASE_URL 等；尚不会离线自动跳过）
+npm test        # jest（活系统套件无 BW_BASE_URL 时经 describeLive 守卫自动跳过；对象靶子用 BW_TEST_*）
 ```
 
 ## Layout
