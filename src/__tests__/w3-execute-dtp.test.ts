@@ -1,5 +1,5 @@
 /**
- * W3 修复回归（2026-09-21，Eclipse 抓包实证）：
+ * DTP executerun 端点回归：
  * - executeDTP → POST /sap/bw/modeling/dtpa/executerun（body executeRun@dtpId），
  *   201 + Location 头解析 runId
  * - getDTPExecuteRunResult → GET executerun/{dtpId}/{runId}?withLog=true，

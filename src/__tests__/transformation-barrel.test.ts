@@ -1,5 +1,5 @@
 /**
- * 桶导出面快照 —— transformation.ts 拆分基线（P1B Task 3, 2026-09-22）。
+ * 桶导出面快照 —— transformation.ts 模块拆分基线。
  *
  * 符号清单机械推导自拆分前的 src/api/transformation.ts：tsc checker
  * getExportsOfModule 枚举出 54 个导出名（37 值 + 19 纯类型 − 2 个

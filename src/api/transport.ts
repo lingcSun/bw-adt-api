@@ -85,11 +85,11 @@ const CTS_CREATE_HEADERS = {
  *
  * 对应请求: POST /sap/bc/adt/cts/transportchecks
  *
- * Eclipse 在保存对象前调用此接口,判断:
+ * 保存对象前调用，判断:
  * - 对象是否需要传输请求 (RECORDING)
  * - 有哪些可用的传输请求 (TRANSPORTS)
  *
- * 实测请求体 (ABAP XML 格式):
+ * 请求体 (ABAP XML 格式):
  *   <asx:abap><asx:values><DATA><URI>...</URI><DEVCLASS>...</DEVCLASS><OPERATION>I</OPERATION></DATA></asx:values></asx:abap>
  *
  * @param client - ADT HTTP 客户端
@@ -120,12 +120,10 @@ export async function transportCheck(
  *
  * 对应请求: POST /sap/bc/adt/cts/transports
  *
- * Eclipse 在 TR 对话框中点击"新建"时调用此接口。
  * 返回新建的传输请求号。
  *
- * 实测 (Eclipse 日志 15:40:58):
  *   POST /sap/bc/adt/cts/transports
- *   返回 text/plain,格式为 "包名/请求号" (从中提取请求号)
+ *   返回 text/plain，格式为 "包名/请求号"（从中提取请求号）
  *
  * @param client - ADT HTTP 客户端
  * @param refUri - 参考对象 URI (用于确定包和对象)

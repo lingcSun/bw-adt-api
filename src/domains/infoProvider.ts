@@ -25,12 +25,9 @@ async function findExact(h: AdtHTTP, name: string) {
 }
 
 /**
- * Public facade for InfoProvider（多态域，P1 Task 3）。
- *
- * 唯一诚实可用的判别（验证状态见 docs/VERIFIED_APIS.md「验证状态总览」）：
- * details/exists 经 repository.search 精确名取 objectType；ADSO 转发
- * AdsoDomain（证据最全的已验证类型），其余类型抛错不猜——每真机验证
- * 一种类型，进一种。
+ * Public facade for InfoProvider（多态域）。
+ * details/exists 经 search 精确名取 objectType；ADSO 转发 AdsoDomain，
+ * 其余类型抛错不猜。
  */
 export class InfoProviderDomain {
   constructor(private readonly h: AdtHTTP) {}
@@ -67,10 +64,8 @@ export class InfoProviderDomain {
   }
 
   /**
-   * InfoProvider 水合编辑模型：search 判别 objectType 后按类型分发
-   * （P2 Task 2 落地，替换 Task 1 占位桩）。
-   * ADSO → AdsoModel.hydrate（全新读工作副本）；其余类型/未命中
-   * 与 details 同一守卫口径（not verified yet / not found，不猜未验证类型）。
+   * InfoProvider 水合编辑模型：search 判别 objectType 后按类型分发。
+   * ADSO → AdsoModel.hydrate；其余类型/未命中与 details 同一守卫口径。
    */
   async hydrate(name: string): Promise<InfoProviderModel> {
     const hit = await findExact(this.h, name)

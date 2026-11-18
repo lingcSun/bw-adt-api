@@ -8,7 +8,7 @@ import {
 import { describeLive, testLive } from "./helpers/liveSystem"
 
 /**
- * ensureEnd/StartRoutine XML helpers — 对照 2026-09-21 Eclipse 抓包
+ * ensureEnd/StartRoutine XML helpers
  * ZVSTG91→ZVSTD91 TRFN 0OWVFWFXS8GE8R2VTBF9YQX4QMQST1TV
  */
 
@@ -35,7 +35,7 @@ const NO_ROUTINE = `<?xml version="1.0" encoding="UTF-8"?>
 </trfn:transformation>`
 
 describeLive("deriveRoutineClassName", () => {
-  test("slice(12)+_M 对齐抓包类名", () => {
+  test("slice(12)+_M 派生例程类名", () => {
     expect(deriveRoutineClassName("0OWVFWFXS8GE8R2VTBF9YQX4QMQST1TV")).toBe(
       "/BIC/8R2VTBF9YQX4QMQST1TV_M"
     )

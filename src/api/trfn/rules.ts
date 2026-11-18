@@ -1,17 +1,13 @@
 /**
  * TRFN 规则子域 —— 字段映射（DIRECT）与通用规则构造
  * （CONSTANT / INITIAL / FORMULA / NO_UPDATE）。
- *
- * P1B Task 3 从 src/api/transformation.ts 机械搬迁（函数体零修改）。
- * 家族内依赖方向: 本模块 → ./shared；无人依赖本模块
- * —— transformation.ts 仅按名重导出（兼容桶）。
+ * transformation.ts 按名重导出本模块符号。
  */
 import { escapeXmlAttr, nextRuleId } from "./shared"
 
 // ============================================================================
 // Field Mapping Rules (DIRECT: source → target)
 //
-// 对照 Eclipse Communication Log (2026-07-16 09:45:15 PUT body):
 // 一条 DIRECT rule 的 XML 结构:
 //   <rule id="N" description="">
 //     <source id="1">
@@ -109,9 +105,7 @@ export function addTransformationRule(
   return insertRuleIntoGroup(trfnXml, ruleXml)
 }
 
-/**
- * 精简 step 内联 element：去掉 unitCurrencyElement（Eclipse 成对规则 step I/O 不带）。
- */
+/** 精简 step 内联 element：去掉 unitCurrencyElement（成对规则 step I/O 不带）。 */
 function leanStepElementXml(elementXml: string): string {
   return stripStepElementType(
     elementXml.replace(/<unitCurrencyElement>[\s\S]*?<\/unitCurrencyElement>/g, "")
@@ -130,14 +124,13 @@ export interface PairedAmountCurrencyRuleOptions {
   /** Rules group id；默认第一个 type=S */
   groupId?: string
   /**
-   * 规则 conversiontype。Eclipse ZL_FID01 rule 113 为 FROM_SOURCE；
-   * 同 TRFN 内 HSL 成对规则可无此属性——金额/币种换绑时传 FROM_SOURCE。
+   * 规则 conversiontype。金额/币种换绑时常用 FROM_SOURCE；可传空串关闭。
    */
   conversionType?: "FROM_SOURCE" | ""
 }
 
 /**
- * 插入金额+币种成对 DIRECT 规则（对照 2026-11-17 Eclipse ZL_FID01 rule 113）。
+ * 插入金额+币种成对 DIRECT 规则。
  *
  * - `conversiontype="FROM_SOURCE"`（可关）
  * - 金额 step id=2 rank=MAIN；币种 step id=1 rank=MINOR
@@ -236,7 +229,7 @@ export function addPairedAmountCurrencyRule(
 }
 
 // ============================================================================
-// 通用规则构造 —— addRule (2026-09-20; 各类型 step 形态采自 46 个真实 TRFN)
+// 通用规则构造 —— addRule
 // ============================================================================
 
 /**
@@ -255,7 +248,7 @@ export type TransformationRuleSpec =
 export interface AddRuleOptions {
   /**
    * 目标字段已有规则时的行为。BW 要求每个目标字段恰好一条规则链,
-   * 默认 true = 删除旧规则后插入新规则 (等价 Eclipse 里改规则类型)。
+   * 默认 true = 删除旧规则后插入新规则（改规则类型语义）。
    */
   replace?: boolean
   /** 插入的规则组 id (如 "2" → 引用路径 #///group2/...); 缺省取第一个 type="S" 组 */
@@ -280,7 +273,7 @@ interface SGroupInfo {
 
 /**
  * 定位 type="S" 的规则组。缺省第一个; 传 groupId 精确匹配。
- * 组可嵌套 (实测 type="G" 与 type="S" 为兄弟, 但按深度扫描配对更稳)。
+ * 组可嵌套（type="G" 与 type="S" 为兄弟；按深度扫描配对）。
  */
 function locateSGroup(trfnXml: string, groupId?: string): SGroupInfo {
   const openRe = /<group\b[^>]*\btype="S"[^>]*>/g
@@ -436,7 +429,7 @@ function insertRuleIntoGroupAt(trfnXml: string, ruleXml: string, groupStart: num
  *
  * - 组引用前缀 (#///group{N}/...) 按实际插入组推导, 不再硬编码 group1;
  *   rule id 按组内现值 +1 (且保持全局唯一)。
- * - 目标字段已有规则时默认**替换** (Eclipse 改规则类型语义);
+ * - 目标字段已有规则时默认**替换**（改规则类型语义）;
  *   传 replace:false 可改为显式报错。
  * - FORMULA 的 inputs 为公式引用的 source 字段名列表, 顺序即 step input 编号;
  *   公式表达式本身按 SAP 公式语法书写 (如 `IF( IS_INITIAL( F1 ), F2, F1 )`),
@@ -513,7 +506,7 @@ export function addRule(
 
 /**
  * 自动批量映射:扫描 source 和 target segment 中**同名字段**,
- * 为每个尚未映射的同名字段生成 DIRECT rule (模拟 Eclipse "Auto Map" 功能)。
+ * 为每个尚未映射的同名字段生成 DIRECT rule（Auto Map）。
  *
  * @param trfnXml - TRFN 完整 XML
  * @returns { xml, mapped } 新 XML + 已映射的字段名列表
@@ -578,7 +571,7 @@ function extractSegmentFieldNames(trfnXml: string, side: "source" | "target"): s
 }
 
 /**
- * 构造一条 DIRECT rule XML (对照 Eclipse PUT body)。
+ * 构造一条 DIRECT rule XML。
  */
 function buildDirectRule(
   ruleId: number,

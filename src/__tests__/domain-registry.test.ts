@@ -1,7 +1,7 @@
 /**
- * 域注册表与门面一致性（P1 Task 1，离线）。
+ * 域注册表与门面一致性（离线）。
  *
- * 注册表是后续任务（infoProvider 多态、动词族审计）的单一事实源：
+ * 注册表是 infoProvider 多态、动词族审计等的单一事实源：
  * - kind 三分类与域分类学笔记一致（query/ddic 为 structure：只读消费面）；
  * - verbs 列各域门面"当前实际"的方法名（类是事实，注册表跟随），
  *   一致性断言 verbs == 门面原型方法名，不断言 ∈ VERB_FAMILIES
@@ -50,7 +50,7 @@ const FACADE_CLASSES: Record<string, new (h: AdtHTTP) => unknown> = {
   hcpr: HcprDomain
 }
 
-/** 未挂载域清单：infoArea（P1 Task 2）、infoProvider（P1 Task 3）均已挂载，当前应为空。 */
+/** 未挂载域清单：infoArea、infoProvider 均已挂载，当前应为空。 */
 const EXPECTED_UNATTACHED: string[] = []
 
 /**
@@ -155,22 +155,24 @@ describe("kind 三分类（域分类学）", () => {
   })
 })
 
-describe("infoArea 预注册（P1 Task 2 落地）", () => {
-  test("已注册：structure、tree/validate 动词、标注 P1 Task 2 落地", () => {
+describe("infoArea 预注册", () => {
+  test("已注册：structure、tree/validate 动词、notes 记录归位与 @deprecated", () => {
     const e = getDomain("infoArea")
     expect(e).toBeDefined()
     expect(e?.kind).toBe("structure")
     expect(e?.verbs).toEqual(["tree", "validate"])
-    expect(e?.notes).toContain("P1 Task 2")
+    expect(e?.notes).toContain("tree")
+    expect(e?.notes).toContain("validate")
+    expect(e?.notes).toContain("@deprecated")
   })
 })
 
-describe("infoProvider 预注册（P1 Task 3 落地）", () => {
+describe("infoProvider 预注册", () => {
   test("已注册：modeling、details/exists/adso/hydrate 动词、ADSO 判别优先", () => {
     const e = getDomain("infoProvider")
     expect(e).toBeDefined()
     expect(e?.kind).toBe("modeling")
-    // hydrate 是 P2 水合编辑模型入口（P2 Task 1 登记，Task 2 落真实分发）
+    // hydrate：多态编辑模型水合入口（registry notes 记录分发规则）
     expect(e?.verbs).toEqual(["details", "exists", "adso", "hydrate"])
     expect(e?.summary).toContain("ADSO")
   })
@@ -183,7 +185,7 @@ describe("infoProvider 预注册（P1 Task 3 落地）", () => {
   })
 })
 
-describe("动词族审计 close-out（Task 1）：三建模域 exists/delete", () => {
+describe("动词族审计 close-out：三建模域 exists/delete", () => {
   test("adso/trfn/dtp 动词表均含 exists 与 delete（原型一致性由下方统一断言兜底）", () => {
     for (const name of ["adso", "trfn", "dtp"]) {
       const verbs = getDomain(name)?.verbs ?? []
@@ -192,7 +194,7 @@ describe("动词族审计 close-out（Task 1）：三建模域 exists/delete", (
     }
   })
 
-  test("dataSource 刻意不加 exists/delete（RSDS 删除无实测证据；notes 记录审计结论）", () => {
+  test("dataSource 刻意不加 exists/delete（notes 记录审计结论）", () => {
     const e = getDomain("dataSource")
     expect(e?.verbs).not.toContain("exists")
     expect(e?.verbs).not.toContain("delete")

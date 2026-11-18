@@ -2,14 +2,14 @@ import { BWAdtClient } from "../BWAdtClient"
 import { describeLive, testLive } from "./helpers/liveSystem"
 
 /**
- * ADSO 关联对象查询验证 - 对照 Eclipse 展开 ZL_FID40 的 Communication Log
+ * ADSO 关联对象查询验证（ZL_FID40）
  *
  * 日志中的 UI 导航请求（本项目不实现，用搜索替代）:
  *   14:50:21  GET /repo/infoproviderstructure/adso/zl_fid40       ← 树形文件夹（转换/数据传输流程）
  *   14:50:23  GET /repo/infoproviderstructure/adso/zl_fid40/trfn  ← 3 个 TRFN
  *   14:50:27  GET /repo/infoproviderstructure/adso/zl_fid40/dtpa  ← 3 个 DTPA
  *
- * 期望（与专用端点实测一致）:
+ * 期望（与 infoproviderstructure 专用端点一致）:
  *   TRFN (3): 005J3S8O... 0884UVM7... 0H519LNP...
  *   DTPA (3): DTP_ET0916...SVTQ8UG  DTP_ET0916...P1BKTB6DJP  DTP_ET0916...V7PKTO41PA
  */
@@ -51,7 +51,7 @@ describeLive("ADSO 关联对象查询 (搜索封装)", () => {
     })
     console.log(`=================================================\n`)
 
-    // 与专用端点实测一致: 3 个 TRFN
+    // 与专用端点一致: 3 个 TRFN
     expect(trfns.length).toBe(3)
     expect(trfns.every(t => t.objectType === "TRFN")).toBe(true)
   }, 30000)
@@ -68,7 +68,7 @@ describeLive("ADSO 关联对象查询 (搜索封装)", () => {
     })
     console.log(`==========================================\n`)
 
-    // 与专用端点实测一致: 3 个 DTPA
+    // 与专用端点一致: 3 个 DTPA
     expect(dtps.length).toBe(3)
     expect(dtps.every(d => d.objectType === "DTPA")).toBe(true)
   }, 30000)

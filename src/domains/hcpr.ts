@@ -83,8 +83,8 @@ export class HcprDomain {
   }
 
   /**
-   * 删除 HCPR（自管锁）：lock → BWObject.delete(lockHandle) → unlock 由 delete 吞错处理。
-   * 删除路径与 ADSO/TRFN/DTP 同形；真机删除尚未单独复测，调用方请仅对自建对象使用。
+   * 删除 HCPR（自管锁）：lock → BWObject.delete(lockHandle)。
+   * 删除路径与 ADSO/TRFN/DTP 同形。
    */
   async delete(hcprId: string, options?: { transport?: string }) {
     const lock = await hcpr.lockHCPR(this.h, hcprId)

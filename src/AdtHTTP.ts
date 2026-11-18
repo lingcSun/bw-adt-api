@@ -45,9 +45,9 @@ export enum session_types {
   stateful = "stateful",
   stateless = "stateless",
   /**
-   * @deprecated 不要使用。实测 (BW/4HANA) 发送 "stateful;enqueue" 头会导致服务端
+   * @deprecated 不要使用。发送 "stateful;enqueue" 头会导致服务端
    * 返回 sap-contextid=0 并销毁会话上下文, enqueue 锁随之丢失。
-   * Eclipse 日志里的 "stateful, enqueue" 是服务端会话的展示标签, 不是协议头值。
+   * UI 里看到的 "stateful, enqueue" 是展示标签，不是协议头值。
    * 锁定操作应使用 session_types.stateful。
    */
   stateful_enqueue = "stateful;enqueue",
@@ -247,11 +247,10 @@ export class AdtHTTP {
   /**
    * sap-contextid: 服务端 stateful 会话的标识, 与普通 cookie 分开管理。
    *
-   * 实测 (BW/4HANA):
-   * - 只有 stateful 请求携带 contextid 才会路由进已建立的会话 (锁在该会话中保持,
-   *   重复 lock 返回相同 lockHandle, 对应 Eclipse 的固定 handle 现象)
+   * - 只有 stateful 请求携带 contextid 才会路由进已建立的会话（锁在该会话中保持，
+   *   重复 lock 返回相同 lockHandle）
    * - stateless 请求携带 contextid 会把请求路由进 stateful 会话并销毁它
-   *   (enqueue 锁随之释放), 因此 stateless 请求绝不能带 contextid
+   *   （enqueue 锁随之释放），因此 stateless 请求绝不能带 contextid
    */
   private contextId?: string
   ascookies(includeContextId: boolean = false): string {

@@ -1,8 +1,8 @@
 /**
- * W1/W2/W4 修复回归（2026-09-21）：
- * - W1: BWObject.delete 对 DTP 走 lockHandle 模式（服务端实测接受，同 TRFN）
- * - W2: createDTP 预检——TRFN 读不到 / inactive 时给可操作报错，不放过模糊失败
- * - W4: BWObject.create 的 parent 校验对 ADSO 用 AREA 类型（不再按 ADSO 查 InfoArea）
+ * createDTP 预检、create parent 校验、DTP delete 模式回归：
+ * - BWObject.delete 对 DTP 走 lockHandle 模式（同 TRFN）
+ * - createDTP 预检——TRFN 读不到 / inactive 时给可操作报错
+ * - BWObject.create 的 parent 校验对 ADSO 用 AREA 类型（不再按 ADSO 查 InfoArea）
  */
 import { BWObject, BWObjectType } from "../api/bwObject"
 import { createDTP } from "../api/dtp"
@@ -28,7 +28,7 @@ function routeClient(routes: Array<[RegExp, () => { body: string; status: number
   } as unknown as AdtHTTP
 }
 
-describeLive("W2：createDTP TRFN 预检", () => {
+describeLive("createDTP TRFN 预检", () => {
   test("TRFN inactive → 可操作报错（不放过模糊失败）", async () => {
     const client = routeClient([[/\/trfn\//, () => ({ body: TRFN_XML("inactive"), status: 200, statusText: "OK", headers: {} })]])
     await expect(
@@ -43,7 +43,7 @@ describeLive("W2：createDTP TRFN 预检", () => {
     ).rejects.toThrow(/could not be read[\s\S]*createTransformation/)
   })
 
-  test("TRFN active → 预检放行（后续 CREA 流程由真机验证）", async () => {
+  test("TRFN active → 预检放行（后续 CREA 继续）", async () => {
     const calls: string[] = []
     const client = {
       async request(url: string) {
@@ -61,7 +61,7 @@ describeLive("W2：createDTP TRFN 预检", () => {
   })
 })
 
-describeLive("W4：create 的 parent 校验类型", () => {
+describeLive("create 的 parent 校验类型", () => {
   test("ADSO 的 parent 按 AREA 校验（不再按 ADSO 查 InfoArea）", async () => {
     const captured: Array<{ url: string; qs: Record<string, string> }> = []
     const client = {

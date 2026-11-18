@@ -2,7 +2,7 @@ import { BWAdtClient } from "../BWAdtClient"
 import { describeLive, testLive } from "./helpers/liveSystem"
 
 /**
- * TRFN 结束例程源码保存/激活 — 对照 Eclipse Communication Log 20:07–20:09
+ * TRFN 结束例程源码保存/激活
  *
  * ABAP 类路径:
  *   LOCK (_action=LOCK) → PUT source/main → UNLOCK → POST /sap/bc/adt/activation

@@ -5,7 +5,7 @@
  * - inner 抛出的异常原样上抛且不记录（卡带只录制成功的请求/响应往返）；
  * - sink 回调在每条交互记录后触发；实例自身即是可收集缓冲（interactions / toCassette）；
  * - saveCassette 是 src/testing/replay/ 唯一的磁盘写点（cassette.ts 的 loadCassette
- *   是唯一读点），供真机录制，本阶段不提供 CLI。
+ *   是唯一读点），供活系统录制落盘，本阶段不提供 CLI。
  */
 import { writeFileSync } from "fs"
 import { HttpClient, HttpClientOptions, HttpClientResponse } from "../../AdtHTTP"

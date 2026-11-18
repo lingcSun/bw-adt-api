@@ -8,14 +8,10 @@ import { withWriteSession } from "./writeSession"
 // Constants
 // ============================================================================
 
-/**
- * RSDS Content-Type (实测, 2026-07-16 Eclipse Communication Log 响应头)
- */
+/** RSDS Content-Type（v1_1_0） */
 export const RSDS_CONTENT_TYPE = "application/vnd.sap.bw.modeling.rsds-v1_1_0+xml"
 
-/**
- * RSDS Accept 头 — 同时声明两个版本 (实测 Eclipse 请求头)
- */
+/** RSDS Accept 头 — 同时声明 v1_0_0 与 v1_1_0 */
 export const RSDS_ACCEPT =
   "application/vnd.sap.bw.modeling.rsds-v1_0_0+xml, application/vnd.sap.bw.modeling.rsds-v1_1_0+xml"
 
@@ -27,10 +23,10 @@ const RSDS_ENDPOINT = "/sap/bw/modeling/rsds"
  *
  * RSDS 与 ADSO/DTP 不同:URL 同时带 datasource 名和 sourceSystem 名。
  *   GET /sap/bw/modeling/rsds/{datasource}/{sourceSystem}/m
- * 大小写不敏感 (Eclipse 日志中 lock 用小写、GET 用大写均返回 200), 统一转小写。
+ * 大小写不敏感，统一转小写。
  */
 function rsdsBase(datasource: string, sourceSystem: string): string {
-  // 路径段编码：命名空间名（/BIC/… 等）里的 / 不编码会被当路径切开（V4 同源）
+  // 路径段编码：命名空间名（/BIC/… 等）里的 / 不编码会被当路径切开
   return `${RSDS_ENDPOINT}/${encodeURIComponent(datasource.toLowerCase())}/${encodeURIComponent(sourceSystem.toLowerCase())}`
 }
 
@@ -46,7 +42,7 @@ function rsdsBase(datasource: string, sourceSystem: string): string {
  * @param client - ADT HTTP 客户端
  * @param datasource - DataSource 技术名 (如 "ZBW_ZFIVTASK_STAGE_H")
  * @param sourceSystem - 源系统逻辑名 (如 "S4DCLNT300")
- * @param forceCacheUpdate - 是否强制更新缓存 (Eclipse 首次打开时为 true)
+ * @param forceCacheUpdate - 是否强制更新缓存
  * @returns fullParse 解析后的原始对象 (根节点 rsds:dataSource)
  */
 export async function getDataSource(
@@ -187,7 +183,7 @@ export async function lockDataSource(
   datasource: string,
   sourceSystem: string
 ): Promise<LockResult> {
-  // lock 是写编排的入口且失败不留服务端状态——5xx 时按 F7 换新会话重试一次
+  // lock 是写编排入口；5xx 时换新会话重试一次
   return withFreshSessionOnServerError(client, async () => {
     const response = await client.request(
       `${rsdsBase(datasource, sourceSystem)}?action=lock`,
@@ -231,11 +227,9 @@ export async function unlockDataSource(
  * Update DataSource (PUT) - 保存修改后的 DataSource XML
  *
  * 对应请求: PUT /sap/bw/modeling/rsds/{datasource}/{sourceSystem}/m?lockHandle={h}
- * 会话: stateless (与 Eclipse 一致, 服务端通过 enqueue 锁表验证 lockHandle)
- *
- * 实测 (Eclipse Communication Log):
- *   - PUT 只带 lockHandle, **不带 corrNr** (与 TRFN 一致; TR 通过 Transport-Lock-Holder header 传递)
- *   - 可选 timestamp 头: 从 tlogoProperties/@adtcore:changedAt 提取 (如 "20260716011408")
+ * 会话: stateless；服务端通过 enqueue 锁表验证 lockHandle。
+ * PUT 只带 lockHandle（不带 corrNr）；TR 经 Transport-Lock-Holder header。
+ * 可选 timestamp 头：从 tlogoProperties/@adtcore:changedAt 提取。
  *
  * @param client - ADT HTTP 客户端
  * @param datasource - DataSource 技术名
@@ -471,10 +465,10 @@ export function parseDataSourceVersions(body: string): DataSourceVersion[] {
  */
 const RSDS_PROPOSAL_ENDPOINT = "/sap/bw/modeling/rsdsint/proposal"
 
-/** proposal 请求 Content-Type (实测 Eclipse 请求头) */
+/** proposal 请求 Content-Type */
 export const RSDS_PROPOSAL_REQUEST_CONTENT_TYPE = "application/vnd.sap.bw.modeling.rsds+xml"
 
-/** proposal 响应 Content-Type (实测 Eclipse 响应头) */
+/** proposal 响应 Content-Type */
 export const RSDS_PROPOSAL_RESPONSE_CONTENT_TYPE = "application/vnd.sap.bw.modeling.rsdsint+xml"
 
 /**
@@ -483,16 +477,12 @@ export const RSDS_PROPOSAL_RESPONSE_CONTENT_TYPE = "application/vnd.sap.bw.model
  * 对应请求: POST /sap/bw/modeling/rsdsint/proposal/{datasource}/{sourceSystem}?action=merge
  * 会话: stateless
  *
- * 触发场景 (Eclipse): 修改 DataSource 的 ODP 适配器后, 向导进入对比页 (ComparisonPage)
+ * 触发场景：修改 DataSource 的 ODP 适配器后，合并外部字段结构。
  * 时调用此接口, 把外部 ODP 字段结构合并回 DataSource。
  *
  * **请求体**: 当前 DataSource 的完整 XML (从 getDataSourceXml 获取)。
  * **响应体**: 合并后的 DataSource 完整 XML, 结构与 GET /rsds/{ds}/{src}/m 一致,
  *   可直接用作 PUT body (无需额外转换)。
- *
- * 实测 Content-Type:
- *   请求: application/vnd.sap.bw.modeling.rsds+xml
- *   响应: application/vnd.sap.bw.modeling.rsdsint+xml
  *
  * @param client - ADT HTTP 客户端
  * @param datasource - DataSource 技术名
@@ -573,9 +563,7 @@ export async function saveAndActivateDataSource(
 /**
  * Extract DataSource Timestamp - 从 DataSource XML 提取 PUT timestamp 头
  *
- * 实测 (Eclipse 请求头 timestamp=20260716011408):
- *   tlogoProperties/@adtcore:changedAt="2026-07-16T01:14:08Z"
- *   → "20260716011408" (去 - : T Z, 取前 14 位)
+ * 例: tlogoProperties/@adtcore:changedAt="2026-07-16T01:14:08Z" → "20260716011408"
  *
  * @param xml - DataSource XML 字符串
  * @returns 14 位时间戳 (如 "20260716011408"), 提取失败返回 undefined

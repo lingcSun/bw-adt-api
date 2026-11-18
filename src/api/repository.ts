@@ -5,18 +5,16 @@ import { AdtHTTP } from "../AdtHTTP"
 // ============================================================================
 // BW Repository (repo) — InfoProvider 结构查询
 //
-// 2026-09-21（V2 处置）：本模块曾有的 infoObjects / infoObjectDetails /
-// infoObjectCatalogs（GET /sap/bc/adt/bw/objects/*）已移除——该服务树在本
-// 系统整体 404（连父路径都不存在，属服务未注册而非路径错误），证据见
-// docs/VERIFIED_APIS.md 第 7 节 V2。InfoObject 的已验证读走
-// src/api/infoobject.ts（/sap/bw/modeling/iobj）与 src/api/search.ts。
+// 本模块曾有的 infoObjects / infoObjectDetails / infoObjectCatalogs
+// （GET /sap/bc/adt/bw/objects/*）已移除——该服务树整体 404（父路径亦不存在，
+// 属服务未注册而非路径错误）。InfoObject 读路径见 src/api/infoobject.ts
+// （/sap/bw/modeling/iobj）与 src/api/search.ts。
 // ============================================================================
 
 /**
  * Infoprovider Structure Type - InfoProvider 结构查询的类型段
  *
- * 实测 (2026-09-21)：iobj_cha / iobj_kyf / iobj / adso 四值均返回 200
- * （无内容的组合返回空 feed，不报错）。
+ * iobj_cha / iobj_kyf / iobj / adso 四值均返回 200（无内容时为空 feed，不报错）。
  */
 export type InfoproviderStructureType = "iobj_cha" | "iobj_kyf" | "iobj" | "adso"
 
@@ -42,7 +40,7 @@ export type InfoproviderStructureEntry = t.OutputOf<typeof InfoproviderStructure
  * Get Infoprovider Structure - 查询 InfoArea 下可用于查询定义的对象树
  *
  * 对应请求: GET /sap/bw/modeling/repo/infoproviderstructure/area/{area}/{type}
- * （Eclipse 建模/查询设计器左侧导航同款；2026-09-21 真机验证）
+ * （建模/查询设计器左侧 InfoProvider 结构树同款端点）
  *
  * @param client - ADT HTTP 客户端
  * @param infoArea - InfoArea 技术名（大小写不敏感，进 URL 前转小写）
@@ -54,7 +52,7 @@ export async function getInfoproviderStructure(
   infoArea: string,
   type: InfoproviderStructureType | string = "iobj_cha"
 ): Promise<InfoproviderStructureEntry[]> {
-  // qs/路径值一律传原始串（V5 教训：不预编码）；area 段在 URL 路径中，encodeURIComponent 归这里管
+  // qs/路径值一律传原始串（勿预编码）；area 段在 URL 路径中，encodeURIComponent 归这里管
   const response = await client.request(
     `/sap/bw/modeling/repo/infoproviderstructure/area/${encodeURIComponent(infoArea.toLowerCase())}/${type}`,
     {

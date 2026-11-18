@@ -309,7 +309,7 @@ describeLive("BW InfoArea Tests (Generic CRUD)", () => {
 
       console.log(`\n========== Delete InfoArea: ${TEST_AREA} ==========`)
 
-      // canDelete 验证已随 validation 端点 delete/activate action 移除（V1，2026-09-20）
+      // canDelete 验证已随 validation 端点 delete/activate action 移除
       console.log(`Note: Actual deletion requires a valid transport request`)
       console.log(`Uncomment the following to delete: await areaObj.delete("TRANSPORT...")`)
       console.log(`===================================================\n`)
@@ -434,7 +434,7 @@ describeLive("BW InfoArea Tests (Generic CRUD)", () => {
       try {
         const obj = await client.getObject("area", testArea2)
 
-        // canDelete 验证已随 validation 端点 delete/activate action 移除（V1，2026-09-20）
+        // canDelete 验证已随 validation 端点 delete/activate action 移除
       } catch (error: any) {
         console.log(`Object not found: ${error.message}`)
       }

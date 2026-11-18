@@ -7,7 +7,7 @@ import {
 
 /**
  * TRFN 结束例程 / ABAP 类读取验证
- * 对照 Eclipse Communication Log (2026-07-15 19:45):
+ * 典型读序列:
  *   GET /trfn/0be9x06hu3mn3fb1to6mnlegqi6xijeo/m?forceCacheUpdate=true
  *   GET /oo/classes/%2fbic%2f3fb1to6mnlegqi6xijeo_m
  *   GET /oo/classes/%2fbic%2f3fb1to6mnlegqi6xijeo_m/source/main

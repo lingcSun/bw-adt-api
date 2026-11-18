@@ -2,7 +2,7 @@ import { BWAdtClient } from "../BWAdtClient"
 import { describeLive, testLive } from "./helpers/liveSystem"
 
 /**
- * ADSO 读取接口验证 - 对照 Eclipse 双击打开 ZL_FID40 的 Communication Log
+ * ADSO 读取接口验证（ZL_FID40）
  *
  * 日志中的核心请求序列:
  *   14:40:55  GET /sap/bw/modeling/adso/zl_fid40/m              → 200 (26.6KB)  元数据

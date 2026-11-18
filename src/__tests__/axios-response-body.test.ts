@@ -12,7 +12,7 @@ describeLive("responseBody() - axios 响应体保真", () => {
     expect(responseBody(undefined)).toBe("")
   })
 
-  test("JSON 对象不得退化为 [object Object]（2026-09-20 N1）", () => {
+  test("JSON 对象不得退化为 [object Object]", () => {
     const parsed = { chain: { name: "X", variants: [1, 2] } }
     expect(responseBody(parsed)).toBe(JSON.stringify(parsed))
     expect(responseBody(parsed)).not.toBe("[object Object]")

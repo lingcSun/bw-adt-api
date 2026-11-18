@@ -39,12 +39,8 @@ export class DataSourceDomain {
   }
 
   /**
-   * Advanced 子面：调用方持锁原语（lock/unlock/activate/update），逐参镜像
-   * api 层裸函数——锁的获取与释放归调用方，与门面自管动词
-   * （saveAndActivate：内部 lock→…→unlock/finally）的锁契约相互隔离。
-   * 标识是 RSDS 双段（datasource + sourceSystem）。子面访问器，不属于 verbs
-   * 家族表（domain-registry 一致性断言显式排除 `advanced`）。弃用的 flat 方法
-   * （client.lockDataSource 等）由此有了正名入口。
+   * Advanced 子面：调用方持锁原语（lock/unlock/activate/update）。
+   * RSDS 双段标识（datasource + sourceSystem）。与门面自管动词锁契约隔离。
    */
   get advanced() {
     return Object.freeze({

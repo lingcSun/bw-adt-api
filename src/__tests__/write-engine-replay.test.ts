@@ -10,9 +10,8 @@
  * finally 解锁。
  *
  * 诚实原则：这套测试证明的是「本仓库写引擎遵从 §2 规约」，不是 SAP 服务端的真实行为；
- * 卡带里的响应体是为让引擎走通而仿制的夹具（形状对照 parse* 的期望），凡断言
- * 「服务端真实行为」的测试必须走活系统（describeLive），卡带回放结果永远不得
- * 作为线上实测证据引用（Task 1 note / VERIFIED_APIS.md 地位不受影响）。
+ * 卡带里的响应体是为让引擎走通而仿制的夹具（形状匹配 parse* 的期望）；断言
+ * 服务端真实行为的测试走活系统（describeLive），卡带回放仅验证客户端写引擎。
  *
  * 会话模型的一个精确细节：§2 表格里 contextid 由**首个 stateful 请求（lock）的响应**
  * 颁发（§1 会话表：stateful 首次不带 contextid），因此这里断言——
@@ -49,20 +48,20 @@ const ADSO_XML = `<?xml version="1.0" encoding="UTF-8"?>
   <keyElement>#///0MATERIAL</keyElement>
 </adso:dataStore>`
 
-/** lock 响应：asx DATA 形状对照 parseLockResponse（形状夹具，非实测证据） */
+/** lock 响应：asx DATA 形状匹配 parseLockResponse（回放夹具） */
 const lockXml = () => `<?xml version="1.0"?>
 <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0"><asx:values><DATA>
 <LOCK_HANDLE>${LOCK_HANDLE}</LOCK_HANDLE><IS_LOCAL>X</IS_LOCAL><CORRUSER>DEVELOPER</CORRUSER>
 </DATA></asx:values></asx:abap>`
 
-/** transportchecks 响应：RECORDING=""（$TMP 本地对象不需要 TR）对照 parseTransportCheck */
+/** transportchecks 响应：RECORDING=""（$TMP 本地对象不需要 TR）匹配 parseTransportCheck */
 const transportCheckXml = () => `<?xml version="1.0"?>
 <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0"><asx:values><DATA>
 <PGMID>LIMU</PGMID><OBJECT>ADSO</OBJECT><OBJECTNAME>${ADSO_ID}</OBJECTNAME>
 <OPERATION>I</OPERATION><DEVCLASS>$TMP</DEVCLASS><RECORDING></RECORDING><RESULT>S</RESULT>
 </DATA></asx:values></asx:abap>`
 
-/** PUT / activation 响应：atom feed + checkresult，对照 parseActivationResponse */
+/** PUT / activation 响应：atom feed + checkresult，匹配 parseActivationResponse */
 const checkFeed = (title: string, messageType: string) => `<?xml version="1.0" encoding="UTF-8"?>
 <atom:feed xmlns:atom="http://www.w3.org/2005/Atom" xmlns:bwModel="http://www.sap.com/bw/modeling">
   <atom:entry>

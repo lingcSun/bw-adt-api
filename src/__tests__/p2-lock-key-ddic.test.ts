@@ -1,9 +1,6 @@
 /**
- * P2 批次离线测试：
- * - parseLockResponse IS_LOCAL（F8）
- * - withFreshSessionOnServerError 会话中毒恢复（F7）
- * - addADSOKeyToXml 键定义构建（F3）
- * - addADSOFieldToXml 无键 fail-fast（F3）
+ * 离线回归：parseLockResponse IS_LOCAL、withFreshSessionOnServerError、
+ * addADSOKeyToXml、addADSOFieldToXml 无键 fail-fast。
  */
 import { parseLockResponse, withFreshSessionOnServerError, isServerErrorException } from "../api/common"
 import { AdtErrorException } from "../AdtException"
@@ -16,7 +13,7 @@ const LOCK_BODY = (isLocal: boolean) => `<?xml version="1.0"?>
 <LOCK_HANDLE>00ABC123</LOCK_HANDLE>${isLocal ? "<IS_LOCAL>X</IS_LOCAL>" : ""}<CORRNR></CORRNR>
 </DATA></asx:values></asx:abap>`
 
-describeLive("parseLockResponse isLocal（F8）", () => {
+describeLive("parseLockResponse isLocal", () => {
   test("IS_LOCAL=X → isLocal: true", () => {
     expect(parseLockResponse(LOCK_BODY(true))).toMatchObject({ lockHandle: "00ABC123", isLocal: true })
   })
@@ -30,7 +27,7 @@ describeLive("parseLockResponse isLocal（F8）", () => {
   })
 })
 
-describeLive("withFreshSessionOnServerError（F7）", () => {
+describeLive("withFreshSessionOnServerError", () => {
   const srvErr = (status: number) =>
     new AdtErrorException(status, {}, "", `server error ${status}`)
 
@@ -96,8 +93,8 @@ const KEYLESS_XML = `<?xml version="1.0"?>
   <dimension name="GROUP1"><descriptions/></dimension>
 </adso:dataStore>`
 
-describeLive("addADSOKeyToXml（F3）", () => {
-  test("发射实测通过的形态：同名引用元素（含 inlineType/globalElementName）+ keyElement", () => {
+describeLive("addADSOKeyToXml", () => {
+  test("同名引用元素（含 inlineType/globalElementName）+ keyElement", () => {
     const next = addADSOKeyToXml(KEYLESS_XML, "0material")
     expect(next).toContain('<keyElement>#///0MATERIAL</keyElement>')
     expect(next).toContain('name="0MATERIAL" infoObjectName="0MATERIAL"')
@@ -123,7 +120,7 @@ describeLive("addADSOKeyToXml（F3）", () => {
   })
 })
 
-describeLive("addADSOFieldToXml 无键 fail-fast（F3）", () => {
+describeLive("addADSOFieldToXml 无键 fail-fast", () => {
   test("keyless XML 报错并指引 addADSOKeyToXml", () => {
     expect(() =>
       addADSOFieldToXml(KEYLESS_XML, { name: "ZF1", dataType: "CHAR", length: 5 })

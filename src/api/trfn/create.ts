@@ -1,7 +1,5 @@
 /**
- * TRFN 创建子域 —— 8TRANSIENT 瞬态流创建（Eclipse 新建转换向导同款, 2026-09-11 实测）。
- *
- * P1B Task 3 从 src/api/transformation.ts 机械搬迁（函数体零修改）。
+ * TRFN 创建子域 —— 8TRANSIENT 瞬态流创建。
  * 家族内依赖方向: 本模块 → ../transformation（core 锁/存原语）与 → ./shared。
  */
 import { fullParse, xmlNode } from "../../utilities"
@@ -16,7 +14,7 @@ import {
 import { escapeXmlAttr } from "./shared"
 
 // ============================================================================
-// CREATE —— 8TRANSIENT 瞬态流 (Eclipse 新建转换向导同款, 2026-09-11 实测)
+// CREATE —— 8TRANSIENT 瞬态流
 // ============================================================================
 
 export interface CreateTransformationOptions {
@@ -40,13 +38,13 @@ export interface CreateTransformationResult {
 }
 
 /**
- * Create Transformation —— 8TRANSIENT 瞬态流创建转换（Eclipse 新建向导同款）。
+ * Create Transformation —— 8TRANSIENT 瞬态流创建转换。
  *
  * 流程: GET 8TRANSIENT 铸 id → stateful+CREA lock → POST 极简创建体
  * （source/target 自闭合空节点，服务器按源/目标提供者水合全部元素与默认规则）
  * → unlock →（packageName 非 $TMP 时）PUT 改包并登记 transport。
  *
- * ⚠️ 创建体必须与 Eclipse 序列化逐属性对齐：createdAt/createdBy 必带、
+ * ⚠️ 创建体须与 ADT 序列化逐属性对齐：createdAt/createdBy 必带、
  * packageRef 需 name/type/uri 三属性、root description 建议为空串；
  * 带segment/element 的骨架会反序列化失败。
  *
@@ -89,7 +87,7 @@ export async function createTransformation(
   }
   const idLower = trfnId.toLowerCase()
 
-  // 2) CREA lock（stateful；5xx 时按 F7 会话中毒恢复换新会话重试一次）
+  // 2) CREA lock（stateful；5xx 时换新会话重试一次）
   const lockResp = await withFreshSessionOnServerError(client, () =>
     client.request(`/sap/bw/modeling/trfn/${idLower}`, {
       method: "POST",
@@ -125,8 +123,7 @@ export async function createTransformation(
     await client.request(`/sap/bw/modeling/trfn/${idLower}`, {
       method: "POST",
       qs: { lockHandle },
-      // 创建 POST 走 stateless（与 3 月实测成功日志及会话模型一致：
-      // lock/unlock 才用 stateful；stateful 会话发创建体会 500）。
+      // 创建 POST 走 stateless（lock/unlock 用 stateful；持锁 stateful 发 POST 会 500）。
       sessionType: session_types.stateless,
       headers: {
         "Content-Type": CT,
@@ -153,7 +150,7 @@ export async function createTransformation(
     if (!options.transport) {
       throw new Error(`transport is required when packageName="${packageName}"`)
     }
-    // 包 URI 大小写不敏感（实测 /packages/zbw 与 /packages/ZBW 均返回 200），
+    // 包 URI 大小写不敏感，
     // 统一小写即可，无需对 ZBW 做特判。
     const pkgUri = `/sap/bc/adt/packages/${encodeURIComponent(packageName.toLowerCase())}`
     const pkgRef = `<adtcore:packageRef adtcore:uri="${pkgUri}" adtcore:type="DEVC/K" adtcore:name="${escapeXmlAttr(packageName)}"/>`

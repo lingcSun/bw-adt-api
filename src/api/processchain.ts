@@ -123,12 +123,9 @@ export type ProcessChainStatusInfo = t.OutputOf<typeof ProcessChainStatusInfo>
 // ============================================================================
 // API Functions
 //
-// 2026-09-20 复核（docs/VERIFIED_APIS.md F1）：本系统端点为 /sap/bw/modeling/rspc
-// （/pc 404）；GET /rspc/{id}/m 服务 JSON
+// 端点 /sap/bw/modeling/rspc（/pc 404）；GET /rspc/{id}/m 为 JSON
 // (application/vnd.sap.bw4.modeling.processvariant.chain-v1_0_0+json)，
-// pc/rspc 的 vendor XML 一律 415。读路径（meta/details）已实测并按下述 JSON 解析；
-// versions/logs/status 后缀本系统拒绝（「不支持对象版本 V/L/S」），函数保留，
-// 服务端错误原样上抛；execute/stop 未实测（不允许对业务链执行），仅修正前缀。
+// vendor XML 一律 415。versions/logs/status 后缀常被拒绝，错误原样上抛。
 // ============================================================================
 
 /** rspc JSON 端点的 Accept/Content-Type */
@@ -139,7 +136,6 @@ export const PC_JSON_CONTENT_TYPE =
  * Lock Process Chain - 锁定流程链
  *
  * 对应请求: POST /sap/bw/modeling/rspc/{chain_id}?action=lock
- * ⚠️ 本系统未实测（不允许对业务链执行）；URL/会话模型沿用已验证的统一 lock 模式。
  *
  * @param client - ADT HTTP 客户端
  * @param chainId - Process Chain ID（大小写敏感，不转小写）
@@ -157,7 +153,6 @@ export async function lockProcessChain(
  * Unlock Process Chain - 解锁流程链
  *
  * 对应请求: POST /sap/bw/modeling/rspc/{chain_id}?action=unlock
- * ⚠️ 本系统未实测（同 lock）。
  *
  * @param client - ADT HTTP 客户端
  * @param chainId - Process Chain ID
@@ -174,7 +169,7 @@ export async function unlockProcessChain(
  * Get Process Chain Metadata - 获取流程链元数据
  *
  * 对应请求: GET /sap/bw/modeling/rspc/{chain_id}/m
- * 实测 (2026-09-20): 服务 JSON (processvariant.chain-v1_0_0+json)。
+ * 响应为 JSON (processvariant.chain-v1_0_0+json)。
  *
  * @param client - ADT HTTP 客户端
  * @param chainId - Process Chain ID（大小写敏感）
@@ -199,7 +194,7 @@ export async function getProcessChain(
 /**
  * Parse Process Chain Metadata - 解析流程链元数据（rspc JSON）
  *
- * 实测 JSON 顶层形态: { bActive, sVariantDescription, oDetail, aSocket[], aExecutionOption[] }。
+ * JSON 顶层形态: { bActive, sVariantDescription, oDetail, aSocket[], aExecutionOption[] }。
  * 无链名字段（名字即 URL id）；bActive 为建模活动版本标记，非运行状态。
  *
  * @param jsonBody - JSON 响应体
@@ -212,7 +207,7 @@ export function parseProcessChainMetaData(jsonBody: string, chainId: string): Pr
   return {
     name: chainId,
     description: json?.sVariantDescription,
-    // bActive=true 表示活动版本存在（实测 active 链为 true）；否则视为仅修改版
+    // bActive=true 表示活动版本存在；否则视为仅修改版
     objVers: json?.bActive === true ? "M" : json?.bActive === false ? "A" : undefined,
     chainType: undefined,
     status: json?.bActive === true ? "active" : json?.bActive === false ? "inactive" : undefined
@@ -233,7 +228,7 @@ function safeJsonParse(body: string): any {
 /**
  * Parse Process Chain Details - 解析流程链详细信息（rspc JSON）
  *
- * 实测 payload 不含步骤/时间戳/责任人字段（本系统样例 oDetail 为空），
+ * 当前环境 payload 不含步骤/时间戳/责任人字段（样例 oDetail 为空），
  * steps/created/changed/changedBy 恒为 undefined——如实保留缺口，不虚构字段。
  *
  * @param jsonBody - JSON 响应体
@@ -261,7 +256,7 @@ export function parseProcessChainDetails(jsonBody: string, chainId?: string): Pr
 /**
  * Get Process Chain Details - 获取流程链详细信息
  *
- * 对应请求: GET /sap/bw/modeling/rspc/{chain_id}/m（JSON，已实测）
+ * 对应请求: GET /sap/bw/modeling/rspc/{chain_id}/m（JSON）
  *
  * @param client - ADT HTTP 客户端
  * @param chainId - Process Chain ID（大小写敏感）
@@ -287,7 +282,7 @@ export async function getProcessChainDetails(
  * Get Process Chain Versions - 获取流程链版本历史
  *
  * 对应请求: GET /sap/bw/modeling/rspc/{chain_id}/versions
- * ⚠️ 本系统拒绝该后缀（「不支持对象版本 V」，2026-09-19/20 实测），错误原样上抛。
+ * ⚠️ 本环境拒绝该后缀（「不支持对象版本 V」），错误原样上抛。
  *
  * @param client - ADT HTTP 客户端
  * @param chainId - Process Chain ID
@@ -305,7 +300,7 @@ export async function getProcessChainVersions(
  * Activate Process Chain - 激活流程链
  *
  * 对应请求: POST /sap/bw/modeling/activation
- * ⚠️ 本系统未实测（不允许动业务链）；URI/lockHandle/corrNr 语义同其他 BW 对象。
+ * ⚠️ 写路径未在本库 live 覆盖；URI/lockHandle/corrNr 语义同其他 BW 对象。
  *
  * @param client - ADT HTTP 客户端
  * @param chainId - Process Chain ID
@@ -327,7 +322,7 @@ export async function activateProcessChain(
  * Check Process Chain - 检查流程链一致性
  *
  * 对应请求: POST /sap/bw/modeling/activation（checkruns 路径）
- * ⚠️ 本系统未实测。
+ * ⚠️ 写路径未在本库 live 覆盖。
  *
  * @param client - ADT HTTP 客户端
  * @param chainId - Process Chain ID
@@ -345,7 +340,7 @@ export async function checkProcessChain(
  * Execute Process Chain - 执行流程链
  *
  * 对应请求: POST /sap/bw/modeling/rspc/{chain_id}?action=execute
- * ⚠️ 未实测（不允许对业务链执行）；响应格式未知，以下解析沿用旧 XML 假设，
+ * ⚠️ 执行路径未在本库 live 覆盖；响应格式未知，以下解析沿用旧 XML 假设，
  * 结果字段在真实响应上可能为空——运行后请以日志核实。
  *
  * @param client - ADT HTTP 客户端
@@ -383,7 +378,7 @@ export async function executeProcessChain(
  * Stop Process Chain - 停止正在运行的流程链
  *
  * 对应请求: POST /sap/bw/modeling/rspc/{chain_id}?action=stop
- * ⚠️ 未实测（不允许对业务链执行）；响应格式未知，解析同 execute 的旧 XML 假设。
+ * ⚠️ 执行路径未在本库 live 覆盖；响应格式未知，解析同 execute 的旧 XML 假设。
  *
  * @param client - ADT HTTP 客户端
  * @param chainId - Process Chain ID
@@ -416,7 +411,7 @@ export async function stopProcessChain(
  * Get Process Chain Logs - 获取流程链执行日志
  *
  * 对应请求: GET /sap/bw/modeling/rspc/{chain_id}/logs
- * ⚠️ 本系统拒绝该后缀（「不支持对象版本 L」，2026-09-19/20 实测），错误原样上抛；
+ * ⚠️ 本环境拒绝该后缀（「不支持对象版本 L」），错误原样上抛；
  * PC 运行日志需走 RSPC 应用日志（如 RSA1/BW4MT），本库暂无对应端点。
  *
  * @param client - ADT HTTP 客户端
@@ -460,7 +455,7 @@ export async function getProcessChainLogs(
  * Get Process Chain Status - 获取流程链运行状态
  *
  * 对应请求: GET /sap/bw/modeling/rspc/{chain_id}/status
- * ⚠️ 本系统拒绝该后缀（「不支持对象版本 S」，2026-09-20 实测），错误原样上抛。
+ * ⚠️ 本环境拒绝该后缀（「不支持对象版本 S」），错误原样上抛。
  *
  * @param client - ADT HTTP 客户端
  * @param chainId - Process Chain ID

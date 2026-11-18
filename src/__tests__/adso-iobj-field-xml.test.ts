@@ -1,7 +1,7 @@
 /**
- * IOBJ hang 字段元素构建（2026-11-17 Eclipse ZL_FID01 为准）与 TRFN 删除参数校验。
- * - CHA：F11 极简 name+infoObjectName
- * - UNI/KYF：Eclipse hang 骨架（keep/inlineType/associationType，无 atom:link）
+ * IOBJ hang 字段元素构建与 TRFN 删除参数校验。
+ * - CHA：极简 name+infoObjectName
+ * - UNI/KYF：hang 骨架（keep/inlineType/associationType，无 atom:link）
  */
 import { buildADSOFieldElementXml, buildADSOInfoObjectElementXml } from "../api/adso"
 import { AdtHTTP } from "../AdtHTTP"
@@ -30,7 +30,7 @@ describe("buildADSOInfoObjectElementXml（hang）", () => {
     expect(xml).toContain('dimension="#///__CHARACTERISTIC§"')
   })
 
-  test("UNI hang：对齐 Eclipse ZC_RWCUR（sid=S、base 0CURRENCY、无 localProperties）", () => {
+  test("UNI hang：ZC_RWCUR 形态（sid=S、base 0CURRENCY、无 localProperties）", () => {
     const xml = buildADSOInfoObjectElementXml({
       name: "ZC_RWCUR",
       infoObjectName: "ZC_RWCUR",
@@ -50,7 +50,7 @@ describe("buildADSOInfoObjectElementXml（hang）", () => {
     expect(xml).not.toContain("consumptionViewProperties")
   })
 
-  test("KYF hang：对齐 Eclipse ZK_WSL（SUM、unitCurrency、sid=N）", () => {
+  test("KYF hang：ZK_WSL 形态（SUM、unitCurrency、sid=N）", () => {
     const xml = buildADSOInfoObjectElementXml({
       name: "ZK_WSL",
       infoObjectName: "ZK_WSL",
@@ -120,7 +120,7 @@ describe("BWObject.delete 参数校验", () => {
     await expect(obj.delete({ lockHandle: "H" })).rejects.toThrow()
   })
 
-  test("DTP 缺 lockHandle 报错（W1：DTP 纳入 lockHandle 删除模式）", async () => {
+  test("DTP 缺 lockHandle 报错（lockHandle 删除模式）", async () => {
     const obj = new BWObject(fakeClient, BWObjectType.DTP, "DTP_1")
     await expect(obj.delete({})).rejects.toThrow(/requires options.lockHandle/)
     await expect(obj.delete({ lockHandle: "H" })).rejects.toThrow()

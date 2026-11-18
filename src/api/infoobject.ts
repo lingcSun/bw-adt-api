@@ -371,33 +371,24 @@ export async function validateInfoObjectNewName(
 
 // ============================================================================
 // Create InfoObject
-// 依据: 2026-11-10 Eclipse BWMT 抓包 (docs/VERIFIED_APIS.md §9) +
-//       2026-11-12 真机对照实验 (docs/VERIFIED_APIS.md §10)
 //
-// 真机已证实的骨架模型（与 §9 原解读不同，见 §10）：
-//   - 创建 POST（stateful，与 lock 同会话）只落「骨架 CHA」：CHAR/5/ALPHA 默认值，
-//     body 除 name 外整体被忽略（type/description/infoArea/unit 全部不生效）
-//   - 类型（CHA↔KYF）与 dataType（CHAR→NUMC）创建后均不可改（PUT 被拒/静默回退）
-//   - 长度/描述/InfoArea 可经 PUT /m 补写（timestamp 头，stateless 可）
-//   ⇒ CHA 创建 = POST 骨架 + PUT 属性 + 激活（createInfoObjectChaFull，已真机闭环）
-//   ⇒ KYF 创建阻塞：向导在创建时指定类型的机制缺报文证据（§10）
+// CHA 骨架 POST（stateful，与 lock 同会话）只落 CHAR/5/ALPHA；body 除 name 外
+// 多半被忽略。类型与 dataType 创建后不可改；长度/描述/InfoArea 经 PUT /m 补写。
+// KYF / UNI 用各自的 xsi:type POST，勿与 CHA 骨架路径混用。
 // ============================================================================
 
-/** keyfigureType / semantics（关键指标语义）。仅 AMO 有真机证据。 */
+/** keyfigureType / semantics（关键指标语义）。 */
 export type InfoObjectKeyfigureType = "AMO" | "QUA" | "NUM"
 
-/** objectSpecificDataType（关键指标专用数据类型）。仅 CURR 有真机证据。 */
+/** objectSpecificDataType（关键指标专用数据类型）。 */
 export type InfoObjectKfDataType = "CURR" | "QUAN" | "DEC" | "INT4" | "FLTP" | "DF34"
 
-/** aggregationType（聚合方式）。仅 SUM 有真机证据，其余为 BW 常规枚举。 */
+/** aggregationType（聚合方式）。 */
 export type InfoObjectAggregationType = "SUM" | "MAX" | "MIN" | "AVG" | "CNT"
 
 /**
- * InfoObject Create Options - 创建关键指标选项
- *
- * 仅支持 KYF（关键指标）。创建骨架与 Eclipse BWMT 向导 POST 同形：
- * 语义/聚合/货币单位引用等属性直接进创建 POST body（向导是创建后编辑器 PUT 补写，
- * 见 VERIFIED_APIS §9——属性能否在 POST 一步落库由 createInfoObjectFull 回读校验）。
+ * InfoObject Create Options - 创建关键指标选项。
+ * 仅支持 KYF；语义/聚合等可进创建 POST，单位引用通常经后续 PUT 绑定。
  */
 export interface InfoObjectCreateOptions {
   /** InfoObject 技术名（如 ZK_AMOUNT） */
@@ -429,9 +420,8 @@ export interface InfoObjectCreateOptions {
 }
 
 /**
- * 与 Eclipse BWMT 向导创建 POST 同形的关键指标 XML（xsi:type="Keyfigure"）。
- * 证据：2026-11-17 ZK_AMT —— POST **不带** packageRef / unitCurrency（单位经后续 PUT）；
- * Development-Class 走请求头。描述可空（向导空串）。
+ * 关键指标创建 POST XML（xsi:type="Keyfigure"）。
+ * POST 不带 packageRef / unitCurrency（单位经后续 PUT）；Development-Class 走请求头。
  */
 export function buildInfoObjectXml(options: InfoObjectCreateOptions): string {
   const {
@@ -449,7 +439,7 @@ export function buildInfoObjectXml(options: InfoObjectCreateOptions): string {
   const esc = (v: string) =>
     v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
 
-  // POST 阶段单位引用留空（Eclipse ZK_AMT）；PUT 再写 unitCurrencyInfoObjectRef
+  // POST 阶段单位引用留空；PUT 再写 unitCurrencyInfoObjectRef
   return `<?xml version="1.0" encoding="UTF-8"?>
 <InfoObject:infoObject xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:InfoObject="http://www.sap.com/bw/modeling/BwIobj.ecore" xmlns:adtcore="http://www.sap.com/adt/core" xsi:type="InfoObject:Keyfigure" name="${esc(name)}" shortDescriptionSet="false" keyFigureSemantic="_" keyfigureType="${esc(keyfigureType)}" objectSpecificDataType="${esc(objectSpecificDataType)}">
   <infoObjectType>KYF</infoObjectType>
@@ -478,10 +468,8 @@ export function buildInfoObjectXml(options: InfoObjectCreateOptions): string {
 }
 
 /**
- * Lock InfoObject - 锁定 InfoObject
- *
- * 创建路径必须带创建上下文头（2026-11-10 抓包：parent_name/parent_type=AREA/
- * activity_context=CREA 在 lock 请求头上，无请求体）。修改路径不带头。
+ * Lock InfoObject - 锁定 InfoObject。
+ * 创建路径须带 parent_name / parent_type=AREA / activity_context=CREA；修改路径不带头。
  */
 export async function lockInfoObject(
   client: AdtHTTP,
@@ -507,10 +495,9 @@ export async function unlockInfoObject(client: AdtHTTP, iobjName: string): Promi
 }
 
 /**
- * Activate InfoObject - 激活 InfoObject
- *
- * 对应请求: POST /sap/bw/modeling/activation（atom feed + checkProperties lockHandle，
- * objectUri 指向 /iobj/{name}/m —— 2026-11-10 抓包同形）。
+ * Activate InfoObject - 激活 InfoObject。
+ * POST /sap/bw/modeling/activation（atom feed + checkProperties lockHandle，
+ * objectUri 指向 /iobj/{name}/m）。
  */
 export async function activateInfoObject(
   client: AdtHTTP,
@@ -523,11 +510,9 @@ export async function activateInfoObject(
 }
 
 /**
- * Create InfoObject KYF - POST 创建关键指标（须已持 CREA 锁）
- *
- * 证据 2026-11-17 ZK_AMT：stateless POST + Development-Class（含 $TMP），
- * body xsi:type=Keyfigure → 类型即落 KYF（与旧 stateful「只落 CHA 骨架」对照作废）。
- * createChaFull 仍走 createInfoObjectChaSkeleton（stateful 骨架），勿混用。
+ * Create InfoObject KYF - POST 创建关键指标（须已持 CREA 锁）。
+ * stateless POST + Development-Class；body xsi:type=Keyfigure → 类型即落 KYF。
+ * createChaFull 仍走 CHA 骨架路径，勿混用。
  */
 export async function createInfoObject(
   client: AdtHTTP,
@@ -614,7 +599,7 @@ export interface InfoObjectCreateVerification {
 
 /**
  * 从 GET /m 的解析树提取创建属性做回读比对。
- * （/m 是编辑器读写端点，新建未激活对象也返回 modified 版本——2026-11-10 抓包。）
+ * /m 是编辑器读写端点，新建未激活对象也返回 modified 版本。
  */
 function verifyCreatedInfoObject(
   parsed: any,
@@ -662,7 +647,7 @@ function verifyCreatedInfoObject(
   }
 }
 
-/** KYF PUT 补写：单位引用 / 描述 / highPrecision（对照 ZK_AMT PUT）。 */
+/** KYF PUT 补写：单位引用 / 描述 / highPrecision。 */
 function patchKyfDoc(
   doc: string,
   changes: {
@@ -682,7 +667,7 @@ function patchKyfDoc(
   }
   if (changes.unitInfoObject) {
     const u = changes.unitInfoObject.replace(/"/g, "&quot;")
-    // Eclipse PUT: infoObjectType="CHA" even when target is UNI (ZC_CUR)
+    // 服务端要求 infoObjectType="CHA"，即使目标是 UNI
     const unitXml = `<unitCurrencyInfoObjectRef infoObjectType="CHA" name="${u}"/>`
     if (/<unitCurrencyInfoObjectRef\/>/.test(y)) {
       y = y.replace(/<unitCurrencyInfoObjectRef\/>/, unitXml)
@@ -706,7 +691,7 @@ function patchKyfDoc(
       )
     }
   }
-  // 最小 displayProperties（Eclipse 保存形态）
+  // 最小 displayProperties
   if (/<displayProperties\/>/.test(y)) {
     y = y.replace(
       /<displayProperties\/>/,
@@ -725,13 +710,12 @@ export interface InfoObjectCreateResult {
 }
 
 /**
- * Create InfoObject Full - 创建关键指标完整流程（2026-11-17 ZK_AMT 抓包重写）
+ * Create InfoObject Full - 创建关键指标完整流程。
  *
  * validate → lock(CREA) → POST Keyfigure(stateless) → GET → PUT 补单位/描述/
  * highPrecision → 回读校验 →（可选激活）→ finally unlock。
  *
- * 单位引用：`unitInfoObject`（如 ZC_CUR / ZC_RWCUR / 0CURRENCY）；PUT 写入
- * `infoObjectType="CHA"`（与 Eclipse 一致，即使目标是 UNI）。
+ * 单位引用经 `unitInfoObject` 在 PUT 绑定；写入时 infoObjectType 固定为 "CHA"。
  */
 export async function createInfoObjectFull(
   client: AdtHTTP,
@@ -776,7 +760,7 @@ export async function createInfoObjectFull(
   try {
     await createInfoObject(client, options, lockResult.lockHandle)
 
-    // PUT 补单位/描述（Eclipse：创建后编辑器保存）
+    // PUT 补单位/描述
     const get1 = await client.request(uri, {
       method: "GET",
       sessionType: session_types.stateless,
@@ -842,25 +826,22 @@ export async function createInfoObjectFull(
 }
 
 // ============================================================================
-// Create InfoObject CHA（特征）—— 2026-11-12 真机闭环
-// 模型: POST 骨架（服务端固定落 CHA/CHAR/5/ALPHA）→ PUT /m 补写属性 → 激活
-// 证据: VERIFIED_APIS §10（A~I 变体对照实验）
+// Create InfoObject CHA（特征）
+// POST 骨架（服务端固定落 CHA/CHAR/5/ALPHA）→ PUT /m 补写属性 → 激活
 // ============================================================================
 
 /**
- * InfoObject CHA Create Options - 创建特征选项
- *
- * dataType 恒为 CHAR（服务端骨架默认值；NUMC/DATE 等其它类型的指定机制
- * 与 KYF 同缺报文证据，实测 PUT 改 dataType 被服务端静默回退）。
+ * InfoObject CHA Create Options - 创建特征选项。
+ * dataType 恒为 CHAR；PUT 改 dataType 会被服务端静默回退。
  */
 export interface InfoObjectChaCreateOptions {
-  /** InfoObject 技术名（如 ZC_CUSTOMER，3-9 字符，字母开头） */
+  /** InfoObject 技术名（3-9 字符，字母开头） */
   name: string
   /** 描述（写 longDescription/shortDescription/texts） */
   description: string
-  /** 目标 InfoArea（如 ZGLD_TEST） */
+  /** 目标 InfoArea */
   infoArea: string
-  /** 输出长度。服务端骨架默认 5；经 PUT /m 可改（实测 5→10 落库）。 */
+  /** 输出长度。服务端骨架默认 5；经 PUT /m 可改。 */
   length?: number
   /** 主语言。缺省 ZH。 */
   masterLanguage?: string
@@ -876,7 +857,7 @@ export interface InfoObjectChaCreateOptions {
   autoActivate?: boolean
 }
 
-/** InfoObject 属性修改集（PUT /m 可落库的字段，2026-11-12 实测）。 */
+/** InfoObject 属性修改集（PUT /m 可落库的字段）。 */
 export interface InfoObjectPropertyChanges {
   description?: string
   /** 输出长度（同步写根属性 outputLength 与 <length> 元素） */
@@ -966,10 +947,8 @@ function verifyInfoObjectProperties(
 }
 
 /**
- * Apply InfoObject Properties - PUT /m 补写属性（须已持锁）
- *
- * GET /m 取 timestamp 头与文档 → 定向替换 → PUT（timestamp 头）→ GET /m 回读校验。
- * PUT 本身 stateless 可（2026-11-12 实测）；对象必须处于锁定状态。
+ * Apply InfoObject Properties - PUT /m 补写属性（须已持锁）。
+ * GET /m 取 timestamp → 定向替换 → PUT → GET /m 回读校验。
  */
 async function applyInfoObjectPropertiesUnderLock(
   client: AdtHTTP,
@@ -1016,15 +995,11 @@ export interface InfoObjectChaCreateResult {
 }
 
 /**
- * Create InfoObject CHA Full - 创建特征完整流程（2026-11-12 真机闭环）
+ * Create InfoObject CHA Full - 创建特征完整流程。
  *
- * validate InfoArea → validate 新名 → lock（parent/CREA 头）→ POST 骨架（CHA/CHAR）→
- * PUT /m 补写属性（描述/长度/InfoArea）→ 回读校验 →（可选激活）→ finally unlock。
- *
- * 服务器固定以 CHA/CHAR/5/ALPHA 骨架落库；length 可经 PUT 修改，dataType 恒为
- * CHAR（其它类型的指定机制缺报文证据，PUT 修改会被静默回退——§10）。
- *
- * @returns lockHandle + 回读校验（persisted:false 时查看 diffs）
+ * validate → lock(CREA) → POST 骨架（CHA/CHAR）→ PUT /m 补写属性 →
+ * 回读校验 →（可选激活）→ finally unlock。
+ * 服务器固定以 CHA/CHAR/5/ALPHA 骨架落库；length 可经 PUT 修改，dataType 恒为 CHAR。
  */
 export async function createInfoObjectChaFull(
   client: AdtHTTP,
@@ -1092,34 +1067,27 @@ export async function createInfoObjectChaFull(
 }
 
 // ============================================================================
-// Create InfoObject UNI（单位/币种）—— 2026-11-17 Eclipse Communication Log ZC_RWCUR
-// 模型: validate → lock(CREA) → POST Unit XML（含 unitType/referencedInfoObject）→
-//       回读校验 →（可选激活）→ finally unlock
-// POST 即带类型：xsi:type=InfoObject:Unit + infoObjectType=UNI + dataType=CUKY
-// （与 KYF「POST 只落 CHA 骨架」不同——Unit 类型在创建 POST 即生效）
+// Create InfoObject UNI（单位/币种）
+// validate → lock(CREA) → POST Unit XML → 回读校验 →（可选激活）→ unlock
+// POST 即带类型：xsi:type=Unit + infoObjectType=UNI + dataType=CUKY
 // ============================================================================
 
 /**
- * InfoObject UNI Create Options - 创建单位/币种特征
- *
- * 依据 2026-11-17 Eclipse 向导 POST ZC_RWCUR 报文。
+ * InfoObject UNI Create Options - 创建单位/币种特征。
  */
 export interface InfoObjectUnitCreateOptions {
-  /** InfoObject 技术名（如 ZC_RWCUR，3-9 字符） */
+  /** InfoObject 技术名（3-9 字符） */
   name: string
   /** 描述（longDescription / shortDescription） */
   description: string
-  /** 目标 InfoArea（如 ZBW_MDL） */
+  /** 目标 InfoArea */
   infoArea: string
   /**
    * 引用的基础单位 IOBJ。币种默认 0CURRENCY；度量可用 0UNIT。
    * POST 写入 `<referencedInfoObject name="…"/>`。
    */
   referencedInfoObject?: string
-  /**
-   * 单位大类。CUR = 币种（dataType CUKY）；缺省 CUR。
-   * 度量类（UOM 等）缺真机证据，暂不开放其它枚举。
-   */
+  /** 单位大类。CUR = 币种（dataType CUKY）；缺省 CUR。 */
   unitType?: "CUR"
   masterLanguage?: string
   responsible?: string
@@ -1148,10 +1116,7 @@ export interface InfoObjectUnitCreateResult {
   verification: InfoObjectUnitCreateVerification
 }
 
-/**
- * 与 Eclipse BWMT 向导创建 POST 同形的单位 XML（xsi:type="InfoObject:Unit"）。
- * 证据：2026-11-17 ZC_RWCUR POST body。
- */
+/** 单位创建 POST XML（xsi:type="InfoObject:Unit"）。 */
 export function buildInfoObjectUnitXml(options: InfoObjectUnitCreateOptions): string {
   const {
     name,
@@ -1169,7 +1134,7 @@ export function buildInfoObjectUnitXml(options: InfoObjectUnitCreateOptions): st
     v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
 
   const dataType = "CUKY"
-  // Eclipse：$TMP 与真实包都写 adtcore:name（ZC_CUR → "$TMP"，ZC_RWCUR → "ZBW"）
+  // $TMP 与真实包都写 adtcore:name
   const pkg = packageName || "$TMP"
   const pkgAttr = ` adtcore:name="${esc(pkg)}"`
 
@@ -1191,11 +1156,9 @@ export function buildInfoObjectUnitXml(options: InfoObjectUnitCreateOptions): st
 }
 
 /**
- * Create InfoObject Unit - POST 创建单位/币种（须已持 CREA 锁）
- *
- * POST /sap/bw/modeling/iobj/{name}?lockHandle=…[&corrNr=…]
- * Headers: Development-Class（含 $TMP）、Content-Type iobj-v2_1_0+xml
- * 会话：stateless（Eclipse ZC_RWCUR / ZC_CUR；$TMP 创建无 corrNr）
+ * Create InfoObject Unit - POST 创建单位/币种（须已持 CREA 锁）。
+ * Headers: Development-Class、Content-Type iobj-v2_1_0+xml；会话 stateless。
+ * $TMP 创建不带 corrNr。
  */
 export async function createInfoObjectUnit(
   client: AdtHTTP,
@@ -1215,11 +1178,11 @@ export async function createInfoObjectUnit(
   const headers: Record<string, string> = {
     "Content-Type": "application/vnd.sap-bw-modeling.iobj-v2_1_0+xml",
     Accept: "application/vnd.sap-bw-modeling.iobj-v2_1_0+xml",
-    // Eclipse $TMP 向导也会带包；缺省写 $TMP，避免服务端落到错误包上下文
+    // 缺省写 $TMP，避免服务端落到错误包上下文
     "Development-Class": packageName || "$TMP"
   }
 
-  // $TMP 本地对象不带 corrNr（Eclipse ZC_CUR）；真实包带 transport
+  // $TMP 本地对象不带 corrNr；真实包带 transport
   const corrNr =
     transport && packageName !== "$TMP"
       ? `&corrNr=${encodeURIComponent(transport)}`
@@ -1280,13 +1243,9 @@ function verifyCreatedUnitInfoObject(
 }
 
 /**
- * Create InfoObject Unit Full - 创建币种/单位完整流程
- *
- * validate InfoArea → validate 新名 → lock(parent/CREA) → POST Unit →
- * 回读校验 →（可选激活）→ finally unlock。
- *
- * 证据：2026-11-17 Eclipse ZC_RWCUR（POST 已含类型与引用；随后编辑器 PUT 仅为补全
- * displayProperties/texts，API 创建路径不强制 PUT）。
+ * Create InfoObject Unit Full - 创建币种/单位完整流程。
+ * validate → lock(CREA) → POST Unit → 回读校验 →（可选激活）→ finally unlock。
+ * POST 已含类型与引用；创建路径不强制后续 PUT。
  */
 export async function createInfoObjectUnitFull(
   client: AdtHTTP,
@@ -1294,7 +1253,7 @@ export async function createInfoObjectUnitFull(
 ): Promise<InfoObjectUnitCreateResult> {
   const { name, infoArea, autoActivate = true, packageName = "$TMP", transport } = options
 
-  // 非 $TMP 必须带 TR；$TMP 本地创建已由 Eclipse ZC_CUR（ZGLD_TEST）证实可行
+  // 非 $TMP 必须带 TR
   if (packageName && packageName !== "$TMP" && !transport) {
     throw new Error(
       `createInfoObjectUnitFull: packageName "${packageName}" requires transport=<TRKORR>, ` +
@@ -1357,7 +1316,6 @@ export async function createInfoObjectUnitFull(
 
 // ============================================================================
 // InfoObject 读 XML / 保存激活（存量编辑）
-// 证据：2026-11-17 Eclipse ZK_WSL PUT —— 改 unitCurrencyInfoObjectRef → ZC_RWCUR
 // ============================================================================
 
 /** IOBJ vendor media type（编辑器读写）。 */
@@ -1365,7 +1323,7 @@ export const IOBJ_CONTENT_TYPE = "application/vnd.sap-bw-modeling.iobj-v2_1_0+xm
 
 /**
  * Extract timestamp header from IOBJ XML (adtcore:changedAt).
- * "2026-11-17T03:05:32Z" → "20261117030532"
+ * 例："2026-11-17T03:05:32Z" → "20261117030532"
  */
 export function extractInfoObjectTimestamp(iobjXml: string): string | undefined {
   const m = iobjXml.match(
@@ -1421,7 +1379,7 @@ export interface UpdateInfoObjectOptions {
 
 /**
  * Update InfoObject - PUT /iobj/{name}/m?lockHandle=…
- * Headers: timestamp + optional Transport-Lock-Holder（Eclipse ZK_WSL 抓包）。
+ * Headers: timestamp + optional Transport-Lock-Holder。
  */
 export async function updateInfoObject(
   client: AdtHTTP,
@@ -1463,8 +1421,7 @@ export interface SaveAndActivateInfoObjectOptions {
 }
 
 /**
- * Save and Activate InfoObject — lock → transport → PUT → activate → unlock.
- * 证据：2026-11-17 ZK_WSL（改单位引用 ZC_RWCUR 后激活）。
+ * Save and Activate InfoObject — lock → transport → PUT → activate → unlock。
  */
 export async function saveAndActivateInfoObject(
   client: AdtHTTP,

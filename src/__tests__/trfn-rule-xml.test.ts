@@ -5,15 +5,12 @@ import {
 } from "../api/transformation"
 
 /**
- * 纯 XML 辅助函数测试 — 对照 Eclipse Communication Log (2026-07-16 09:45:15 PUT body)
- *
- * 验证 addTransformationRule 生成的 DIRECT rule XML 与 Eclipse 结构一致;
- * autoMapTransformationFields 批量同名映射。
+ * 纯 XML 辅助函数测试：DIRECT rule 结构、autoMap 同名映射。
  * 无网络依赖。
  */
 
 // 从 PUT body 精简的 TRFN XML: source 有 BUDAT/ZXMBH, target 有 BUDAT/ZXMBH/0RECORDMODE,
-// Rules group (type="S") 为空。命名空间和结构与 Eclipse log 一致。
+// Rules group (type="S") 为空。命名空间与结构与 PUT body 一致。
 const SAMPLE_TRFN_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <trfn:transformation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:BwCore="http://www.sap.com/bw/modeling/BwCore.ecore" xmlns:adtcore="http://www.sap.com/adt/core" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:trfn="http://www.sap.com/bw/modeling/Trfn.ecore" name="0MLYMXOXL67GTF38FT1WJG9SM0DJG60G">
   <tlogoProperties adtcore:changedAt="2026-07-16T01:39:59Z" adtcore:name="0MLYMXOXL67GTF38FT1WJG9SM0DJG60G" adtcore:type="TRFN" adtcore:version="inactive"/>
@@ -71,8 +68,8 @@ const SAMPLE_TRFN_XML = `<?xml version="1.0" encoding="UTF-8"?>
   </group>
 </trfn:transformation>`
 
-describe("Transformation rule XML helpers (对照 Eclipse PUT body)", () => {
-  test("addTransformationRule() - 插入 DIRECT rule, 结构与 Eclipse log 一致", () => {
+describe("Transformation rule XML helpers", () => {
+  test("addTransformationRule() - 插入 DIRECT rule 结构", () => {
     const next = addTransformationRule(SAMPLE_TRFN_XML, "BUDAT")
 
     // rule id 应为 1 (原 group 为空)
@@ -192,7 +189,7 @@ const PAIRED_TRFN_XML = `<?xml version="1.0" encoding="UTF-8"?>
   </group>
 </trfn:transformation>`
 
-describe("addPairedAmountCurrencyRule（Eclipse rule 113）", () => {
+describe("addPairedAmountCurrencyRule（rule 113 形态）", () => {
   test("生成 FROM_SOURCE 成对规则：金额 MAIN、币种 MINOR，step 无 unitCurrency", () => {
     const next = addPairedAmountCurrencyRule(PAIRED_TRFN_XML)
     expect(next).toContain('conversiontype="FROM_SOURCE"')

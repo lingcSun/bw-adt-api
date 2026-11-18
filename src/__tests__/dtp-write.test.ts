@@ -2,9 +2,9 @@ import { BWAdtClient } from "../BWAdtClient"
 import { describeLive, testLive } from "./helpers/liveSystem"
 
 /**
- * DTP 写操作验证 - 对照 Eclipse "修改DTP→新建TR→保存→激活" 的 Communication Log
+ * DTP 写操作验证（修改 → 新建 TR → 保存 → 激活）
  *
- * 完整写操作序列 (Eclipse 日志):
+ * 完整写操作序列:
  *   15:40:20  POST /dtpa/{id}?action=lock                    [stateful,enqueue]
  *   15:40:20  POST /cts/transportchecks                       [stateless]
  *   15:40:58  POST /cts/transports (新建TR)                   [ModalContext]
@@ -97,7 +97,7 @@ describeLive("DTP 写操作流程", () => {
   }, 30000)
 
   // ✅ 步骤 4: 完整保存流程 (读回→原样写回,不修改内容)
-  // 注意: 此测试会实际执行写操作。若对象被其他会话(Eclipse)锁定会失败。
+  // 注意: 此测试会实际执行写操作。若对象被其他会话锁定会失败。
   test("saveAndActivateDTP() - 读回原样写回 (不修改内容)", async () => {
     // 先读取当前 DTP 的原始 XML
     const raw = await client.getDTP(TEST_DTP, true)
@@ -130,7 +130,7 @@ describeLive("DTP 写操作流程", () => {
     } catch (e: any) {
       // 对象被其他会话锁定属于环境问题,不算代码 bug
       if (/lock handle.*could not be created/i.test(e.message || "")) {
-        console.log(`\n⚠ 对象被其他会话锁定 (可能 Eclipse 开着),跳过实际保存`)
+        console.log(`\n⚠ 对象被其他会话锁定,跳过实际保存`)
         console.log(`GET/lock/transportCheck 已验证通过,update 流程代码正确\n`)
         return // skip
       }

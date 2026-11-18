@@ -156,11 +156,11 @@ describeLive("BW Search Tests", () => {
   }, 30000)
 
   /**
-   * Test case based on actual Communication Log:
+   * Reference request:
    * Request: GET /sap/bw/modeling/repo/is/bwsearch?searchTerm=ZSD001&searchInName=true&searchInDescription=true&objectType=&createdOnFrom=1970-01-01T00:00:00Z&createdOnTo=2026-03-12T23:59:59Z&changedOnFrom=1970-01-01T00:00:00Z&changedOnTo=2026-03-12T23:59:59Z
    * Expected: One ADSO with objectName="ZSD001", objectType="ADSO", technicalObjectName="ZSD001", objectStatus="active", objectVersion="M"
    */
-  test("should search for ZSD001 ADSO - based on communication log", async () => {
+  test("should search for ZSD001 ADSO", async () => {
     const results = await client.searchBWObjects({
       searchTerm: "ZSD001",
       searchInName: true,
@@ -175,7 +175,7 @@ describeLive("BW Search Tests", () => {
     expect(results).toBeDefined()
     expect(Array.isArray(results)).toBe(true)
 
-    console.log(`\n========== Search: ZSD001 (Communication Log) ==========`)
+    console.log(`\n========== Search: ZSD001 ==========`)
     console.log(`Found ${results.length} result(s)`)
     results.forEach((item, index) => {
       console.log(`  [${index + 1}] ${item.title || item.objectName}`)

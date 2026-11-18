@@ -1,14 +1,14 @@
 /**
- * 建模域裸 activate 正名 + 自管实现（2026-09-22，离线）。
+ * 建模域裸 activate + 自管实现（离线）。
  *
- * 用户确认存在纯激活场景（重激活已保存对象，如 TRFN 变更后 DTP 被取消激活
- * 需重激活），`activate` 正名为 modeling 家族动词；adso/trfn 补自管锁的
+ * 存在纯激活场景（重激活已保存对象，如 TRFN 变更后 DTP 被取消激活需重激活），
+ * `activate` 纳入 modeling 家族动词；adso/trfn 补自管锁的
  * activate（与 saveAndActivate/delete 同模式：lock → activate → finally
  * 吞错 unlock），dtp 既有 activate 的裸 finally 修复（unlock 抛错不再掩盖
  * 激活原异常）。与 delete 的差别：激活不释放锁（BWObject.delete 内部自带
  * 吞错 unlock），故 activate 在成功路径也必须域级 unlock——始终 unlock。
  * `.advanced.activate` 保持调用方持锁语义不变（两契约隔离）。
- * dataSource 不加 activate（无独立激活实测记录，分类学边界纪律）。
+ * dataSource 不加 activate（分类学边界纪律）。
  *
  * 全部断言离线可得：api 模块 spyOn 原位打桩 + {} as AdtHTTP，不发网络请求、
  * 不读 .env、不用 describeLive。
@@ -23,8 +23,7 @@ import { DtpDomain } from "../domains/dtp"
 import { DataSourceDomain } from "../domains/dataSource"
 import { getDomain, VERB_FAMILIES } from "../domains/registry"
 
-// spyOn 原位打桩（真模块单实例就地替换；不用 jest.mock 工厂——双实例坑见
-// verb-family-audit / adso-model 笔记）
+// spyOn 原位打桩（真模块单实例就地替换；不用 jest.mock 工厂，避免双实例）
 const mockedADSOLock = jest.spyOn(adsoApi, "lockADSO") as jest.Mock
 const mockedADSOUnlock = jest.spyOn(adsoApi, "unlockADSO") as jest.Mock
 const mockedADSOActivate = jest.spyOn(adsoApi, "activateADSO") as jest.Mock
@@ -171,7 +170,7 @@ describe("dtp.activate 既有链路：finally 吞错修复（unlock 抛错不掩
   })
 })
 
-describe("family 正名 + 注册表同步 + dataSource 边界", () => {
+describe("family 注册：activate + dataSource 边界", () => {
   test("VERB_FAMILIES.modeling 含 activate", () => {
     expect(VERB_FAMILIES.modeling).toContain("activate")
   })
@@ -180,7 +179,7 @@ describe("family 正名 + 注册表同步 + dataSource 边界", () => {
     expect(getDomain(name)?.verbs).toContain("activate")
   })
 
-  test("dataSource 刻意不加 activate（无独立激活实测记录，边界纪律）", () => {
+  test("dataSource 刻意不加 activate（边界纪律）", () => {
     const methods = Object.getOwnPropertyNames(
       Object.getPrototypeOf(new DataSourceDomain(h))
     ).filter(n => n !== "constructor")

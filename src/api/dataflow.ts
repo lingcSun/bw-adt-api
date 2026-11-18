@@ -122,7 +122,7 @@ export interface DataflowOptions {
  * 返回的节点中,TRFN/DTPA 节点的 description 格式为 "SOURCE -> TARGET",
  * 已自动解析为结构化的 relations 列表。
  *
- * 实测 (ZL_FID40, direction="upstream"): 40 个节点,覆盖来源链
+ * direction="upstream" 返回上游血缘节点
  *   DataSource → TRFN → ADSO → ... → ZL_FID40
  *
  * @param client - ADT HTTP 客户端
@@ -170,10 +170,9 @@ export async function getDataflow(
  *
  * 内部调用 getDataflow 获取完整血缘图,然后过滤出 sourceName 和 targetName 同时匹配的关系。
  *
- * 实测 (source="ZL_FID01", target="ZL_FID40"): 返回 2 条关系
+ * 按 source/target 过滤数据流关系
  *   - TRFN 0H519LNPR8FQY94PC60F48MJH87KEUT3
- *   - DTPA DTP_ET0916OM0DNHSHAP1BKTB6DJP
- *
+  *
  * @param client - ADT HTTP 客户端
  * @param targetName - 目标对象名称 (如 "ZL_FID40")
  * @param sourceName - 源对象名称 (如 "ZL_FID01")

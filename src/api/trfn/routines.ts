@@ -1,8 +1,6 @@
 /**
  * TRFN 例程子域 —— ensure START/END 例程（HTTP 链路）与例程字段/纯 XML 构造。
  *
- * P1B Task 3 从 src/api/transformation.ts 机械搬迁（函数体零修改；
- * 唯一例外: 动态 import 的模块说明符 "./abapClass" 随文件位置改为 "../abapClass"）。
  * 家族内依赖方向: 本模块 → ../transformation（core 保存/激活原语）与 → ./shared；
  * 无人依赖本模块 —— transformation.ts 仅按名重导出（兼容桶）。
  */
@@ -23,7 +21,7 @@ import { deriveRoutineClassName, nextRuleId } from "./shared"
 export interface EnsureRoutineOptions extends SaveAndActivateTransformationOptions {
   /** END：勾进例程的目标字段；START：源字段 */
   fields?: string[]
-  /** 保存后是否激活 AMDP 类（默认 true；Eclipse：先激活类再激活 TRFN） */
+  /** 保存后是否激活 AMDP 类（默认 true；须先激活类再激活 TRFN） */
   activateClass?: boolean
 }
 
@@ -41,7 +39,7 @@ export interface EnsureRoutineResult {
 }
 
 /**
- * 确保 TRFN 有结束例程（Eclipse 抓包链路）：
+ * 确保 TRFN 有结束例程：
  * 1) PUT 挂 END 规则（含 classNameM）→ 服务端铸 AMDP 类壳
  * 2) 可选勾选 target 字段（addFieldToEndRoutine）
  * 3) 激活 AMDP 类（/sap/bc/adt/activation）
@@ -95,7 +93,7 @@ async function ensureRoutine(
     }
   }
 
-  // 先只保存，等类激活后再激活 TRFN（对齐 Eclipse）
+  // 先只保存，等类激活后再激活 TRFN
   const saveResult = await saveAndActivateTransformation(client, trfnId, xml, {
     transport: options?.transport,
     createTransport: options?.createTransport,
@@ -181,7 +179,7 @@ export function isEndRoutineFieldSelected(trfnXml: string, fieldName: string): b
 }
 
 /**
- * 将目标字段勾进结束例程 setFields (对照 Eclipse SetGlobalRoutineFieldsAction)
+ * 将目标字段勾进结束例程 setFields
  *
  * XML 变更点:
  * 1. END rule 增加 <target id="N"><elementRef>#///target/segment1/{field}</elementRef></target>
@@ -515,7 +513,7 @@ function insertRoutineRuleIntoGGroup(trfnXml: string, ruleXml: string): string {
 }
 
 /**
- * 确保 TRFN XML 含 END 例程规则（对照 Eclipse：PUT 挂 routinetype=END + classNameM，服务端铸 AMDP 类）。
+ * 确保 TRFN XML 含 END 例程规则（PUT 挂 routinetype=END + classNameM，服务端铸 AMDP 类）。
  * 已存在则幂等返回。
  */
 export function ensureEndRoutineInXml(

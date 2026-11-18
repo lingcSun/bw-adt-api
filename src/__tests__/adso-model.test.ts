@@ -1,5 +1,5 @@
 /**
- * AdsoModel——水合式 ADSO 编辑模型（P2 Task 1，离线）。
+ * AdsoModel——水合式 ADSO 编辑模型（离线）。
  *
  * 语义契约：
  * - hydrate 用 forceCacheUpdate=true 全新读（getADSOXml spyOn 拦截）；
@@ -13,8 +13,7 @@
  * （同一批纯函数的最小可用形态：一个 element + 一个 keyElement + 闭合标签）。
  * mock 用 jest.spyOn 就地替换模块导出、不设 jest.mock 工厂：工厂（含
  * requireActual 展开）与多入口的 ../model 导入图相遇时会产生第二份模块
- * 实例，getADSOXml 拿到未配置副本（jest 30 + ts-jest 29 实测，见
- * 2026-09-22-adso-model.md）。全部断言离线可得：不发网络请求、不读
+ * 实例，getADSOXml 会拿到未配置副本。全部断言离线可得：不发网络请求、不读
  * .env、不用 describeLive。
  */
 import type { AdtHTTP } from "../AdtHTTP"
@@ -181,7 +180,7 @@ describe("AdsoModel.plan", () => {
   })
 })
 
-describe("AdsoModel op 不可变（冻结账本，P2 遗留收口）", () => {
+describe("AdsoModel op 不可变（冻结账本）", () => {
   test("入账的 op 记录与 args 数组均被 Object.freeze", async () => {
     const model = await hydrated()
     model.addField({ name: "ZAPI_FLD", dataType: "CHAR" as const, length: 20 })

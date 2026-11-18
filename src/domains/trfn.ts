@@ -23,12 +23,9 @@ export class TrfnDomain {
   }
 
   /**
-   * Transformation 是否存在（动词族审计补齐）。转发 validateTransformationExists
-   * 并归一为 boolean。实测（API_REFERENCE validateTransformationExists 行）：
-   * 存在 → valid=true；不存在 → validation 端点直接报错而非 valid=false——
-   * AdtError（含 not-found 形态；消息可能随 BW_LANGUAGE 本地化，不做消息匹配）
-   * 归 false。HttpClientException（传输层失败）原样重抛——网络故障不伪装成
-   * 「不存在」（语义见 2026-09-22-exists-error-semantics.md）。
+   * Transformation 是否存在。转发 validateTransformationExists 并归一为 boolean。
+   * 存在 → true；不存在时 validation 端点常直接报错 → 归 false。
+   * HttpClientException 原样重抛，不伪装成「不存在」。
    */
   async exists(trfnId: string) {
     try {
@@ -41,12 +38,9 @@ export class TrfnDomain {
   }
 
   /**
-   * 激活 Transformation（自管锁；2026-09-22 正名为 modeling 家族动词）：重激活
-   * 已保存对象（纯激活场景，如例程变更后重激活）。内部 lockTransformation →
-   * activateTransformation（lockHandle——api 层签名无 transport 参数，账本亦无
-   * TRFN 激活 corrNr 的实测记录）→ 始终 unlock——激活不像 delete 会释放锁，成功路径
-   * 也要域级 unlock；unlock 失败吞错，不掩盖激活的原异常。自管锁；调用方持锁
-   * 用 `.advanced.activate`（两契约隔离）。
+   * 激活 Transformation（自管锁）：重激活已保存对象。
+   * lock → activate → 始终 unlock；unlock 失败吞错。
+   * 调用方持锁用 `.advanced.activate`。
    */
   async activate(trfnId: string) {
     const lock = await trfn.lockTransformation(this.h, trfnId)
@@ -69,10 +63,7 @@ export class TrfnDomain {
     return trfn.saveAndActivateTransformation(this.h, trfnId, xmlContent, options)
   }
 
-  /**
-   * 创建 TRFN（8TRANSIENT 瞬态流，api 层 createTransformation 的门面转发）。
-   * 2026-09-19 复测 F6：门面此前缺创建入口，只能绕到 client/BWAdtClient。
-   */
+  /** 创建 TRFN（8TRANSIENT 瞬态流）。 */
   create(options: trfn.CreateTransformationOptions) {
     return trfn.createTransformation(this.h, options)
   }
@@ -109,12 +100,8 @@ export class TrfnDomain {
   }
 
   /**
-   * Advanced 子面：调用方持锁原语（lock/unlock/activate/update），逐参镜像
-   * api 层裸函数——锁的获取与释放归调用方，与门面自管动词
-   * （saveAndActivate/delete：内部 lock→…→unlock/finally）的锁契约相互隔离。
-   * 子面访问器，不属于 verbs 家族表（domain-registry 一致性断言显式排除
-   * `advanced`）。弃用的 flat 方法（client.lockTransformation 等）由此有了
-   * 正名入口。
+   * Advanced 子面：调用方持锁原语（lock/unlock/activate/update）。
+   * 与门面自管动词锁契约隔离；不属于 verbs 家族表。
    */
   get advanced() {
     return Object.freeze({
@@ -132,14 +119,9 @@ export class TrfnDomain {
   }
 
   /**
-   * 删除 Transformation（自管锁）：内部先取域锁（lockTransformation，stateful）→
-   * BWObject.delete lockHandle 模式（VERIFIED_APIS 第 6/8 节端到端实测）→ 成功即
-   * 返回、不追加门面级 unlock——BWObject.delete 内部已含一次吞错的 unlock
-   * （bwObject.ts），卡带证据为 lock→DELETE→unlock 全 200；delete 失败时锁还
-   * 挂着，做一次 best-effort unlock（吞错，不掩盖原异常）再上抛。
-   * 可选 transport 作 corrNr——必须是请求号而非任务号（见 BWObject.delete）。
-   * 0.x 行为变化（2026-09-22）：lockHandle 不再是调用方输入；此前只能经已弃用的
-   * flat client.lockTransformation 自取锁，锁的获取倒挂在调用方身上。
+   * 删除 Transformation（自管锁）：lock → BWObject.delete(lockHandle)。
+   * 成功路径由 delete 内部 unlock；失败时 best-effort unlock 后上抛。
+   * 可选 transport 作 corrNr（须为请求号）。
    */
   async delete(trfnId: string, options?: { transport?: string }) {
     const lock = await trfn.lockTransformation(this.h, trfnId)

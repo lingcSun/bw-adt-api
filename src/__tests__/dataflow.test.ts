@@ -2,7 +2,7 @@ import { BWAdtClient } from "../BWAdtClient"
 import { describeLive, testLive } from "./helpers/liveSystem"
 
 /**
- * DMOD 数据流接口验证 - 对照 Eclipse 数据流图抓包
+ * DMOD 数据流接口验证
  *
  * 日志请求: GET /sap/bw/modeling/dmod/8TRANSIENT?objecttype=ADSO&objectname=ZL_FID40&leveldownwards=-1
  * 返回 16.6KB,40 个节点,完整血缘链

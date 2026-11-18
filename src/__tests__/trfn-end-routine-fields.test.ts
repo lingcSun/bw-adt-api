@@ -7,7 +7,7 @@ import {
 import { describeLive, testLive } from "./helpers/liveSystem"
 
 /**
- * 结束例程 setFields XML 辅助 — 对照 Eclipse SetGlobalRoutineFieldsAction PUT body
+ * 结束例程 setFields XML 辅助（SetGlobalRoutineFieldsAction PUT body）
  */
 
 const SAMPLE_TRFN = `<?xml version="1.0" encoding="UTF-8"?>
@@ -98,7 +98,7 @@ describeLive("TRFN end routine setFields XML helpers", () => {
   })
 
   test("removeFieldFromEndRoutine() - 紧凑 XML / 属性顺序 description+id", () => {
-    // 服务端读回形态 (Eclipse PUT 后 GET)
+    // 服务端读回形态 (PUT 后 GET)
     const compact = SAMPLE_TRFN.replace(
       "</group>\n</trfn:transformation>",
       `<rule description="" id="53"><target id="1"><output>#///group1/rule53/step1/output1</output><elementRef>#///target/segment1/ZC_JTL4</elementRef></target><step xsi:type="trfn:StepNoUpdate" id="1" type="NO_UPDATE" rank="MAIN"><output id="1"><input>#///group1/rule53/target1</input><element xsi:type="trfn:TransformationElement" name="ZC_JTL4" dimension="#///target/segment1/CHA§"><endUserTexts label="ZC_JTL4"/><inlineType name="CHAR" length="3"/></element></output></step></rule></group>

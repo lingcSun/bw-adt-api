@@ -1,7 +1,7 @@
 /**
- * V5 修复回归锁（2026-09-20）：nodepath 双重编码。
- * 事实链：qs 值走 axios params（单次 encodeURIComponent）；调用方再预编码会上线
- * 成 %252F...，服务端报「Data type "" does not exist」。Eclipse 线上形态为单次编码。
+ * nodepath 双重编码回归锁。
+ * qs 值走 axios params（单次 encodeURIComponent）；调用方再预编码会
+ * 成 %252F...，服务端报「Data type "" does not exist」。服务端期望单次编码。
  * 本测试锁定：getADSONodePath 传给 request 的 qs 必须是原始 URI 字符串。
  */
 import { getADSONodePath } from "../api/adso"
@@ -17,7 +17,7 @@ const ATOM_FEED = `<?xml version="1.0"?>
   </atom:entry>
 </atom:feed>`
 
-describe("getADSONodePath 编码契约（V5）", () => {
+describe("getADSONodePath 编码契约", () => {
   test("qs.objectUri 是原始 URI，不含 %2F 预编码", async () => {
     let captured: Record<string, unknown> | undefined
     const fake = {

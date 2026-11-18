@@ -229,7 +229,7 @@ export async function validateTemplateADSO(
 /**
  * 模板 tlogo → validation objectType 映射。
  *
- * 实测 (2026-09-20, 见 docs/VERIFIED_APIS.md 第 6 节): validation 端点接受的
+ * validation 端点接受的
  * objectType 只有 ADSO / IOBJ / RSDS；tlogo 的 "DSO" 须映射为 "RSDS"，
  * "ISRC" 无对应 token（返回 undefined，调用方应跳过预检、交给服务端裁决）。
  */
@@ -308,7 +308,7 @@ export async function createADSO(
 
   // 非 $TMP 包必须有 transport：否则服务器会静默落回 $TMP，对象不进任何请求。
   // 显式要了真实包却没给请求号是调用方错误，宁可报错也不要静默降级
-  // （实测：packageName="ZBW" 无 transport 时对象落 $TMP 且不报错）。
+  // packageName 非 $TMP 且无 transport 时对象可能静默落 $TMP。
   if (packageName && packageName !== "$TMP" && !transport) {
     throw new Error(
       `createADSO: packageName "${packageName}" requires a transport request number — ` +
@@ -370,8 +370,7 @@ export async function getADSONodePath(
   version: "m" | "a" | "d" = "m"
 ): Promise<NodePathEntry[]> {
   // qs 值由传输层（axios params）单次编码——这里不能预编码，否则上线双重编码
-  // （%252F...），服务端报「Data type "" does not exist」（V5，2026-09-20 真机
-  // 三组对照定位；Eclipse 线上形态即单次编码，nodepath 本身对 adso/iobj URI 均可用）。
+  // 双重编码（%252F...）会导致「Data type "" does not exist」；qs 单次编码即可。
   const objectUri = `/sap/bw/modeling/adso/${adsoName.toLowerCase()}/${version}`
 
   const response = await client.request("/sap/bw/modeling/repo/nodepath", {
@@ -766,7 +765,7 @@ export async function saveAndActivateADSO(
 }
 
 export type AddADSOKeyOptions = {
-  /** inlineType 长度，默认 40（唯一实测值） */
+  /** inlineType 长度，默认 40 */
   length?: number
   /** 加键后是否立即激活。默认 false——空白 ADSO 只有键没有字段时激活会报
    * 「需至少一个字段」；先 addKey 再 addField 的流程让 addField 负责激活。 */
@@ -776,8 +775,7 @@ export type AddADSOKeyOptions = {
 /**
  * Add ADSO Key - 给 ADSO 加键定义（addADSOKeyToXml 的写编排包装）。
  *
- * 2026-09-20 端到端实测：空白创建 → addKey(0MATERIAL, 不激活) → addField(激活)
- * → 对象激活成功。见 VERIFIED_APIS F3。
+ * 典型流程：空白创建 → addKey（不激活）→ addField（激活）→ 对象激活成功。
  *
  * @param client - ADT HTTP 客户端
  * @param adsoId - ADSO ID
@@ -831,7 +829,7 @@ export async function createADSOFull(
 
   if (template) {
     // 按 tlogo 映射 validation objectType（IOBJ/RSDS 模板按 ADSO 校验会误报不存在，
-    // 见 2026-09-19 复测 F4 与 2026-09-20 实测）；ISRC 无合法 token，跳过预检。
+    // ISRC 无合法 validation token，跳过预检。
     const validationType = templateValidationObjectType(template.type)
     if (validationType) {
       const templateValid = await validateObject(
@@ -899,25 +897,22 @@ export async function createADSOFull(
 }
 
 /**
- * Field 类型字段定义 (本地字段或 InfoObject 引用)
+ * Field 类型字段定义（本地字段或 InfoObject 引用）。
  *
- * 本地字段 Eclipse 特征: 无 infoObjectName / atom:link, sidDeterminationMode="N",
- * 标签放在 localProperties/descriptions/@label。
+ * 本地字段：无 infoObjectName / atom:link，sidDeterminationMode="N"，
+ * 标签在 localProperties/descriptions/@label。
  *
- * 金额↔币种（2026-11-17 实测，ZL_FID01/ZL_FID15）：
- * - 本地 CUKY 必须带 outputLength + semanticType=currencyCode + consumptionViewProperties，
- *   否则 KYF 的 unitCurrencyElement 指向它时激活会被打回 0CURRENCY。
- * - **挂真 IOBJ**（Eclipse 搜索挂载，2026-11-17 ZL_FID01 PUT）：用 hang 骨架
- *   （keep/displayFolder/inlineType/associationType），**不要**带 atom:link /
- *   localProperties / consumptionViewProperties；UNI 默认 dim=UNI、sid=S、
- *   baseInfoObjectName=0CURRENCY；KYF 带 unitCurrencyElement、sid=N。
+ * 金额↔币种：
+ * - 本地 CUKY 须带 outputLength + semanticType=currencyCode + consumptionViewProperties，
+ *   否则 KYF 的 unitCurrencyElement 指向它时激活会失败。
+ * - 挂载 IOBJ：用 hang 骨架（keep/displayFolder/inlineType/associationType），
+ *   不要带 atom:link / localProperties / consumptionViewProperties；
+ *   UNI 默认 dim=UNI、sid=S、baseInfoObjectName=0CURRENCY；
+ *   KYF 带 unitCurrencyElement、sid=N。
  */
 export interface ADSOFieldDefinition {
   name: string
-  /**
-   * 引用的 InfoObject 技术名。给定即按 IOBJ hang 骨架生成元素
-   * （2026-11-17 Eclipse ZL_FID01：ZC_RWCUR/ZK_WSL）。
-   */
+  /** 引用的 InfoObject 技术名。给定即按 IOBJ hang 骨架生成元素。 */
   infoObjectName?: string
   /**
    * 挂载 IOBJ 类型。省略时：有 unitCurrencyElement → KYF；
@@ -940,7 +935,7 @@ export interface ADSOFieldDefinition {
   scale?: number
   /**
    * 金额字段绑定的币种/单位字段（ADSO 内 element name）。
-   * 可传 `ZC_RWCUR` 或 `#///ZC_RWCUR`；写入为 `<unitCurrencyElement>#///ZC_RWCUR</unitCurrencyElement>`。
+   * 可传 `NAME` 或 `#///NAME`；写入为 `<unitCurrencyElement>#///NAME</unitCurrencyElement>`。
    */
   unitCurrencyElement?: string
   /** 聚合行为；KYF/CURR 默认 SUM；UNI hang 默认 NONE */
@@ -1003,13 +998,12 @@ function resolveInfoObjectHangType(
 }
 
 /**
- * 构建 IOBJ hang 字段 element XML（Eclipse 搜索挂载骨架）。
+ * 构建 IOBJ hang 字段 element XML。
  *
- * 证据 2026-11-17 ZL_FID01 PUT：
- * - UNI `ZC_RWCUR`：keep/NONE/sid=S/baseInfoObjectName=0CURRENCY + inlineType CUKY
- * - KYF `ZK_WSL`：keep/SUM/sid=N + unitCurrencyElement + inlineType CURR
+ * - UNI：keep/NONE/sid=S/baseInfoObjectName=0CURRENCY + inlineType CUKY
+ * - KYF：keep/SUM/sid=N + unitCurrencyElement + inlineType CURR
  * - 均无 atom:link / localProperties / consumptionViewProperties（服务器水合）
- * CHA 仍可用极简 name+infoObjectName（2026-09 F11）。
+ * - CHA：极简 name+infoObjectName
  */
 export function buildADSOInfoObjectElementXml(field: ADSOFieldDefinition): string {
   if (!field.infoObjectName) {
@@ -1061,7 +1055,7 @@ export function buildADSOInfoObjectElementXml(field: ADSOFieldDefinition): strin
     )
   }
 
-  // CHA：保留 F11 极简形态（服务器水合）
+  // CHA：极简形态（服务器水合）
   const rawDim = field.dimension || "CHA"
   const dimension = rawDim.startsWith("#") ? rawDim : `#///${rawDim}§`
   const descriptions = field.label
@@ -1076,7 +1070,7 @@ export function buildADSOInfoObjectElementXml(field: ADSOFieldDefinition): strin
 }
 
 /**
- * 本地币种字段（CUKY）完整形态 —— 对照 ZL_FID01 RWCUR（2026-11-17）。
+ * 本地币种字段（CUKY）完整形态。
  * 残缺形态（semanticType=empty、无 consumptionView）会导致金额 unitCurrency 绑定激活失败。
  */
 function buildLocalCurrencyElementXml(field: ADSOFieldDefinition): string {
@@ -1092,15 +1086,15 @@ function buildLocalCurrencyElementXml(field: ADSOFieldDefinition): string {
 }
 
 /**
- * 构建 field 类型 element XML 片段
- * 对照 AUGBL / SGTXT / ZC_MATNR 等本地字段节点；CUKY 走完整币种形态。
+ * 构建 field 类型 element XML 片段。
+ * 本地字段走通用节点；CUKY 走完整币种形态。
  *
  * dimension 入参支持两种写法:
  *   - 短名 (如 "CHA"/"__NON_KEY"): 拼成 "#///CHA§"/"#///__NON_KEY§"
  *   - 完整 (如 "#///__NON_KEY§"): 原样使用
  */
 export function buildADSOFieldElementXml(field: ADSOFieldDefinition): string {
-  // IOBJ 引用字段（F11）走独立构建器
+  // IOBJ 引用字段走独立构建器
   if (field.infoObjectName) {
     return buildADSOInfoObjectElementXml(field)
   }
@@ -1158,17 +1152,17 @@ function escapeXmlAttr(value: string): string {
 }
 
 /**
- * 向 ADSO XML 添加键定义（2026-09-20 实测闭环，VERIFIED_APIS F3）。
+ * 向 ADSO XML 添加键定义。
  *
  * 激活要求键 = `<keyElement>#///{iobj}</keyElement>` + 一个**同名引用元素**，
  * 且该元素必须带 `inlineType`（含 `globalElementName`）——裸引用元素（无
- * inlineType）会被服务器 500 拒绝。本函数发射与实测通过完全一致的形态。
+ * inlineType）会被服务器 500 拒绝。
  *
  * - 已有引用该 iobj 的 keyElement 时幂等返回原文
  * - 已有同名元素但缺 keyElement 时仅补 keyElement
- * - 否则在 </adso:dataStore> 前追加 元素 + keyElement（实测被接受的排布）
+ * - 否则在 </adso:dataStore> 前追加 element + keyElement
  *
- * length 仅实测过 40（0MATERIAL）；服务器是否校验长度未验证。
+ * length 默认 40；服务器是否校验其它长度未文档化。
  */
 export function addADSOKeyToXml(
   adsoXml: string,
@@ -1216,7 +1210,7 @@ export function addADSOFieldToXml(adsoXml: string, field: ADSOFieldDefinition): 
   if (new RegExp(`<element[^>]*\\sname="${field.name}"`).test(adsoXml)) {
     throw new Error(`Field "${field.name}" already exists in ADSO XML`)
   }
-  // F3 fail-fast: 无键定义的 ADSO 能 PUT 但激活必报「Key definition missing」，
+  // 无键定义的 ADSO 能 PUT 但激活必报「Key definition missing」——
   // 对象卡 inactive。提前给出可操作的指引。
   if (!/<keyElement[\s>]/.test(adsoXml)) {
     throw new Error(

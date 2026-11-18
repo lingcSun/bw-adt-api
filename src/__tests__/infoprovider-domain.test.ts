@@ -1,7 +1,7 @@
 /**
- * infoProvider 多态域（P1 Task 3 判别 + P2 Task 2 hydrate 分发，离线）。
+ * infoProvider 多态域（判别 + hydrate 分发，离线）。
  *
- * 判别规则（唯一诚实可用版，见域分类学笔记）：
+ * 判别规则（v1 仅 ADSO 已验证路径）：
  * - details(name) 经 api/search 精确名搜索取 objectType：
  *   ADSO → 转发 AdsoDomain.details；其余类型 → 抛 not verified yet；无命中 → not found；
  * - exists(name) = 精确名命中与否；
@@ -11,7 +11,7 @@
  *
  * api/search、api/adso.getADSOXml 与 AdsoDomain.details 全部以 jest.spyOn
  * 就地替换（一律不设 jest.mock 工厂：工厂与多入口的 ../model 导入图相遇
- * 会产生第二份模块实例，见 2026-09-22-adso-model.md）——
+ * 会产生第二份模块实例）——
  * 不发网络请求、不读 .env、不用 describeLive。
  */
 import type { AdtHTTP } from "../AdtHTTP"
@@ -140,7 +140,7 @@ describe("InfoProviderDomain.exists 精确名命中", () => {
   })
 })
 
-describe("InfoProviderDomain.hydrate 判别（P2 Task 2：ADSO → AdsoModel）", () => {
+describe("InfoProviderDomain.hydrate 判别（ADSO → AdsoModel）", () => {
   const domain = new InfoProviderDomain(h)
 
   // 最小可用 ADSO XML（只验证「读到的 XML 成为工作副本」，不含结构断言）

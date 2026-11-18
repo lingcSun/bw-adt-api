@@ -10,12 +10,12 @@ import { fullParse, xmlNodeAttr, xmlArray } from "../utilities"
 /**
  * DataSource Proposal/Merge 接口验证
  *
- * 对照 Eclipse Communication Log (2026-07-29 15:52:13):
+ * merge 端点:
  *   POST /sap/bw/modeling/rsdsint/proposal/0ASSET_ATTR_TEXT/S4DCLNT300?action=merge
  *     请求 Content-Type: application/vnd.sap.bw.modeling.rsds+xml
  *     响应 Content-Type: application/vnd.sap.bw.modeling.rsdsint+xml
  *
- * 触发场景 (Eclipse): 修改 DataSource 的 ODP 适配器后, 向导进入对比页 (ComparisonPage)
+ * 触发场景: 修改 DataSource 的 ODP 适配器后, 向导进入对比页 (ComparisonPage)
  *   时调用此接口, 把外部 ODP 字段结构合并回 DataSource。纯计算, 不修改系统状态。
  *
  * 请求体: 当前 DataSource 完整 XML (从 getDataSourceXml 获取)

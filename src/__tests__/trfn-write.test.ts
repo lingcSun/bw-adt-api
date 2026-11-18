@@ -8,7 +8,7 @@ import {
 
 /**
  * TRFN 写操作 / 结束例程 setFields 验证
- * 对照 Eclipse Communication Log 20:00:
+ * 典型写序列:
  *   lock → transportchecks → PUT .../m?lockHandle=... + Transport-Lock-Holder
  *   → (随后进入 ABAP 例程编辑, 本测试不覆盖源码写入)
  *
@@ -45,7 +45,7 @@ describeLive("TRFN 写操作 / 结束例程 setFields", () => {
     if (client.loggedin) await client.logout()
   })
 
-  test("读回确认 ZC_JTL4 在 target + END setFields (Eclipse 已保存)", async () => {
+  test("读回确认 ZC_JTL4 在 target + END setFields", async () => {
     const xml = await client.getTransformationXml(TEST_TRFN, "m", {
       forceCacheUpdate: true
     })
@@ -93,7 +93,7 @@ describeLive("TRFN 写操作 / 结束例程 setFields", () => {
 
   test("setEndRoutineFields 路径: 取消(仅PUT) → 再勾选并激活", async () => {
     // 说明: 单独取消勾选后马上激活, 会因结束例程 ABAP 签名未同步报
-    // 「结束程序: 例程中的语法错误」。Eclipse setFields 勾选→保存→激活是正向路径;
+    // 「结束程序: 例程中的语法错误」。setFields 勾选→保存→激活是正向路径;
     // 取消后需再勾选并一次激活, 或配合例程源码刷新。本测试验证正向 setFields。
     try {
       await client.unlockTransformation(TEST_TRFN)

@@ -22,9 +22,8 @@ export class InfoObjectDomain {
   }
 
   /**
-   * 创建关键指标（KYF）完整流程（2026-11-17 ZK_AMT）：
-   * validate → lock(CREA) → POST Keyfigure(stateless) → PUT 单位/描述 → 激活。
-   * 传 unitInfoObject（如 ZC_CUR / ZC_RWCUR）；$TMP 或真实包+transport 均可。
+   * 创建关键指标（KYF）：validate → lock(CREA) → POST Keyfigure → PUT 单位/描述 → 激活。
+   * $TMP 或真实包+transport 均可。
    */
   create(options: iobj.InfoObjectCreateOptions & { autoActivate?: boolean; responsible?: string }) {
     return iobj.createInfoObjectFull(this.h, {
@@ -36,9 +35,8 @@ export class InfoObjectDomain {
   }
 
   /**
-   * 创建特征（CHA）完整流程：校验 → lock(parent/CREA) → POST 骨架 →
-   * PUT /m 补写属性（描述/长度/InfoArea）→ 回读校验 →（可选激活）→ finally unlock。
-   * dataType 恒为 CHAR；length 缺省取服务端骨架值 5。2026-11-12 真机闭环。
+   * 创建特征（CHA）：校验 → lock(CREA) → POST 骨架 → PUT 属性 →（可选激活）。
+   * dataType 恒为 CHAR；length 缺省 5。
    */
   createCha(options: iobj.InfoObjectChaCreateOptions & { responsible?: string }) {
     return iobj.createInfoObjectChaFull(this.h, {
@@ -50,9 +48,8 @@ export class InfoObjectDomain {
   }
 
   /**
-   * 创建单位/币种（UNI）完整流程：校验 → lock(CREA) → POST Unit XML →
-   * 回读校验 →（可选激活）→ finally unlock。
-   * 证据：2026-11-17 Eclipse ZC_RWCUR（xsi:type=Unit, unitType=CUR, CUKY, 引用 0CURRENCY）。
+   * 创建单位/币种（UNI）：校验 → lock(CREA) → POST Unit →（可选激活）。
+   * 默认 unitType=CUR、dataType=CUKY、引用 0CURRENCY。
    */
   createUnit(options: iobj.InfoObjectUnitCreateOptions & { responsible?: string }) {
     return iobj.createInfoObjectUnitFull(this.h, {
@@ -76,10 +73,7 @@ export class InfoObjectDomain {
     return iobj.checkInfoObject(this.h, iobjName)
   }
 
-  /**
-   * Save and Activate InfoObject — lock → transport → PUT → activate → unlock.
-   * 证据：2026-11-17 ZK_WSL（unitCurrencyInfoObjectRef → ZC_RWCUR）。
-   */
+  /** Save and Activate InfoObject — lock → transport → PUT → activate → unlock。 */
   saveAndActivate(
     iobjName: string,
     xmlContent: string,

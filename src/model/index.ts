@@ -1,9 +1,8 @@
 /**
- * 建模层入口（P2）。
+ * 建模层入口。
  *
- * `InfoProviderModel` 是水合式可编辑模型的联合类型。v1 只有 ADSO 一个
- * variant——后续类型（IOBJ/HCPR/…）每经真机验证一种，联合随之增长，
- * 不提前占位（与 domains/infoProvider 的"不猜未验证类型"同一纪律）。
+ * `InfoProviderModel` 是水合式可编辑模型的联合类型。v1 仅 ADSO variant；
+ * 其它类型（IOBJ/HCPR/…）验证后扩展联合，不提前占位。
  */
 import { AdsoModel } from "./adso"
 

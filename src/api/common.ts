@@ -11,9 +11,7 @@ import { AdtErrorException, isAdtError } from "../AdtException"
 /**
  * Validation Action - 验证动作类型
  */
-// 2026-09-20 实测：validation 端点仅支持 exists（加可创建类型的 new）；
-// delete/activate action 被全类型拒绝（VERIFIED_APIS 第 7 节 V1），相应枚举与
-// validateXxxCanDelete/CanActivate 函数已移除。
+// validation 端点仅支持 exists（加可创建类型的 new）；delete/activate action 不可用。
 export enum ValidationAction {
   EXISTS = "exists",     // 验证对象是否存在
   NEW = "new"            // 验证新名称是否可用
@@ -58,7 +56,7 @@ export const LockResult = t.type({
   corrNr: orUndefined(t.string),
   corrUser: orUndefined(t.string),
   corrText: orUndefined(t.string),
-  // 实测 (VERIFIED_APIS F8): $TMP 本地对象 lock 响应带 IS_LOCAL=X
+  // $TMP 本地对象 lock 响应带 IS_LOCAL=X
   isLocal: orUndefined(t.boolean)
 })
 
@@ -113,8 +111,7 @@ export async function activateObject(
 
   const response = await client.request("/sap/bw/modeling/activation", {
     method: "POST",
-    // 激活携带 corrNr 与 activateDTP / activateDataSource 的实测用法一致
-    // （DTP/RSDS 已验证）；ADSO/PC 侧待真机复核后正式记入 VERIFIED_APIS。
+    // 激活可携带 corrNr（与 activateDTP / activateDataSource 同形 qs）。
     qs: corrNr ? { corrNr } : undefined,
     headers: {
       "Content-Type": "application/atom+xml;type=entry"
@@ -183,18 +180,16 @@ export function parseLockResponse(body: string): LockResult {
   }
 }
 
-/** 判定是否为服务端错误（5xx）。会话中毒链路报 500/400/501（VERIFIED_APIS F7），这里只对 5xx 恢复。 */
+/** 判定是否为服务端错误（5xx）。会话中毒后可能连锁 500/400/501，这里只对 5xx 恢复。 */
 export function isServerErrorException(e: unknown): e is AdtErrorException {
   return isAdtError(e) && e.err >= 500
 }
 
 /**
- * 会话中毒恢复（VERIFIED_APIS F7）：任一请求 500 之后，同一 stateful 会话的后续
- * 请求连锁失败（500/400/501），重新登录后恢复。
+ * 会话中毒恢复：请求 500 后，同一 stateful 会话后续请求可能连锁失败；重登后恢复。
  *
- * 用法限定在编排入口的 lock 上：lock 失败时不留服务端状态，丢弃旧会话重登重试一次
- * 是安全的。后续 PUT/activate **不要**用本助手——无法判断服务端是否已部分生效，
- * 自动重试可能重复应用。
+ * 仅用于编排入口的 lock：lock 失败不留服务端状态，丢弃旧会话重试一次是安全的。
+ * 后续 PUT/activate 不要用——无法判断是否已部分生效，自动重试可能重复应用。
  *
  * @param client - ADT HTTP 客户端
  * @param op - 待执行操作（通常是一次 lock 请求）

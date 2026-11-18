@@ -1,7 +1,6 @@
 /**
  * TRFN 子域共享层 —— 低层共享助手与 settings 解析。
  *
- * P1B Task 3 从 src/api/transformation.ts 机械搬迁（函数体零修改）。
  * 家族内依赖方向: create/rules/routines → shared → (仅 utilities/io-ts)；
  * shared 不依赖 transformation.ts 及任何兄弟子域。
  */

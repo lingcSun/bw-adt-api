@@ -3,9 +3,9 @@ import { describeLive, testLive } from "./helpers/liveSystem"
 import { addADSOFieldToXml, removeADSOFieldFromXml } from "../api/adso"
 
 /**
- * ADSO 写操作验证 - 对照 Eclipse "打开ADSO→加field→新建TR→保存→激活"
+ * ADSO 写操作验证（加 field → 保存 → 激活）
  *
- * 完整序列 (ZL_FID37 Communication Log 19:21):
+ * 完整序列:
  *   POST /adso/{id}?action=lock                         [stateful]
  *   POST /cts/transportchecks                           [stateless]
  *   POST /cts/transports                                [ModalContext]

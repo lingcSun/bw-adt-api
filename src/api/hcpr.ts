@@ -1,8 +1,7 @@
 /**
  * HCPR (CompositeProvider) ADT API.
  *
- * 契约来源：2026-11-17 Eclipse BWMT Communication Log（ZR_FIC81）
- *   GET  /sap/bw/modeling/hcpr/{name}/m?forceCacheUpdate=true
+ *   GET  /sap/bw/modeling/hcpr/{name}/m
  *        Accept: application/vnd.sap.bw.modeling.hcpr-v1_15_0+xml
  *   POST ?action=lock / unlock          (stateful)
  *   PUT  /m?lockHandle=…               (stateless; timestamp + Transport-Lock-Holder)
@@ -22,7 +21,7 @@ import {
 import { BWObject, BWObjectType } from "./bwObject"
 import { withWriteSession } from "./writeSession"
 
-/** HCPR vendor media type — schemaVersion 1.15（2026-11-17 实测）。 */
+/** HCPR vendor media type（schemaVersion 1.15）。 */
 export const HCPR_CONTENT_TYPE =
   "application/vnd.sap.bw.modeling.hcpr-v1_15_0+xml"
 
@@ -189,7 +188,7 @@ export async function getHCPRDetails(
 /**
  * Update HCPR metadata.
  * PUT /sap/bw/modeling/hcpr/{id}/m?lockHandle=…[&corrNr=…]
- * Headers: timestamp + Transport-Lock-Holder (Eclipse 实测形态).
+ * Headers: timestamp + Transport-Lock-Holder.
  */
 export async function updateHCPR(
   client: AdtHTTP,

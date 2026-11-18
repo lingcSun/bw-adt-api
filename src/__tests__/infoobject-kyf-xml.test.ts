@@ -1,9 +1,7 @@
-/**
- * KYF 创建 POST body —— 对照 2026-11-17 Eclipse ZK_AMT 抓包。
- */
+/** KYF 创建 POST body 形态。 */
 import { buildInfoObjectXml } from "../api/infoobject"
 
-describe("buildInfoObjectXml（ZK_AMT 抓包）", () => {
+describe("buildInfoObjectXml", () => {
   test("POST 形态：Keyfigure、无 packageRef、空单位引用", () => {
     const xml = buildInfoObjectXml({
       name: "ZK_AMT",

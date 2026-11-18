@@ -2,11 +2,7 @@ import { BWAdtClient } from "../BWAdtClient"
 import { describeLive, testLive } from "./helpers/liveSystem"
 
 /**
- * DTP 读取接口验证 - 对照 Eclipse 打开 DTP 的 Communication Log
- *
- * 日志中的核心请求 (DTP_ET0916...P1BKTB6DJP, 即 ZL_FID01 -> ZL_FID40 的 DTP):
- *   15:38:49  GET /sap/bw/modeling/dtpa/dtp_et0916om0dnhshap1bktb6djp/m?forceCacheUpdate=true  → 200 (90.7KB)
- *   15:38:50  GET /sap/bw/modeling/dtpa/dtp_et0916om0dnhshap1bktb6djp/versions                → 200 (21.4KB)
+ * DTP 读取接口验证（details / versions）。
  */
 
 const testConfig = {
@@ -17,7 +13,6 @@ const testConfig = {
   language: process.env.BW_LANGUAGE!
 }
 
-// ZL_FID01 -> ZL_FID40 的 DTP (来自 dataflow 测试确认的关系)
 const TEST_DTP = "DTP_ET0916OM0DNHSHAP1BKTB6DJP"
 
 describeLive("DTP 读取接口验证", () => {
@@ -37,7 +32,7 @@ describeLive("DTP 读取接口验证", () => {
 
   // ✅ 核心请求 1: GET /dtpa/{id}/m?forceCacheUpdate=true → 200 (90.7KB)
   test("getDTP() - DTP 元数据 (对应日志 15:38:49)", async () => {
-    const raw = await client.getDTP(TEST_DTP, true) // forceCacheUpdate 模拟 Eclipse 首次加载
+    const raw = await client.getDTP(TEST_DTP, true) // forceCacheUpdate 强制刷新缓存
 
     expect(raw).toBeDefined()
     const root = raw["dtpa:dataTransferProcess"]

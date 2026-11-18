@@ -14,7 +14,7 @@ import {
 } from "../api/replication"
 
 /**
- * 纯 XML 解析测试 — 对照 Eclipse Communication Log (2026-07-16)
+ * 纯 XML 解析测试 — DataSource / Replication
  * 无网络依赖, 验证 DataSource / Replication 解析逻辑
  */
 
@@ -82,8 +82,8 @@ describe("DataSource (RSDS) XML parsing", () => {
     expect(extractDataSourceTimestamp("<foo></foo>")).toBeUndefined()
   })
 
-  test("proposal/merge Content-Type 常量 - 对照 Eclipse 实测请求/响应头", () => {
-    // 请求 Content-Type (Eclipse POST /rsdsint/proposal?action=merge)
+  test("proposal/merge Content-Type 常量", () => {
+    // 请求 Content-Type (POST /rsdsint/proposal?action=merge)
     expect(RSDS_PROPOSAL_REQUEST_CONTENT_TYPE).toBe("application/vnd.sap.bw.modeling.rsds+xml")
     // 响应 Content-Type
     expect(RSDS_PROPOSAL_RESPONSE_CONTENT_TYPE).toBe("application/vnd.sap.bw.modeling.rsdsint+xml")

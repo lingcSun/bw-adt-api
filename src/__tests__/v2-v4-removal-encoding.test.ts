@@ -1,16 +1,15 @@
 /**
- * V2 移除锁（2026-09-21）：/sap/bc/adt/bw/objects/* 服务树本系统 404（连父路径
- * 都不存在），infoObjects/infoObjectDetails/infoObjectCatalogs 及其类型已移除。
- * 证据：docs/VERIFIED_APIS.md 第 7 节 V2。防止无意恢复。
+ * 已移除端点回归锁：/sap/bc/adt/bw/objects/* 服务树 404，
+ * infoObjects/infoObjectDetails/infoObjectCatalogs 及其类型已移除。防止无意恢复。
  *
- * V4 回归锁（2026-09-21）：命名空间对象名（/NS/OBJ）必须 encodeURIComponent 后
- * 进 URL 路径段，否则 / 被当路径切开 → 404。锁 getADSODetails / BWObject.lock
- * 的线上 URL 形态；常规名编码后应与原文相同（无操作）。
+ * 命名空间对象名（/NS/OBJ）必须 encodeURIComponent 后进 URL 路径段，
+ * 否则 / 被当路径切开 → 404。锁 getADSODetails / BWObject.lock 的 URL 形态；
+ * 常规名编码后应与原文相同（无操作）。
  */
 import * as root from "../index"
 import type { AdtHTTP } from "../AdtHTTP"
 
-describe("V2：repository 死函数已移除", () => {
+describe("repository 死函数已移除", () => {
   test("根导出不含已移除函数与类型", () => {
     const rec = root as unknown as Record<string, unknown>
     for (const name of ["infoObjects", "infoObjectDetails", "infoObjectCatalogs"]) {
@@ -37,7 +36,7 @@ function captureClient() {
   return { fake, urls }
 }
 
-describe("V4：命名空间对象名 URL 编码", () => {
+describe("命名空间对象名 URL 编码", () => {
   test("getADSODetails 对 /NS/ 名发出 %2F 编码路径", async () => {
     const { fake, urls } = captureClient()
     await root.getADSODetails(fake, "/CPM/A2ICBLQ")

@@ -56,7 +56,7 @@ export enum BWObjectType {
   DATA_SOURCE = "dso",
   INFO_SOURCE = "isrc",
   INFO_AREA = "area",
-  /** CompositeProvider — Eclipse Communication Log 2026-11-17 实测 */
+  /** CompositeProvider */
   HCPR = "hcpr"
 }
 
@@ -99,10 +99,9 @@ const BW_OBJECT_CONFIGS: Record<BWObjectType, BWObjectConfig> = {
     versionChar: "m"
   },
   [BWObjectType.PROCESS_CHAIN]: {
-    // 实测 (2026-09-20, VERIFIED_APIS F1): 本系统端点为 /rspc，/pc 404；
-    // GET /rspc/{id}/m 服务 JSON (processvariant.chain-v1_0_0+json)，
-    // pc/rspc 的 vendor XML 一律 415。读路径已实测；lock/unlock/activate
-    // 在本系统未验证（不允许动业务链），沿用统一前缀并如实标注。
+    // 本系统端点为 /rspc（/pc 404）；GET /rspc/{id}/m 返回 JSON
+    // (processvariant.chain-v1_0_0+json)，vendor XML 请求 415。
+    // lock/unlock/activate 未在本库验证，读路径已登记。
     endpoint: "/sap/bw/modeling/rspc",
     contentType: "application/vnd.sap.bw4.modeling.processvariant.chain-v1_0_0+json",
     versionSuffix: true,
@@ -119,7 +118,7 @@ const BW_OBJECT_CONFIGS: Record<BWObjectType, BWObjectConfig> = {
     versionChar: "m"
   },
   [BWObjectType.DATA_SOURCE]: {
-    // 实测修正 (2026-07-16 Eclipse Communication Log): 真实端点是 /rsds, 非 /datasource。
+    // 端点为 /rsds（非 /datasource）。
     // ⚠️ RSDS 是双段标识 /rsds/{datasource}/{sourceSystem}/m, 基类 buildUri() 只拼单段,
     // 不适用于 DataSource。完整的读写操作见 src/api/datasource.ts。此配置仅作对象类型登记。
     endpoint: "/sap/bw/modeling/rsds",
@@ -136,10 +135,8 @@ const BW_OBJECT_CONFIGS: Record<BWObjectType, BWObjectConfig> = {
     versionChar: "m"
   },
   [BWObjectType.HCPR]: {
-    // 实测 (2026-11-17 Eclipse Communication Log ZR_FIC81):
-    // GET/PUT /sap/bw/modeling/hcpr/{name}/m，vendor
-    // application/vnd.sap.bw.modeling.hcpr-v1_15_0+xml；schemaVersion 1.15。
-    // PUT 带 timestamp + Transport-Lock-Holder（与 TRFN/RSDS 同形）。
+    // GET/PUT /sap/bw/modeling/hcpr/{name}/m；
+    // Content-Type hcpr-v1_15_0+xml；PUT 带 timestamp + Transport-Lock-Holder。
     endpoint: "/sap/bw/modeling/hcpr",
     contentType: "application/vnd.sap.bw.modeling.hcpr-v1_15_0+xml",
     versionSuffix: true,
@@ -213,7 +210,7 @@ export class BWObject<T extends BWObjectType> {
   /**
    * 对象名进入 URI 的形式：PC preserveCase，其余统一小写（历史行为）。
    * 统一 encodeURIComponent——命名空间名（/NS/OBJ）里的 / 不编码会被当
-   * 路径切开（V4，2026-09-21）；对常规名（字母数字下划线）编码是无操作。
+   * 路径切开；对常规名（字母数字下划线）编码是无操作。
    */
   private get uriName(): string {
     const name = this.config.preserveCase ? this.objectName : this.objectName.toLowerCase()
@@ -236,11 +233,10 @@ export class BWObject<T extends BWObjectType> {
    *
    * 对应请求: POST /sap/bw/modeling/{endpoint}/{name}?action=lock
    *
-   * 会话模型 (实测验证, 对照 Eclipse Communication Log):
+   * 会话模型：
    * - lock 必须用 "stateful" 会话头。服务端返回 sap-contextid 建立会话,
    *   锁由该会话持有; 同会话内重复 lock 返回相同 lockHandle。
-   * - 注意不要用 "stateful;enqueue" —— 实测该头会导致服务端销毁会话 (contextid=0),
-   *   锁立即丢失。Eclipse 日志中的 "stateful, enqueue" 只是服务端会话的展示标签。
+   * - 不要用 "stateful;enqueue" —— 会导致服务端销毁会话 (contextid=0)，锁丢失。
    * - 后续写操作 (PUT update / activation) 走 stateless 且不带 contextid,
    *   服务端通过 enqueue 锁表验证 URL 上的 lockHandle。
    *
@@ -248,7 +244,7 @@ export class BWObject<T extends BWObjectType> {
    */
   async lock(options: { headers?: Record<string, string> } = {}): Promise<LockResult> {
     const { headers = {} } = options
-    // lock 是写编排的入口且失败不留服务端状态——5xx 时按 F7 换新会话重试一次
+    // lock 是写编排入口；5xx 时换新会话重试一次
     return withFreshSessionOnServerError(this.client, async () => {
       const response = await this.client.request(
         `${this.config.endpoint}/${this.uriName}?action=lock`,
@@ -306,7 +302,7 @@ export class BWObject<T extends BWObjectType> {
    *
    * @param lockHandle - 锁定句柄
    * @param corrNr - 传输请求号（可选，随激活请求以 corrNr query 传递，
-   *   与 activateDTP / activateDataSource 的实测用法一致）
+   *   与 activateDTP / activateDataSource 一致）
    * @returns 激活结果
    */
   async activate(lockHandle?: string, corrNr?: string): Promise<ActivationResult> {
@@ -353,8 +349,7 @@ export class BWObject<T extends BWObjectType> {
     return this.validate(ValidationAction.NEW)
   }
 
-  // canDelete()/canActivate() 已移除（2026-09-20 实测：validation 端点拒绝
-  // action=delete/activate，"Action 'delete' is not valid"，见 VERIFIED_APIS 第 7 节 V1）。
+  // canDelete()/canActivate() 已移除：validation 端点拒绝 action=delete/activate。
 
   /**
    * Get Object Versions - 获取对象版本历史
@@ -401,9 +396,8 @@ export class BWObject<T extends BWObjectType> {
     const { transport, parent, headers = {} } = options
 
     // Step 1: 验证父对象（如果提供）。
-    // W4（2026-09-21）：ADSO 的父对象是 InfoArea，校验类型必须是 AREA——原先用对象
-    // 自身类型（ADSO）校验 InfoArea 名必 404。其他类型的 parent 语义未验证，仍用
-    // 对象自身类型（调用方慎用；专用创建路径不受影响）。
+    // ADSO 的父对象是 InfoArea，parent 校验类型必须是 AREA（非 ADSO）。
+    // 其他类型的 parent 语义未验证，仍用对象自身类型（调用方慎用）。
     if (parent) {
       const parentValidationType =
         this.objectType === BWObjectType.ADSO ? "AREA" : this.objectType.toUpperCase()
@@ -485,18 +479,9 @@ export class BWObject<T extends BWObjectType> {
 
     try {
       // Step 2: 更新对象
-      // 实测 (Eclipse Communication Log):
-      //   DTP: PUT /sap/bw/modeling/dtpa/{id}/m?lockHandle=...   (有 /m, 用 PUT)
-      //   ADSO: PUT /sap/bw/modeling/adso/{id}/m?lockHandle=...
-      //   InfoArea: PUT /sap/bw/modeling/area/{id}/a?lockHandle=...
-      // PUT 走 stateless 会话 (Eclipse 亦如此), 不带 contextid;
-      // 服务端通过 enqueue 锁表验证 lockHandle, 锁由 lock 建立的 stateful 会话持有
-      // TR 号通过 Transport-Lock-Holder header 传递 (复用已有 TR 时)
-      // 或 corrNr query 参数 (新建 TR 时)
-      // Eclipse 实测两种传 TR 方式均可见:
-      //   ADSO: PUT .../m?corrNr={tr}&lockHandle={h}
-      //   TRFN setFields: PUT .../m?lockHandle={h} + header Transport-Lock-Holder: {tr}
-      // 同时带上两者最稳妥
+      // PUT 示例：DTP/ADSO .../m?lockHandle=；InfoArea .../a?lockHandle=
+      // PUT 走 stateless，不带 contextid；服务端通过 enqueue 锁表验证 lockHandle
+      // TR：corrNr query 和/或 Transport-Lock-Holder header（可同时携带）
       const qs: Record<string, string> = { lockHandle: lockResult.lockHandle }
       if (transport) qs["corrNr"] = transport
 
@@ -548,14 +533,13 @@ export class BWObject<T extends BWObjectType> {
    * - PC / InfoObject：必须 `{ transport }`
    *
    * TRFN/DTP 走 lockHandle 路径的依据：transportchecks 路径要求 TR（本地对象没有），
-   * 实测 `lock(?action=lock) → DELETE /m?lockHandle → unlock` 可删本地 TRFN/DTP
-   * （docs/VERIFIED_APIS.md 第 6/8 节，2026-09-19/21 端到端验证）。
+   * lock → DELETE /m?lockHandle → unlock 可删本地 TRFN/DTP（见 docs/VERIFIED_APIS.md）。
    *
    * @param options.lockHandle - ADSO/InfoArea/TRFN 的锁定句柄
    * @param options.transport - DTP/PC/IObj 的传输请求号；
    *   ADSO/InfoArea/TRFN 上传则为 corrNr。必须是**请求号**而非任务号——传任务号服务端报
    *   「请求 xxx 不是更改请求」。
-   *   注意: 实测带 corrNr 删除后，E071 中该对象的历史登记项**不会**随之消失
+   *   注意: 带 corrNr 删除后，E071 中该对象的历史登记项**不会**随之消失
    *   （登记项属于传输记录器，需在 SE10/SE01 删除或释放该请求才会清除）。
    * @returns 删除确认。不返回 undefined——上层（如 MCP 工具）直接序列化返回值时，
    *   undefined 会导致 content[0].text 缺失、schema 校验失败。

@@ -172,7 +172,7 @@ export async function getAbapClassSource(
  * Update ABAP Class Source Code - 更新 ABAP 类源代码
  *
  * 对应请求: PUT /sap/bc/adt/oo/classes/{classname}/source/main?lockHandle={lockHandle}
- * Session: stateless (Eclipse 实测)
+ * Session: stateless
  */
 export async function updateAbapClassSource(
   client: AdtHTTP,

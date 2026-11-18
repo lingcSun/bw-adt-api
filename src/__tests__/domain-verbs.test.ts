@@ -1,17 +1,16 @@
 /**
  * 动词家族审计 close-out：三建模域的 exists/delete（离线）。
  *
- * - exists → api 层 validateXxxExists，归一为 boolean：实测（API_REFERENCE
- *   validateADSOExists 行）对象不存在时 validation 端点直接报错而非 valid=false，
- *   门面把 AdtError 归一为 false；HttpClientException（网络/会话等传输层失败）
- *   原样重抛（2026-09-22 exists 错误语义收窄，不伪装成「不存在」）。
- * - delete 自管锁（2026-09-22）：门面内部先取域锁（lockADSO/lockTransformation/
+ * - exists → api 层 validateXxxExists，归一为 boolean：对象不存在时 validation
+ *   端点直接报错而非 valid=false，门面把 AdtError 归一为 false；
+ *   HttpClientException（网络/会话等传输层失败）原样重抛（不伪装成「不存在」）。
+ * - delete 自管锁：门面内部先取域锁（lockADSO/lockTransformation/
  *   lockDTP）→ BWObject.delete({lockHandle, transport?})；成功路径不追加门面级
- *   unlock——BWObject.delete 内部已含一次吞错的 unlock（bwObject.ts），卡带
- *   证据为 lock→DELETE→unlock 全 200；delete 失败才 best-effort unlock（吞错）
+ *   unlock——BWObject.delete 内部已含一次吞错的 unlock（bwObject.ts），
+ *   预期交互 lock→DELETE→unlock；delete 失败才 best-effort unlock（吞错）
  *   并原样上抛。options 只剩 { transport? }（0.x 行为
  *   变化：lockHandle 不再是调用方输入，倒挂的弃用 flat lock 依赖就此移除）。
- * - dataSource 明确不加 exists/delete（RSDS 删除无实测证据；分类学边界）。
+ * - dataSource 明确不加 exists/delete（分类学边界）。
  *
  * 全部断言离线可得：api 模块 spyOn 原位打桩 + {} as AdtHTTP，不发网络请求、
  * 不读 .env、不用 describeLive。
@@ -28,10 +27,8 @@ import { TrfnDomain } from "../domains/trfn"
 import { DtpDomain } from "../domains/dtp"
 import { DataSourceDomain } from "../domains/dataSource"
 
-// spyOn 原位打桩（与 infoprovider-domain.test.ts / adso-model.test.ts 同款，P1-B
-// 遗留工厂迁移）：被测门面是命名空间属性访问（adso.validateADSOExists(...)），
-// 真模块单实例、就地替换，无需 jest.mock 工厂——工厂（含 requireActual 展开）
-// 会把 real 模块图拖进 mock 注册表产生双实例（见 verb-family-audit 笔记）。
+// spyOn 原位打桩：被测门面是命名空间属性访问（adso.validateADSOExists(...)），
+// 真模块单实例、就地替换，无需 jest.mock 工厂（工厂 + requireActual 易产生双实例）。
 // BWObjectType 直接用真枚举（不再手拷字面量）。
 const mockedADSOExists = jest.spyOn(adsoApi, "validateADSOExists") as jest.Mock
 const mockedTrfnExists = jest.spyOn(
@@ -112,7 +109,7 @@ describe("exists 薄转发（validate *Exists → boolean 归一）", () => {
     }
   })
 
-  test("api 层抛 AdtError（not-found 形态，实测语义）→ 归一为 false（不抛错）", async () => {
+  test("api 层抛 AdtError（not-found 形态）→ 归一为 false（不抛错）", async () => {
     mockedADSOExists.mockRejectedValue(
       new AdtErrorException(404, {}, "", "ADSO ZNOPE 不存在")
     )
@@ -160,7 +157,7 @@ describe("delete 自管锁（域 lock → BWObject.delete → 失败才域 unloc
         transport: "BPDK903312"
       })
       // 成功路径不追加门面级 unlock：BWObject.delete 内部已含一次吞错的
-      // unlock（bwObject.ts，卡带证据 lock→DELETE→unlock 全 200），
+      // unlock（bwObject.ts，预期 lock→DELETE→unlock），
       // 域级再 unlock 是多余请求
       expect(unlockSpy).not.toHaveBeenCalled()
     }

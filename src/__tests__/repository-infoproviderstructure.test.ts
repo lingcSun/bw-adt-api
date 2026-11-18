@@ -1,6 +1,6 @@
 /**
- * getInfoproviderStructure 解析回归（2026-09-21 真机验证形态）。
- * fixture 取自真机响应结构（名称替换为合成值）：
+ * getInfoproviderStructure 解析回归。
+ * fixture 为响应结构（名称替换为合成值）：
  * atom:feed > atom:entry > atom:content > bwModel:object(@objectName/@objectType/
  * @objectSubtype/@objectStatus) + atom:id + atom:title。
  */

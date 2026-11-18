@@ -2,7 +2,7 @@ import { BWAdtClient } from "../BWAdtClient"
 import { describeLive, testLive } from "./helpers/liveSystem"
 
 /**
- * DataSource (RSDS) 读取接口验证 - 对照 Eclipse 打开 DataSource 的 Communication Log
+ * DataSource (RSDS) 读取接口验证
  *
  * 日志中的核心请求 (ZBW_ZFIVTASK_STAGE_H / S4DCLNT300):
  *   09:12:54  GET /sap/bw/modeling/rsds/ZBW_ZFIVTASK_STAGE_H/S4DCLNT300/m?forceCacheUpdate=true  → 200 (28KB)
@@ -17,7 +17,7 @@ const testConfig = {
   language: process.env.BW_LANGUAGE!
 }
 
-// 实测对象: 履约义务拆分分期抬头表, ODP 类型, 源系统 S4DCLNT300
+// 样本对象: 履约义务拆分分期抬头表, ODP 类型, 源系统 S4DCLNT300
 const TEST_DATASOURCE = "ZBW_ZFIVTASK_STAGE_H"
 const TEST_SOURCE_SYSTEM = "S4DCLNT300"
 

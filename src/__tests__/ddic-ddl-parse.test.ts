@@ -1,6 +1,6 @@
 /**
- * V7 修复回归（2026-09-21）：parseDDICTableSource 数据元素形态 + 静默空护栏。
- * T000 fixture 取自真机 /sap/bc/adt/ddic/tables/T000/source/main 原文（截取）。
+ * parseDDICTableSource 数据元素形态 + 静默空护栏回归。
+ * T000 fixture 为 /sap/bc/adt/ddic/tables/T000/source/main 原文（截取）。
  * 内部函数经 getDDICTableInfo + 假 client 驱动。
  */
 import { getDDICTableInfo, getDDICTableFields } from "../api/ddic"
@@ -41,7 +41,7 @@ function fakeClient(ddl: string) {
   } as unknown as AdtHTTP
 }
 
-describe("parseDDICTableSource 数据元素形态（V7）", () => {
+describe("parseDDICTableSource 数据元素形态", () => {
   test("T000：数据元素字段全部解析，key 标记正确，dataType 为元素名", async () => {
     const info = await getDDICTableInfo(fakeClient(T000_DDL), "T000")
     const names = info.fields!.map((f) => f.name)

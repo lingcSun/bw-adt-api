@@ -1,5 +1,5 @@
 /**
- * .advanced 子面（2026-09-22，离线）：调用方持锁原语的命名空间。
+ * .advanced 子面（离线）：调用方持锁原语的命名空间。
  *
  * 门面动词分两种锁契约：自管动词（saveAndActivate/delete：内部 lock→…→unlock/
  * finally）与 `advanced` 子面（转发 api 层裸函数，锁归调用方，签名逐参镜像）。

@@ -5,12 +5,12 @@ import { buildReplicationRequestBody, parseReplicationTasks } from "../api/repli
 /**
  * Replicate DataSource 0ASSET_ATTR_TEXT - 数据源复制完整流程
  *
- * 完整流程 (对应 Eclipse 右键数据源 "Replicate" 的 Communication Log):
+ * 完整 Replicate 流程:
  *   1. GET  /sap/bw/modeling/lsysint/replication/{src}?datasource={ds}  → 复制预检
  *   2. POST /sap/bw/modeling/lsysint/replication/{src}?datasource=...&activate=changed&background=true → 触发复制
  *
  * 由于 0ASSET_ATTR_TEXT 已存在, 预检返回 operation="UEQ" (Update if Equal),
- * 这是幂等的元数据刷新操作 (Eclipse 标准 "重新复制" 行为), background=true 后台执行。
+ * 幂等元数据刷新操作, background=true 后台执行。
  */
 
 const testConfig = {

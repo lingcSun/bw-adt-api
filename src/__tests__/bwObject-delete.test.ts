@@ -63,10 +63,8 @@ describeLive("BWObject.delete query building", () => {
     expect(cap[0].qs).toEqual({ lockHandle: "LOCKHANDLE1" })
   })
 
-  // 现契约（src/api/bwObject.ts delete()）：ADSO/INFO_AREA/TRFN/DTP 走 lockHandle
-  // 模式（DELETE /{name}/{m|a}?lockHandle，transport 可选作 corrNr）；其余类型必须
-  // transport。TRFN 曾按旧 transport 模式断言，此处对齐实测过的 lockHandle 路径
-  // （VERIFIED_APIS §6/§8）。
+  // 现契约：ADSO/INFO_AREA/TRFN/DTP 走 lockHandle（DELETE /{name}/{m|a}?lockHandle，
+  // transport 可选作 corrNr）；其余类型必须 transport。
   test("TRFN deletes by lockHandle on the /m version (same contract as ADSO)", async () => {
     const cap: Cap[] = []
     const obj = createBWObject(fakeClient(cap), BWObjectType.TRANSFORMATION, "0ABC")

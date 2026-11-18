@@ -8,23 +8,13 @@ import { withWriteSession } from "./writeSession"
 import { deriveRoutineClassName, extractTransformationTimestamp } from "./trfn/shared"
 
 // ============================================================================
-// CREATE: 已支持 —— createTransformation() 走 Eclipse 同款 8TRANSIENT 瞬态流
+// CREATE: createTransformation() 走 8TRANSIENT 瞬态流
 // （铸 id → stateful+CREA lock → POST 极简 XML → 服务器按源/目标提供者水合）。
-// 旧结论"创建必须 JCo/ModalContext、8TRANSIENT 手动补全仍 dump"已被证伪
-// （2026-09-11 ZL_FID44 变更 REST 全程创建成功）。彼时失败的根因是保存体未与
-// Eclipse 序列化对齐：缺 createdAt/createdBy、packageRef 属性不全（需
-// name/type/uri 三属性）、source/target 带了 segment/element（应自闭合空节点）。
+// 保存体须对齐序列化：含 createdAt/createdBy；packageRef 需 name/type/uri；
+// source/target 应为自闭合空节点（勿带 segment/element）。
 //
 // 支持的操作：
-// -----------
-// - create (8TRANSIENT 瞬态流创建，见 createTransformation)
-// - read (读取 TRFN 详情、字段映射)
-// - update (修改 TRFN 内容，需先 lock)
-// - activate (激活 TRFN)
-// - delete (删除 TRFN，需先 lock)
-// - lock/unlock (锁定/解锁 TRFN)
-// - check (检查 TRFN 一致性)
-// - getVersions (获取版本历史)
+// - create / read / update / activate / delete / lock/unlock / check / getVersions
 // ============================================================================
 
 // ============================================================================
@@ -244,7 +234,7 @@ export async function updateTransformation(
 ): Promise<ActivationResult> {
   const { lockHandle, corrNr, timestamp } = options
 
-  // Eclipse setFields: PUT .../m?lockHandle=... + Transport-Lock-Holder
+  // setFields PUT: .../m?lockHandle=... + Transport-Lock-Holder
   const qs: Record<string, string> = { lockHandle }
   if (corrNr) qs["corrNr"] = corrNr
 
@@ -450,7 +440,7 @@ export function switchTransformationRuntime(xmlContent: string, useHanaRuntime: 
 }
 
 // ============================================================================
-// Re-exports —— 拆分至 src/api/trfn/ 的符号按名重导出（兼容面不变, 2026-09-22）。
+// Re-exports —— 拆分至 src/api/trfn/ 的符号按名重导出。
 // 下游一律继续 import "./transformation" / "../api/transformation"。
 // ============================================================================
 

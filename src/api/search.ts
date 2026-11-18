@@ -19,7 +19,7 @@ export enum SearchObjectType {
   CHA = "CHA",             // Characteristic
   KF = "KF",               // Key Figure
   QUERY = "QUERY",         // Query
-  // 实测 (2026-09-20): objectType=RSPC 命中全部链；旧值 "PROCS_CHAIN" 服务端直接 500。
+  // objectType=RSPC 命中流程链；旧值 "PROCS_CHAIN" 服务端会 500。
   // 证据: docs/VERIFIED_APIS.md 第 6 节。
   PROCESS_CHAIN = "RSPC"  // Process Chain
 }
@@ -186,7 +186,7 @@ export async function searchByObjectType(
  * 替代 UI 导航端点 GET /sap/bw/modeling/repo/infoproviderstructure/adso/{name}/trfn。
  * 通过 searchBWObjects 搜索对象名实现，返回的 TRFN title 含 "SOURCE -> TARGET" 关系。
  *
- * 实测与专用端点结果一致（以 ZL_FID40 为例，均返回 3 个 TRFN，对象 ID 逐项匹配）。
+ * 结果口径与专用端点一致（按 ADSO 关联的 TRFN）。
  *
  * @param client - ADT HTTP 客户端
  * @param infoProviderName - InfoProvider 名称（ADSO 技术名称，如 "ZL_FID40"）
@@ -214,7 +214,7 @@ export async function getTransformationsOf(
  * 替代 UI 导航端点 GET /sap/bw/modeling/repo/infoproviderstructure/adso/{name}/dtpa。
  * 通过 searchBWObjects 搜索对象名实现，返回的 DTP title 含 "SOURCE -> TARGET" 关系。
  *
- * 实测与专用端点结果一致（以 ZL_FID40 为例，均返回 3 个 DTPA，对象 ID 逐项匹配）。
+ * 结果口径与专用端点一致（按 ADSO 关联的 DTP）。
  *
  * @param client - ADT HTTP 客户端
  * @param infoProviderName - InfoProvider 名称（ADSO 技术名称，如 "ZL_FID40"）

@@ -1,9 +1,7 @@
-/**
- * UNI（Unit）创建 POST body —— 对照 2026-11-17 Eclipse ZC_RWCUR 抓包。
- */
+/** UNI（Unit）创建 POST body 形态。 */
 import { buildInfoObjectUnitXml } from "../api/infoobject"
 
-describe("buildInfoObjectUnitXml（ZC_RWCUR 抓包）", () => {
+describe("buildInfoObjectUnitXml", () => {
   test("币种 Unit POST 形态", () => {
     const xml = buildInfoObjectUnitXml({
       name: "ZC_RWCUR",
@@ -40,7 +38,7 @@ describe("buildInfoObjectUnitXml（ZC_RWCUR 抓包）", () => {
     expect(xml).toContain('<referencedInfoObject name="0CURRENCY"/>')
   })
 
-  test("$TMP 也写 packageRef name（对照 ZC_CUR）", () => {
+  test("$TMP 也写 packageRef name", () => {
     const xml = buildInfoObjectUnitXml({
       name: "ZC_CUR",
       description: "货币码",

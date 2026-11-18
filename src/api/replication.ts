@@ -31,7 +31,7 @@ const REPLICATION_ENDPOINT = "/sap/bw/modeling/lsysint/replication"
 /**
  * SAP DataSource 名称的标准定长长度 (RSOSG-NAME, 30 字符)。
  *
- * 实测 (Eclipse Communication Log): replication 端点的 datasource query 参数
+ * replication 端点的 datasource query 参数
  * 会把名称用空格补齐到 30 字符。例如 "ZBW_FI_TASKSTAGE_I" (19 字符) 补 11 个空格。
  * 这是 BW 元数据的定长字段特征。此处统一处理, 避免调用方手动补齐。
  */
@@ -59,7 +59,7 @@ function padDatasourceName(datasource: string): string {
  * datasource 参数会自动补齐到 30 字符定长 (BW 元数据特征)。
  * 返回一个或多个 replicationTask, 描述将如何复制该数据源。
  *
- * 实测响应 (ATOM feed):
+ * 响应 (ATOM feed):
  *   <atom:feed>
  *     <atom:entry>
  *       <atom:content>
@@ -104,9 +104,9 @@ export async function getReplicationInfo(
  *                       ?datasource={ds}&activate={changed|all}&background={true|false}
  *
  * **请求体**: 必须把预检 (getReplicationInfo) 返回的 replicationTask 原样回传,
- * 包装为 ATOM feed (这是 Eclipse 实测的协议要求)。
+ * 包装为 ATOM feed。
  *
- * 实测响应 (后台执行时):
+ * 响应 (后台执行时):
  *   <dataContainer>
  *     <simpleParams jobCount="09172600"/>
  *     <simpleParams jobName="RSDS_REPLICATION"/>
@@ -189,7 +189,7 @@ export async function replicateDataSourceFull(
 /**
  * 构造 replication POST 请求体 (把预检返回的 replicationTask 回传)。
  *
- * 实测 Eclipse 请求体结构:
+ * 请求体结构:
  *   <?xml version="1.0" encoding="UTF-8"?>
  *   <atom:feed xmlns:atom="..." xmlns:dsReplication="http://www.sap.com/bw/modeling/lsysint">
  *     <atom:entry>
@@ -262,7 +262,7 @@ export function parseReplicationTasks(body: string): ReplicationTask[] {
 /**
  * Parse Replication Result - 解析复制触发响应
  *
- * 实测响应结构:
+ * 响应结构:
  *   <dataContainer>
  *     <simpleParams jobCount="09172600"/>
  *     <simpleParams jobName="RSDS_REPLICATION"/>

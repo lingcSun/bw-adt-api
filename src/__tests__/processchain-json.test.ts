@@ -1,6 +1,6 @@
 /**
- * PC rspc JSON 解析回归（2026-09-20 F1 修复）。
- * fixture 结构取自真机 GET /rspc/{id}/m 的实测 payload（值已脱敏/简化）：
+ * PC rspc JSON 解析回归。
+ * fixture 结构为 GET /rspc/{id}/m payload（值已脱敏/简化）：
  * { bActive, sVariantDescription, oDetail, aSocket[], aExecutionOption[] }
  */
 import { parseProcessChainMetaData, parseProcessChainDetails } from "../api/processchain"

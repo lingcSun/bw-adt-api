@@ -76,36 +76,33 @@ export type DTPVersion = t.OutputOf<typeof DTPVersion>
 /**
  * DTP Execution Result - DTP 执行触发结果
  *
- * Eclipse 抓包（2026-09-21，用户 10:44 日志）+ 真机复验：POST executerun
- * 返回 201 Created，无响应体，运行 ID 在 Location 头：
- * `/sap/bw/modeling/dtpa/executerun/{dtpId}/{runId}`（runId 形如 20260921024431000052000）。
+ * POST /sap/bw/modeling/dtpa/executerun 返回 201 Created，无响应体，
+ * 运行 ID 在 Location 头：`/sap/bw/modeling/dtpa/executerun/{dtpId}/{runId}`。
  * 执行是异步的——加载结果用 getDTPExecuteRunResult 轮询。
  */
 export interface DTPExecutionResult {
-  /** 服务端是否接受了执行触发（实测 201 Created） */
+  /** 服务端是否接受了执行触发（通常 201 Created） */
   triggered: boolean
   /** 运行标识（Location 头末段；用于 getDTPExecuteRunResult 轮询） */
   runId?: string
   /** 完整 Location 头 */
   location?: string
-  /** HTTP 状态码（实测 201） */
+  /** HTTP 状态码 */
   status: number
-  /** 服务端原始响应体（实测为空） */
+  /** 服务端原始响应体（通常为空） */
   raw: string
 }
 
 /**
  * DTP Execute Run Result - 执行运行状态（轮询）
  *
- * Eclipse 抓包（2026-09-21，用户 10:45 日志）：GET executerun/{dtpId}/{runId}
- * 返回 200 + `<executeRun dataTransferProcess=… requestId=…/>`；withLog=true
- * 时完成后可携带日志子节点（完成态的子节点形态未采样，解析只取已证实的属性，
- * 其余经 raw 透传，不虚构）。
+ * GET executerun/{dtpId}/{runId} 返回 `<executeRun …/>`；withLog=true
+ * 时可携带日志子节点（完成态子节点解析不全，其余经 raw 透传）。
  */
 export interface DTPExecuteRunResult {
   dataTransferProcess?: string
   requestId?: string
-  /** 原始 XML（日志/状态子节点形态待后续证据再解析） */
+  /** 原始 XML */
   raw: string
 }
 
@@ -358,9 +355,8 @@ export async function executeDTP(
   client: AdtHTTP,
   dtpId: string
 ): Promise<DTPExecutionResult> {
-  // W3 修复（2026-09-21）：旧形态 `POST /dtpa/{id}?action=execute` 本系统报
-  // 「内部错误：不支持 URI」。Eclipse 抓包实证真实端点为 executerun 集合 POST
-  // （body 带 dtpId，201 + Location 头返回运行 ID），见 VERIFIED_APIS 第 8 节。
+  // 端点：POST /sap/bw/modeling/dtpa/executerun（非 ?action=execute）。
+  // body 带 dtpId；201 + Location 头返回 runId。
   const CT = "application/vnd.sap.bw.modeling.dtpa-v1_0_0+xml"
   const response = await client.request("/sap/bw/modeling/dtpa/executerun", {
     method: "POST",
@@ -384,12 +380,12 @@ export async function executeDTP(
  * Get DTP Execute Run Result - 轮询 DTP 执行运行状态
  *
  * 对应请求: GET /sap/bw/modeling/dtpa/executerun/{dtp_id}/{run_id}[?withLog=true]
- * （Eclipse 抓包 2026-09-21；runId 来自 executeDTP 返回值）
+ * runId 来自 executeDTP 返回值
  *
  * @param client - ADT HTTP 客户端
  * @param dtpId - DTP ID
  * @param runId - 运行标识（executeDTP().runId）
- * @param options.withLog - 请求携带日志（默认 true，与 Eclipse 一致）
+ * @param options.withLog - 请求携带日志（默认 true）
  */
 export async function getDTPExecuteRunResult(
   client: AdtHTTP,
@@ -510,7 +506,7 @@ function parseDTPDetails(raw: any): DTPDetails {
 }
 
 // ============================================================================
-// CREATE —— 通用对象 POST 流 (CREA lock + collection POST, 2026-09-11 实测)
+// CREATE —— 通用对象 POST 流 (CREA lock + collection POST)
 // ============================================================================
 
 export interface CreateDTPOptions {
@@ -528,7 +524,7 @@ export interface CreateDTPOptions {
   packageName?: string
   transport?: string
   /**
-   * ⚠️ 不生效（2026-09-21 W2 实测）：服务端忽略根元素描述，DTP 真实描述是
+   * ⚠️ 不生效：服务端忽略根元素描述，DTP 描述由
    * `overview/object@description` 派生字段（源→目标自动生成，PUT 亦不持久）。
    * 参数仅为签名兼容保留。可编辑配置见 extractionSettings（如 packageSize）。
    */
@@ -583,7 +579,7 @@ export async function createDTP(
       `Pass transport=<TRKORR> (create one with createTransport), or set packageName="$TMP" explicitly.`
     )
   }
-  // W2 预检（2026-09-21 实测）：引用的 TRFN 必须处于 active 版本——未激活或已删除时
+  // 引用的 TRFN 必须可读且为 active 版本——未激活或已删除时
   // 服务端只报模糊的 "could not be successfully created"，提前给出可操作报错。
   {
     let trfnXml: string

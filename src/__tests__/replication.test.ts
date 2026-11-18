@@ -2,7 +2,7 @@ import { BWAdtClient } from "../BWAdtClient"
 import { describeLive, testLive } from "./helpers/liveSystem"
 
 /**
- * DataSource Replication 接口验证 - 对照 Eclipse 右键数据源 "Replicate" 的 Communication Log
+ * DataSource Replication 接口验证
  *
  * 日志中的核心请求 (S4DCLNT300 系统):
  *   09:17:22  GET  /sap/bw/modeling/lsysint/replication/S4DCLNT300?datasource=ZBW_FI_TASKSTAGE_I...  → 200 (复制预检)

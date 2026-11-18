@@ -1,12 +1,9 @@
 /**
- * 域注册表 —— BW 域门面的单一事实源（P1 Task 1）。
+ * 域注册表 —— BW 域门面的单一事实源。
  *
- * kind 三分类与动词家族表出自域分类学笔记
- * .agents/notes/implemented/architecture/2026-09-21-domain-taxonomy.md。
- * verbs 列每个域门面"当前实际"的方法名（类是事实，注册表跟随；
- * 见 src/__tests__/domain-registry.test.ts 的一致性断言），
+ * kind 三分类与动词家族见 VERB_FAMILIES；verbs 列每个域门面当前实际方法名
+ * （与 src/__tests__/domain-registry.test.ts 一致性断言对齐），
  * 不强制 ⊆ VERB_FAMILIES——越族动词在 notes 里说明（如 dataSource.replicate）。
- * 后续任务（动词族审计）以此为起点；polymorphic infoProvider 已于 P1 Task 3 落地。
  */
 
 /** 域的三种性质：建模 / 运维 / 结构（容器·导航·只读消费）。 */
@@ -51,7 +48,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "InfoProvider 多态域（ADSO 判别优先：search 精确名取 objectType，ADSO 转发 AdsoDomain，其余类型未验证即抛错）",
     verbs: ["details", "exists", "adso", "hydrate"],
     notes:
-      "P1 Task 3 已落地：details/exists 经 repository.search 判别类型；adso(name) 返回绑定同一 AdtHTTP 的 AdsoDomain（client.adso 是其快捷方式）。hydrate 为 P2 水合编辑模型入口；P2 Task 2 已落真实分发（ADSO → AdsoModel.hydrate，编辑后 saveAndActivate 落盘）。HCPR/MultiProvider/OpenODS 无实测证据，命中即抛 not verified yet"
+      "details/exists 经 repository.search 判别类型；adso(name) 返回绑定同一 AdtHTTP 的 AdsoDomain（client.adso 是其快捷方式）。hydrate 分发至 AdsoModel.hydrate（编辑后 saveAndActivate 落盘）。HCPR/MultiProvider/OpenODS 未验证，命中即抛 not verified yet"
   },
   {
     name: "hcpr",
@@ -68,7 +65,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "delete"
     ],
     notes:
-      "契约来自 2026-11-17 Eclipse Communication Log（ZR_FIC81）：GET/PUT hcpr-v1_15_0+xml，PUT 带 timestamp + Transport-Lock-Holder；写编排 withWriteSession。exists/delete 与 ADSO 同形（delete 走 lockHandle 模式）；delete 真机尚未单独复测。advanced 子面：lock/unlock/activate/update（调用方持锁原语，非家族动词故不入 verbs）"
+      "GET/PUT hcpr-v1_15_0+xml；PUT 带 timestamp + Transport-Lock-Holder；写编排 withWriteSession。exists/delete 与 ADSO 同形（delete 走 lockHandle）。advanced 子面：lock/unlock/activate/update（调用方持锁原语，不入 verbs）"
   },
   {
     name: "adso",
@@ -93,7 +90,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "delete"
     ],
     notes:
-      "validateTemplate/validateNewName 是寄居的校验动词；validateInfoArea 已归位 client.infoArea.validate（P1 Task 2，旧位置保留 @deprecated）；getRaw 是 Advanced 层原始 XML 访问器。exists 为动词族审计补齐（2026-09-22，归一 validate*Exists 为 boolean）；delete 自管锁（2026-09-22：内部 lockADSO → BWObject.delete，成功不追加门面级 unlock——BWObject.delete 内部自带吞错 unlock（bwObject.ts），lockHandle 不再是调用方输入）；activate 自管锁（2026-09-22 正名：重激活已保存对象，lockADSO → activateADSO → 始终 finally 吞错 unlock——激活不释放锁；可选 transport 作 corrNr，ADSO 侧 corrNr 尚待复核）；removeField（2026-11-17 ZL_FID15）：本地 RWCUR→IOBJ ZC_RWCUR 迁移时删旧 element，PUT 契约同 saveAndActivate；advanced 子面：lock/unlock/activate/update/delete（调用方持锁原语，逐参转发 api 层，非家族动词故不入 verbs）"
+      "validateTemplate/validateNewName 为寄居校验；validateInfoArea 已归位 client.infoArea.validate（旧位置 @deprecated）；getRaw 为 Advanced XML 访问器。exists 归一 boolean；delete/activate 自管锁；removeField PUT 契约同 saveAndActivate；advanced 子面：lock/unlock/activate/update/delete"
   },
   {
     name: "trfn",
@@ -115,7 +112,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "delete"
     ],
     notes:
-      "ensure*/setEndRoutineFields 是例程家族扩展动词；switchRuntime 是纯 XML 辅助（不发网络）。exists 为动词族审计补齐（2026-09-22）；delete 自管锁（2026-09-22：内部 lockTransformation → BWObject.delete，成功不域级 unlock，lockHandle 不再是调用方输入）；activate 自管锁（2026-09-22 正名：重激活已保存对象，lockTransformation → activateTransformation → 始终 finally 吞错 unlock——激活不释放锁；api 层签名无 transport 参数）；advanced 子面：lock/unlock/activate/update（调用方持锁原语，逐参转发 api 层，非家族动词故不入 verbs）"
+      "ensure*/setEndRoutineFields 是例程家族扩展动词；switchRuntime 是纯 XML 辅助（不发网络）。exists 归一 boolean；delete 自管锁：内部 lockTransformation → BWObject.delete，成功不域级 unlock，lockHandle 非调用方输入；activate 自管锁：lockTransformation → activateTransformation → finally 吞错 unlock（激活不释放锁；api 层签名无 transport）；advanced 子面：lock/unlock/activate/update（调用方持锁原语，逐参转发 api 层，非家族动词故不入 verbs）"
   },
   {
     name: "dtp",
@@ -133,7 +130,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "delete"
     ],
     notes:
-      "execute 是 ops 族动词（DTP 执行入口寄居建模域）；activate 是锁→激活→解锁一站式（2026-09-22 正名入 modeling 家族，自管锁：lockDTP → activateDTP → 始终 finally 吞错 unlock——激活不释放锁）。exists 为动词族审计补齐（2026-09-22）；delete 自管锁（2026-09-22：内部 lockDTP → BWObject.delete，成功不域级 unlock，lockHandle 不再是调用方输入；W1：本地 DTP 亦实测可删）；advanced 子面：lock/unlock/activate/update（调用方持锁原语，逐参转发 api 层，非家族动词故不入 verbs）"
+      "execute 是 ops 族动词（DTP 执行入口寄居建模域）；activate 自管锁：lockDTP → activateDTP → finally 吞错 unlock（激活不释放锁）。exists 归一 boolean；delete 自管锁：内部 lockDTP → BWObject.delete，成功不域级 unlock，lockHandle 非调用方输入（本地 DTP 可走 lockHandle 删除）；advanced 子面：lock/unlock/activate/update（调用方持锁原语，逐参转发 api 层，非家族动词故不入 verbs）"
   },
   {
     name: "dataSource",
@@ -151,7 +148,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "replicateFull"
     ],
     notes:
-      "replicate/replicateFull/replicationInfo 是 ops 族动词；分类学明示复制运维留在 dataSource 内，不拆独立域。动词族审计结论（2026-09-22）：不加 exists/delete——RSDS 删除无实测证据，且 BWObject 通用单段 URI 不适用于双段 RSDS 标识（src/api/bwObject.ts DATA_SOURCE 登记）；advanced 子面：lock/unlock/activate/update（调用方持锁原语，逐参转发 api 层，非家族动词故不入 verbs）"
+      "replicate/replicateFull/replicationInfo 是 ops 族动词；复制运维留在 dataSource 内。刻意不加 exists/delete——RSDS 删除路径未包在本库，且 BWObject 单段 URI 不适用于双段 RSDS 标识（src/api/bwObject.ts DATA_SOURCE 登记）；advanced 子面：lock/unlock/activate/update（调用方持锁原语，逐参转发 api 层，非家族动词故不入 verbs）"
   },
   {
     name: "infoObject",
@@ -170,7 +167,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "saveAndActivate"
     ],
     notes:
-      "create/KYF（2026-11-17 ZK_AMT）：stateless POST Keyfigure → PUT unit；createCha：stateful 骨架；createUnit：Unit/CUR/CUKY；xml/saveAndActivate（2026-11-17 ZK_WSL）：PUT /m + timestamp + Transport-Lock-Holder；advanced 子面：lock/unlock/activate/update"
+      "create KYF：stateless POST Keyfigure → PUT unit；createCha：stateful 骨架；createUnit：Unit/CUR/CUKY；xml/saveAndActivate：PUT /m + timestamp + Transport-Lock-Holder；advanced 子面：lock/unlock/activate/update"
   },
   {
     name: "processChain",
@@ -222,7 +219,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
     summary: "InfoArea 容器域（对象树 / 校验）",
     verbs: ["tree", "validate"],
     notes:
-      "P1 Task 2 已落地：tree（自 repository.infoproviderStructure）、validate（自 adso.validateInfoArea）归位，旧位置保留 @deprecated"
+      "tree 自 repository.infoproviderStructure、validate 自 adso.validateInfoArea；repository/adso 旧方法保留 @deprecated 委托"
   }
 ]
 

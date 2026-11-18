@@ -6,7 +6,7 @@ import {
 } from "../api/adso"
 
 /**
- * 纯 XML 辅助函数测试 — 对照 Eclipse PUT body 中的 field 类型节点
+ * 纯 XML 辅助函数测试 — ADSO field 类型节点
  * (无 infoObjectName, sidDeterminationMode="N", localProperties/descriptions)
  */
 
@@ -23,7 +23,7 @@ const SAMPLE_ADSO_XML = `<?xml version="1.0" encoding="UTF-8"?>
 </adso:dataStore>`
 
 describe("ADSO field-type XML helpers", () => {
-  test("buildADSOFieldElementXml() - CHAR field 对照 AUGBL 形态", () => {
+  test("buildADSOFieldElementXml() - CHAR field（AUGBL 形态）", () => {
     const xml = buildADSOFieldElementXml({
       name: "ZAPI_FLD",
       dataType: "CHAR",
@@ -40,7 +40,7 @@ describe("ADSO field-type XML helpers", () => {
     expect(xml).not.toContain("atom:link")
   })
 
-  test("buildADSOFieldElementXml() - DATS field 对照 ETL_DATE 形态", () => {
+  test("buildADSOFieldElementXml() - DATS field（ETL_DATE 形态）", () => {
     const xml = buildADSOFieldElementXml({
       name: "ETL_DATE2",
       dataType: "DATS"
@@ -50,7 +50,7 @@ describe("ADSO field-type XML helpers", () => {
     expect(xml).toContain("<descriptions/>")
   })
 
-  test("buildADSOFieldElementXml() - CUKY 完整币种形态（对照 RWCUR）", () => {
+  test("buildADSOFieldElementXml() - CUKY 完整币种形态（RWCUR）", () => {
     const xml = buildADSOFieldElementXml({
       name: "RWCUR",
       dataType: "CUKY"

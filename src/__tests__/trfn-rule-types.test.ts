@@ -3,16 +3,15 @@ import { describeLive, testLive } from "./helpers/liveSystem"
 import { XMLParser } from "fast-xml-parser"
 
 /**
- * 通用规则构造 addRule 测试 — 各类型 step 形态对照真机 46 个 TRFN 采样
- * (.local/rule-samples/*.xml, 2026-09-19/20)。纯 XML, 无网络依赖。
+ * 通用规则构造 addRule 测试 — 各类型 step 形态（.local/rule-samples）。纯 XML, 无网络依赖。
  *
- * 接线惯例 (真机实证):
+ * 接线惯例:
  * - rule.source N  ↔ step.input N   (source N ↔ step1/inputN)
  * - rule.target 1  ↔ step.output 1  (target1 ↔ step1/output1)
  * - 常量/初始值/不更新规则无 source 块; 公式规则按 inputs 数量带多个 source 块
  */
 
-// 在 trfn-rule-xml.test.ts 的 Eclipse log 精简 fixture 基础上改造:
+// 在 trfn-rule-xml.test.ts fixture 基础上改造:
 // 1) 补充 ZZPOSID/ZC_PROJT (source) 与 ZACCOUNT2/ZC_PROJT (target) 供公式/常量用
 // 2) S 组预置一条水合 DIRECT 规则 (BUDAT→BUDAT, id=1), 用于替换语义测试
 const SAMPLE_TRFN_XML = `<?xml version="1.0" encoding="UTF-8"?>
@@ -103,7 +102,7 @@ function stepTypes(xml: string): string[] {
   return [...xml.matchAll(/<step xsi:type="trfn:(Step[A-Za-z]+)"/g)].map(m => m[1])
 }
 
-describeLive("addRule 通用规则构造 (对照真机 step 形态)", () => {
+describeLive("addRule 通用规则构造", () => {
   test("CONSTANT: 常量规则无 source 块, constant 属性落位, 接线指向 target1", () => {
     const next = addRule(SAMPLE_TRFN_XML, {
       type: "CONSTANT", targetField: "ZACCOUNT2", constant: "AC011601"
@@ -172,7 +171,7 @@ describeLive("addRule 通用规则构造 (对照真机 step 形态)", () => {
     ).toThrow(/needs at least one input field/)
   })
 
-  test("替换语义: 目标字段已有规则时默认替换 (Eclipse 改规则类型)", () => {
+  test("替换语义: 目标字段已有规则时默认替换", () => {
     const before = ruleCount(SAMPLE_TRFN_XML)
     expect(before).toBe(1)
     const next = addRule(SAMPLE_TRFN_XML, {

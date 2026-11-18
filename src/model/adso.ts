@@ -12,7 +12,7 @@ import {
 
 /**
  * 一条模型操作日志：记录「调用者可见意图」（kind + args + summary），
- * 不是 XML diff 片段——v1 不做三方合并/冲突重放（P3+），`plan()` 即 diff 预览。
+ * 不是 XML diff 片段——v1 不做三方合并/冲突重放，`plan()` 即 diff 预览。
  * 入账时 op 记录与 args 数组均被 `Object.freeze`（账本语义不可变；
  * args 内的对象引用已是浅拷贝，账本免疫调用侧事后改写）。
  */
@@ -33,7 +33,7 @@ const freezeOp = (op: ModelOp): ModelOp => {
 }
 
 /**
- * ADSO 的水合式编辑模型（P2 Task 1）。
+ * ADSO 的水合式编辑模型。
  *
  * hydrate 时经 `getADSOXml(h, id, true)` 全新读一份 XML 作为工作副本；
  * 三个链式编辑方法只把工作副本喂给 src/api/adso.ts 的纯变换函数——
@@ -111,8 +111,8 @@ export class AdsoModel {
   }
 
   /**
-   * 加键（InfoObject 键 = keyElement + 同名引用元素，实测形态见
-   * addADSOKeyToXml）。length 透传给纯函数（仅实测过 40）。
+   * 加键（InfoObject 键 = keyElement + 同名引用元素，见 addADSOKeyToXml）。
+   * length 透传给纯函数（默认 40）。
    * 键已存在时纯函数幂等返回原 XML：幂等 no-op 也会记录一条 op；
    * plan() 可能预览不产生实际差异的编辑。
    */

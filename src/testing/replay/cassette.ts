@@ -8,7 +8,7 @@
  * 旧形状卡带（缺 qs）照常回放——qs 字段缺省即不落。
  *
  * 诚实原则：卡带只用于断言「引擎遵从会话规约」；凡断言服务端真实行为的测试
- * 必须走活系统（describeLive），不得用手工卡带冒充实测证据。
+ * 必须走活系统（describeLive），不得用手工卡带代替活系统断言。
  */
 import { readFileSync } from "fs"
 import { HttpClientOptions, ResponseHeaders } from "../../AdtHTTP"

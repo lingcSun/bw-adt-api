@@ -153,8 +153,8 @@ export function extractTableNameFromUrl(ddicUrl: string): string | undefined {
 /**
  * Get ADSO DDIC Links - 从 ADSO 响应头获取 DDIC 表链接
  *
- * ⚠️ 实测 (VERIFIED_APIS F9): ddicTableLink 是模板（`{table_name}` 字面量占位符），
- * 不能从中提取真实表名——取表名请用 getADSODDICTableName（走 XML tables 段）。
+ * ddicTableLink 是模板（`{table_name}` 字面量占位符），不能从中提取真实表名——
+ * 取表名请用 getADSODDICTableName（走 XML tables 段）。
  * 本函数保留用于 defaultDataPreview 等其他链接与原始头调试。
  *
  * @param client - ADT HTTP 客户端
@@ -190,8 +190,7 @@ export async function getADSODDICLinks(
 /**
  * Get ADSO DDIC Table Name - 获取 ADSO 对应的 DDIC 表名
  *
- * 2026-09-20 修正（VERIFIED_APIS F9）：Link 头的 ddicTableLink 指向
- * `…/ddic/tables/{table_name}/source/main` 字面量占位符，从中提不出真实表名。
+ * Link 头 ddicTableLink 是 `{table_name}` 占位符，提不出真实表名。
  * 改为读 ADSO /m 的 XML `tables` 段（activeTable 优先，其次 activeDataTables 首个）。
  *
  * @param client - ADT HTTP 客户端
@@ -291,14 +290,14 @@ export async function getDDICTableInfo(
 /**
  * Parse DDIC Table Source - 解析 DDIC 表源码（ABAP CDS DDL 格式）
  *
- * 支持的字段格式（2026-09-21 V7 修复：补数据元素形态）：
+ * 支持的字段格式（含数据元素形态）：
  * - key fieldname : abap.type(length) not null;            ← 原始类型（/BIC/ 生成表）
  * - key fieldname : abap.type(length, decimals) not null;
  * - key fieldname : dataelement not null;                  ← 数据元素（标准表，如 T000 的 `key mandt : mandt`）
  * - @EndUserText.label : 'label' 前缀注解同样适用
  *
  * 防回归护栏：DDL 是表定义（含 define table）却解析出 0 字段时显式报错，
- * 拒绝静默空（V7 的危险面：调用方拿到空字段列表无从察觉）。
+ * 拒绝静默空（调用方拿到空字段列表无从察觉）。
  */
 function parseDDICTableSource(source: string, tableName: string): DDICTableInfo {
   const fields: DDICTableField[] = []
@@ -342,7 +341,7 @@ function parseDDICTableSource(source: string, tableName: string): DDICTableInfo 
     })
   }
 
-  // V7 护栏：非空表定义解析 0 字段 = 未识别的 DDL 形态，报错而非静默空
+  // 非空表定义解析 0 字段 = 未识别的 DDL 形态，报错而非静默空
   if (fields.length === 0 && /define\s+table/i.test(source)) {
     throw new Error(
       `DDIC DDL for ${tableName} parsed 0 fields — unrecognized DDL form (first 120 chars): ${source.replace(/\s+/g, " ").slice(0, 120)}`
