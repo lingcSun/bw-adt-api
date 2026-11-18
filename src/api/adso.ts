@@ -899,29 +899,62 @@ export async function createADSOFull(
 }
 
 /**
- * Field 类型字段定义 (本地字段, 非 InfoObject)
+ * Field 类型字段定义 (本地字段或 InfoObject 引用)
  *
- * Eclipse 特征: 无 infoObjectName / atom:link, sidDeterminationMode="N",
+ * 本地字段 Eclipse 特征: 无 infoObjectName / atom:link, sidDeterminationMode="N",
  * 标签放在 localProperties/descriptions/@label。
+ *
+ * 金额↔币种（2026-11-17 实测，ZL_FID01/ZL_FID15）：
+ * - 本地 CUKY 必须带 outputLength + semanticType=currencyCode + consumptionViewProperties，
+ *   否则 KYF 的 unitCurrencyElement 指向它时激活会被打回 0CURRENCY。
+ * - **挂真 IOBJ**（Eclipse 搜索挂载，2026-11-17 ZL_FID01 PUT）：用 hang 骨架
+ *   （keep/displayFolder/inlineType/associationType），**不要**带 atom:link /
+ *   localProperties / consumptionViewProperties；UNI 默认 dim=UNI、sid=S、
+ *   baseInfoObjectName=0CURRENCY；KYF 带 unitCurrencyElement、sid=N。
  */
 export interface ADSOFieldDefinition {
   name: string
   /**
-   * 引用的 InfoObject 技术名。给定即按 IOBJ 引用字段生成元素
-   * （`<element … infoObjectName="…">`，不带 inlineType，服务器水合其余属性；
-   * 2026-09-19 复测 F11：手工拼接 PUT 链路实测可行）。
-   * 此时 dataType/length 等本地字段属性被忽略。
+   * 引用的 InfoObject 技术名。给定即按 IOBJ hang 骨架生成元素
+   * （2026-11-17 Eclipse ZL_FID01：ZC_RWCUR/ZK_WSL）。
    */
   infoObjectName?: string
+  /**
+   * 挂载 IOBJ 类型。省略时：有 unitCurrencyElement → KYF；
+   * 有 baseInfoObjectName / dataType=CUKY → UNI；否则 CHA。
+   */
+  infoObjectType?: "CHA" | "KYF" | "UNI"
+  /** UNI 挂载时的基础单位 IOBJ，默认 0CURRENCY */
+  baseInfoObjectName?: string
   /** DDIC 类型, 默认 CHAR */
   dataType?: "CHAR" | "NUMC" | "DATS" | "TIMS" | "DEC" | "CUKY" | "CURR" | "QUAN" | "INT4" | "FLTP"
   length?: number
   label?: string
-  /** 维度短名, 默认 CHA → dimension="#///CHA§" */
+  /**
+   * 维度短名或完整 "#///…§"。
+   * 未指定时：CUKY/UNI→UNI，CURR/unitCurrency/KYF→KYF，其余→CHA / 继承。
+   */
   dimension?: string
   semanticType?: string
   precision?: number
   scale?: number
+  /**
+   * 金额字段绑定的币种/单位字段（ADSO 内 element name）。
+   * 可传 `ZC_RWCUR` 或 `#///ZC_RWCUR`；写入为 `<unitCurrencyElement>#///ZC_RWCUR</unitCurrencyElement>`。
+   */
+  unitCurrencyElement?: string
+  /** 聚合行为；KYF/CURR 默认 SUM；UNI hang 默认 NONE */
+  aggregationBehavior?: "SUM" | "MAX" | "MIN" | "NOP" | "NONE" | string
+}
+
+/** Normalize unit/currency element ref to `#///NAME` form. */
+export function normalizeUnitCurrencyElement(ref: string): string {
+  const trimmed = ref.trim()
+  if (!trimmed) {
+    throw new Error("unitCurrencyElement must be a non-empty field name")
+  }
+  if (trimmed.startsWith("#///")) return trimmed
+  return `#///${trimmed}`
 }
 
 function defaultSemanticType(dataType: string): string {
@@ -955,35 +988,112 @@ function defaultLength(dataType: string): number {
   }
 }
 
+function resolveInfoObjectHangType(
+  field: ADSOFieldDefinition
+): "CHA" | "KYF" | "UNI" {
+  if (field.infoObjectType) return field.infoObjectType
+  if (field.unitCurrencyElement) return "KYF"
+  if (field.baseInfoObjectName || field.dataType === "CUKY") return "UNI"
+  if (field.dimension) {
+    const d = field.dimension.toUpperCase()
+    if (d.includes("UNI")) return "UNI"
+    if (d.includes("KYF")) return "KYF"
+  }
+  return "CHA"
+}
+
 /**
- * 构建 IOBJ 引用字段 element XML 片段（F11）。
+ * 构建 IOBJ hang 字段 element XML（Eclipse 搜索挂载骨架）。
  *
- * 实测（2026-09-19/20）：PUT 只需最小形态——name + infoObjectName（无 inlineType），
- * 服务器按 infoObjectName 水合 inlineType/association 等其余属性。
- * dimension 与本地字段同规则（继承或回退）。
+ * 证据 2026-11-17 ZL_FID01 PUT：
+ * - UNI `ZC_RWCUR`：keep/NONE/sid=S/baseInfoObjectName=0CURRENCY + inlineType CUKY
+ * - KYF `ZK_WSL`：keep/SUM/sid=N + unitCurrencyElement + inlineType CURR
+ * - 均无 atom:link / localProperties / consumptionViewProperties（服务器水合）
+ * CHA 仍可用极简 name+infoObjectName（2026-09 F11）。
  */
 export function buildADSOInfoObjectElementXml(field: ADSOFieldDefinition): string {
   if (!field.infoObjectName) {
     throw new Error("buildADSOInfoObjectElementXml: infoObjectName is required")
   }
 
+  const hangType = resolveInfoObjectHangType(field)
+  const iobj = escapeXmlAttr(field.infoObjectName)
+  const name = escapeXmlAttr(field.name)
+  const label = escapeXmlAttr(field.label || field.infoObjectName)
+
+  if (hangType === "UNI") {
+    const rawDim = field.dimension || "UNI"
+    const dimension = rawDim.startsWith("#") ? rawDim : `#///${rawDim}§`
+    const base = escapeXmlAttr(field.baseInfoObjectName || "0CURRENCY")
+    const length = field.length ?? 5
+    const agg = field.aggregationBehavior || "NONE"
+    return (
+      `<element xsi:type="adso:AdsoElement" name="${name}" keep="false" ` +
+      `aggregationBehavior="${escapeXmlAttr(agg)}" attributeHierarchyDefaultMember="" ` +
+      `infoObjectName="${iobj}" displayFolder="" baseInfoObjectName="${base}" ` +
+      `dimension="${dimension}" sidDeterminationMode="S">` +
+      `<endUserTexts label="${label}"/>` +
+      `<inlineType name="CUKY" length="${length}" precision="0" scale="0" ` +
+      `semanticType="currencyCode" globalElementName="${iobj}"/>` +
+      `<fixedCurrency></fixedCurrency><fixedUnit></fixedUnit>` +
+      `<associationType>1</associationType></element>`
+    )
+  }
+
+  if (hangType === "KYF") {
+    const rawDim = field.dimension || "KYF"
+    const dimension = rawDim.startsWith("#") ? rawDim : `#///${rawDim}§`
+    const agg = field.aggregationBehavior || "SUM"
+    const precision = field.precision ?? 17
+    const scale = field.scale ?? 2
+    const unitXml = field.unitCurrencyElement
+      ? `<unitCurrencyElement>${escapeXmlAttr(normalizeUnitCurrencyElement(field.unitCurrencyElement))}</unitCurrencyElement>`
+      : ""
+    return (
+      `<element xsi:type="adso:AdsoElement" name="${name}" keep="false" ` +
+      `aggregationBehavior="${escapeXmlAttr(agg)}" attributeHierarchyDefaultMember="" ` +
+      `infoObjectName="${iobj}" displayFolder="" dimension="${dimension}" ` +
+      `sidDeterminationMode="N">` +
+      `<endUserTexts label="${label}"/>` +
+      `<inlineType name="CURR" precision="${precision}" scale="${scale}" ` +
+      `semanticType="empty" globalElementName="${iobj}"/>` +
+      `${unitXml}<associationType>1</associationType></element>`
+    )
+  }
+
+  // CHA：保留 F11 极简形态（服务器水合）
   const rawDim = field.dimension || "CHA"
   const dimension = rawDim.startsWith("#") ? rawDim : `#///${rawDim}§`
-
   const descriptions = field.label
     ? `<descriptions label="${escapeXmlAttr(field.label)}"/>`
     : "<descriptions/>"
+  return (
+    `<element xsi:type="adso:AdsoElement" name="${name}" ` +
+    `infoObjectName="${iobj}" dimension="${dimension}" sidDeterminationMode="N">` +
+    `<localProperties xsi:type="BwCore:LocalCharacteristicProperties">${descriptions}</localProperties>` +
+    `</element>`
+  )
+}
 
-  return `<element xsi:type="adso:AdsoElement" name="${field.name}" infoObjectName="${escapeXmlAttr(field.infoObjectName)}" dimension="${dimension}" sidDeterminationMode="N">
-    <localProperties xsi:type="BwCore:LocalCharacteristicProperties">
-      ${descriptions}
-    </localProperties>
-  </element>`
+/**
+ * 本地币种字段（CUKY）完整形态 —— 对照 ZL_FID01 RWCUR（2026-11-17）。
+ * 残缺形态（semanticType=empty、无 consumptionView）会导致金额 unitCurrency 绑定激活失败。
+ */
+function buildLocalCurrencyElementXml(field: ADSOFieldDefinition): string {
+  const length = field.length ?? 5
+  const semanticType = field.semanticType ?? "currencyCode"
+  const rawDim = field.dimension || "UNI"
+  const dimension = rawDim.startsWith("#") ? rawDim : `#///${rawDim}§`
+  const descriptions = field.label
+    ? `<descriptions label="${escapeXmlAttr(field.label)}"/>`
+    : ""
+
+  return `<element xsi:type="adso:AdsoElement" name="${escapeXmlAttr(field.name)}" dimension="${dimension}" sidDeterminationMode="N" outputLength="${length}"><inlineType name="CUKY" length="${length}" semanticType="${escapeXmlAttr(semanticType)}"/><localProperties xsi:type="BwCore:LocalCharacteristicProperties">${descriptions}</localProperties><consumptionViewProperties objectType="UNI" metaObject="false" odsOnly="false" nonCumulative="true" fieldName="${escapeXmlAttr(field.name)}" sidConversionType="N"/></element>`
 }
 
 /**
  * 构建 field 类型 element XML 片段
- * 对照 AUGBL / SGTXT / ZC_MATNR 等本地字段节点
+ * 对照 AUGBL / SGTXT / ZC_MATNR 等本地字段节点；CUKY 走完整币种形态。
  *
  * dimension 入参支持两种写法:
  *   - 短名 (如 "CHA"/"__NON_KEY"): 拼成 "#///CHA§"/"#///__NON_KEY§"
@@ -996,9 +1106,21 @@ export function buildADSOFieldElementXml(field: ADSOFieldDefinition): string {
   }
 
   const dataType = field.dataType || "CHAR"
+
+  // 本地币种：必须完整形态，否则无法作为 unitCurrencyElement 目标
+  if (dataType === "CUKY" || field.semanticType === "currencyCode") {
+    return buildLocalCurrencyElementXml({
+      ...field,
+      dataType: "CUKY",
+      semanticType: field.semanticType ?? "currencyCode"
+    })
+  }
+
   const length = field.length ?? defaultLength(dataType)
   const semanticType = field.semanticType ?? defaultSemanticType(dataType)
-  const rawDim = field.dimension || "CHA"
+  const defaultDim =
+    dataType === "CURR" || field.unitCurrencyElement ? "KYF" : "CHA"
+  const rawDim = field.dimension || defaultDim
   const dimension = rawDim.startsWith("#") ? rawDim : `#///${rawDim}§`
 
   let inlineAttrs = `name="${dataType}"`
@@ -1015,12 +1137,16 @@ export function buildADSOFieldElementXml(field: ADSOFieldDefinition): string {
     ? `<descriptions label="${escapeXmlAttr(field.label)}"/>`
     : "<descriptions/>"
 
-  return `<element xsi:type="adso:AdsoElement" name="${field.name}" dimension="${dimension}" sidDeterminationMode="N">
-    <inlineType ${inlineAttrs}/>
-    <localProperties xsi:type="BwCore:LocalCharacteristicProperties">
-      ${descriptions}
-    </localProperties>
-  </element>`
+  const unitXml = field.unitCurrencyElement
+    ? `<unitCurrencyElement>${escapeXmlAttr(normalizeUnitCurrencyElement(field.unitCurrencyElement))}</unitCurrencyElement>`
+    : ""
+
+  const agg =
+    field.aggregationBehavior ||
+    (dataType === "CURR" || field.unitCurrencyElement ? "SUM" : undefined)
+  const aggAttr = agg ? ` aggregationBehavior="${escapeXmlAttr(agg)}"` : ""
+
+  return `<element xsi:type="adso:AdsoElement" name="${escapeXmlAttr(field.name)}"${aggAttr} dimension="${dimension}" sidDeterminationMode="N"><inlineType ${inlineAttrs}/>${unitXml}<localProperties xsi:type="BwCore:LocalCharacteristicProperties">${descriptions}</localProperties></element>`
 }
 
 function escapeXmlAttr(value: string): string {
@@ -1100,9 +1226,21 @@ export function addADSOFieldToXml(adsoXml: string, field: ADSOFieldDefinition): 
     )
   }
 
-  // 未指定 dimension 时, 从已有 element 继承 (优先 __NON_KEY, 否则任取一个)
+  // 未指定 dimension 时, 从已有 element 继承 (优先 __NON_KEY, 否则任取一个)。
+  // CUKY/CURR/带 unitCurrency 的金额与 IOBJ-KYF 有自己的默认维度（UNI/KYF），不继承。
   let resolved = field
-  if (!field.dimension) {
+  const hangType = field.infoObjectName
+    ? resolveInfoObjectHangType(field)
+    : undefined
+  const keepOwnDim =
+    !!field.dimension ||
+    field.dataType === "CUKY" ||
+    field.dataType === "CURR" ||
+    field.semanticType === "currencyCode" ||
+    !!field.unitCurrencyElement ||
+    hangType === "UNI" ||
+    hangType === "KYF"
+  if (!keepOwnDim) {
     const dims = [...adsoXml.matchAll(/<element[^>]*\sdimension="([^"]*)"/g)].map(
       (m) => m[1]
     )

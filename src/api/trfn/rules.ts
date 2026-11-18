@@ -109,6 +109,132 @@ export function addTransformationRule(
   return insertRuleIntoGroup(trfnXml, ruleXml)
 }
 
+/**
+ * 精简 step 内联 element：去掉 unitCurrencyElement（Eclipse 成对规则 step I/O 不带）。
+ */
+function leanStepElementXml(elementXml: string): string {
+  return stripStepElementType(
+    elementXml.replace(/<unitCurrencyElement>[\s\S]*?<\/unitCurrencyElement>/g, "")
+  )
+}
+
+export interface PairedAmountCurrencyRuleOptions {
+  /** 源金额字段，默认 WSL */
+  sourceAmount?: string
+  /** 源币种字段，默认 RWCUR */
+  sourceCurrency?: string
+  /** 目标金额字段，默认 ZK_WSL */
+  targetAmount?: string
+  /** 目标币种字段，默认 ZC_RWCUR */
+  targetCurrency?: string
+  /** Rules group id；默认第一个 type=S */
+  groupId?: string
+  /**
+   * 规则 conversiontype。Eclipse ZL_FID01 rule 113 为 FROM_SOURCE；
+   * 同 TRFN 内 HSL 成对规则可无此属性——金额/币种换绑时传 FROM_SOURCE。
+   */
+  conversionType?: "FROM_SOURCE" | ""
+}
+
+/**
+ * 插入金额+币种成对 DIRECT 规则（对照 2026-11-17 Eclipse ZL_FID01 rule 113）。
+ *
+ * - `conversiontype="FROM_SOURCE"`（可关）
+ * - 金额 step id=2 rank=MAIN；币种 step id=1 rank=MINOR
+ * - step I/O element 去掉 unitCurrencyElement
+ * - 若目标金额/币种已有规则则先删再插
+ */
+export function addPairedAmountCurrencyRule(
+  trfnXml: string,
+  options?: PairedAmountCurrencyRuleOptions
+): string {
+  const sourceAmount = options?.sourceAmount || "WSL"
+  const sourceCurrency = options?.sourceCurrency || "RWCUR"
+  const targetAmount = options?.targetAmount || "ZK_WSL"
+  const targetCurrency = options?.targetCurrency || "ZC_RWCUR"
+  const conversionType =
+    options?.conversionType === undefined ? "FROM_SOURCE" : options.conversionType
+
+  const srcAmtEl = extractSourceElementXml(trfnXml, sourceAmount)
+  const srcCurEl = extractSourceElementXml(trfnXml, sourceCurrency)
+  const tgtAmtEl = extractTargetElementXml(trfnXml, targetAmount)
+  const tgtCurEl = extractTargetElementXml(trfnXml, targetCurrency)
+  if (!srcAmtEl) {
+    throw new Error(`Source amount field "${sourceAmount}" not found in TRFN source segment`)
+  }
+  if (!srcCurEl) {
+    throw new Error(`Source currency field "${sourceCurrency}" not found in TRFN source segment`)
+  }
+  if (!tgtAmtEl) {
+    throw new Error(`Target amount field "${targetAmount}" not found in TRFN target segment`)
+  }
+  if (!tgtCurEl) {
+    throw new Error(`Target currency field "${targetCurrency}" not found in TRFN target segment`)
+  }
+
+  let group = locateSGroup(trfnXml, options?.groupId)
+  const ruleId = nextRuleIdInGroup(group.xml, trfnXml)
+
+  // 删掉目标金额/币种上已有规则（可能是两条单字段或一条成对）
+  for (const tgt of [targetAmount, targetCurrency]) {
+    group = locateSGroup(trfnXml, options?.groupId)
+    const existing = findRuleRangeForTarget(group.xml, tgt)
+    if (existing) {
+      trfnXml = trfnXml.slice(0, group.start + existing[0]) + trfnXml.slice(group.start + existing[1])
+    }
+  }
+  group = locateSGroup(trfnXml, options?.groupId)
+
+  const g = `#///group${group.id}/rule${ruleId}`
+  const leanSrcAmt = leanStepElementXml(srcAmtEl)
+  const leanSrcCur = leanStepElementXml(srcCurEl)
+  const leanTgtAmt = leanStepElementXml(tgtAmtEl)
+  const leanTgtCur = leanStepElementXml(tgtCurEl)
+  const convAttr = conversionType ? ` conversiontype="${conversionType}"` : ""
+
+  const ruleXml =
+    `    <rule id="${ruleId}"${convAttr} description="">\n` +
+    `      <source id="1">\n` +
+    `        <input>${g}/step2/input1</input>\n` +
+    `        <elementRef>#///source/segment1/${sourceAmount}</elementRef>\n` +
+    `      </source>\n` +
+    `      <source id="2">\n` +
+    `        <input>${g}/step1/input1</input>\n` +
+    `        <elementRef>#///source/segment1/${sourceCurrency}</elementRef>\n` +
+    `      </source>\n` +
+    `      <target id="1">\n` +
+    `        <output>${g}/step2/output1</output>\n` +
+    `        <elementRef>#///target/segment1/${targetAmount}</elementRef>\n` +
+    `      </target>\n` +
+    `      <target id="2">\n` +
+    `        <output>${g}/step1/output1</output>\n` +
+    `        <elementRef>#///target/segment1/${targetCurrency}</elementRef>\n` +
+    `      </target>\n` +
+    `      <step xsi:type="trfn:StepDirect" id="2" rank="MAIN" type="DIRECT">\n` +
+    `        <input id="1">\n` +
+    `          <output>${g}/source1</output>\n` +
+    `${indent(leanSrcAmt, 10)}\n` +
+    `        </input>\n` +
+    `        <output id="1">\n` +
+    `          <input>${g}/target1</input>\n` +
+    `${indent(leanTgtAmt, 10)}\n` +
+    `        </output>\n` +
+    `      </step>\n` +
+    `      <step xsi:type="trfn:StepDirect" id="1" rank="MINOR" type="DIRECT">\n` +
+    `        <input id="1">\n` +
+    `          <output>${g}/source2</output>\n` +
+    `${indent(leanSrcCur, 10)}\n` +
+    `        </input>\n` +
+    `        <output id="1">\n` +
+    `          <input>${g}/target2</input>\n` +
+    `${indent(leanTgtCur, 10)}\n` +
+    `        </output>\n` +
+    `      </step>\n` +
+    `    </rule>\n`
+
+  return insertRuleIntoGroupAt(trfnXml, ruleXml, group.start, group.end)
+}
+
 // ============================================================================
 // 通用规则构造 —— addRule (2026-09-20; 各类型 step 形态采自 46 个真实 TRFN)
 // ============================================================================

@@ -9,6 +9,7 @@ export * from "./ddic"
 export * from "./replication"
 export * from "./repository"
 export * from "./systemInfo"
+export * from "./dumps"
 export * from "./search"
 export * from "./transport"
 export * from "./reporting"
@@ -138,9 +139,34 @@ export {
   addADSOKey,
   removeADSOFieldFromXml,
   extractADSOTimestamp,
+  normalizeUnitCurrencyElement,
   saveAndActivateADSO,
   createADSOFull
 } from "./adso"
+
+export {
+  HCPR_CONTENT_TYPE,
+  lockHCPR,
+  unlockHCPR,
+  activateHCPR,
+  checkHCPR,
+  getHCPRVersions,
+  validateHCPRExists,
+  getHCPRXml,
+  getHCPRDetails,
+  parseHCPRDetails,
+  extractHCPRTimestamp,
+  updateHCPR,
+  saveAndActivateHCPR
+} from "./hcpr"
+
+export type {
+  HCPRDetails,
+  HCPRVersion,
+  UpdateHCPROptions,
+  SaveAndActivateHCPROptions,
+  SaveAndActivateHCPRResult
+} from "./hcpr"
 
 export {
   lockTransformation,
@@ -168,6 +194,7 @@ export {
   hasEndRoutineInXml,
   hasStartRoutineInXml,
   addTransformationRule,
+  addPairedAmountCurrencyRule,
   addRule,
   autoMapTransformationFields,
   switchTransformationRuntime,
@@ -212,5 +239,36 @@ export {
 export {
   getInfoObject,
   getInfoObjectMetadata,
+  getInfoObjectXml,
+  getInfoObjectVersions,
+  checkInfoObject,
   validateInfoObjectExists,
-  validateInfoObjectNewName,} from "./infoobject"
+  validateInfoObjectNewName,
+  buildInfoObjectXml,
+  buildInfoObjectUnitXml,
+  lockInfoObject,
+  unlockInfoObject,
+  activateInfoObject,
+  updateInfoObject,
+  saveAndActivateInfoObject,
+  extractInfoObjectTimestamp,
+  IOBJ_CONTENT_TYPE,
+  createInfoObject,
+  createInfoObjectFull,
+  createInfoObjectUnit,
+  createInfoObjectUnitFull
+} from "./infoobject"
+
+export type {
+  InfoObjectCreateOptions,
+  InfoObjectCreateResult,
+  InfoObjectCreateVerification,
+  InfoObjectKeyfigureType,
+  InfoObjectKfDataType,
+  InfoObjectAggregationType,
+  InfoObjectUnitCreateOptions,
+  InfoObjectUnitCreateResult,
+  InfoObjectUnitCreateVerification,
+  UpdateInfoObjectOptions,
+  SaveAndActivateInfoObjectOptions
+} from "./infoobject"

@@ -14,6 +14,7 @@
 | Process Chain | `/sap/bw/modeling/pc` | `processchain.ts` | ✅ + Validation |
 | InfoProvider | `/sap/bw/modeling/repo/infoproviderstructure` | `infoprovider.ts` | ✅ |
 | System Info | `/sap/bw/modeling/repo/is/systeminfo` | `systemInfo.ts` | ✅ |
+| Runtime Dumps (ST22) | `/sap/bc/adt/runtime/dumps` | `dumps.ts` | ✅ |
 | Search | `/sap/bw/modeling/repo/is/bwsearch` | `search.ts` | ✅ |
 | DDIC Tables | `/sap/bc/adt/ddic/tables/*` | `ddic.ts` | ✅ |
 | ABAP Class | `/sap/bc/adt/programs/programs/*` | `abapClass.ts` | ✅ |

@@ -55,7 +55,9 @@ export enum BWObjectType {
   INFO_OBJECT = "iobj",
   DATA_SOURCE = "dso",
   INFO_SOURCE = "isrc",
-  INFO_AREA = "area"
+  INFO_AREA = "area",
+  /** CompositeProvider — Eclipse Communication Log 2026-11-17 实测 */
+  HCPR = "hcpr"
 }
 
 /**
@@ -130,6 +132,17 @@ const BW_OBJECT_CONFIGS: Record<BWObjectType, BWObjectConfig> = {
     endpoint: "/sap/bw/modeling/infosource",
     contentType: "application/vnd.sap.bw.modeling.infosource+xml",
     versionSuffix: false,
+    needsActivate: true,
+    versionChar: "m"
+  },
+  [BWObjectType.HCPR]: {
+    // 实测 (2026-11-17 Eclipse Communication Log ZR_FIC81):
+    // GET/PUT /sap/bw/modeling/hcpr/{name}/m，vendor
+    // application/vnd.sap.bw.modeling.hcpr-v1_15_0+xml；schemaVersion 1.15。
+    // PUT 带 timestamp + Transport-Lock-Holder（与 TRFN/RSDS 同形）。
+    endpoint: "/sap/bw/modeling/hcpr",
+    contentType: "application/vnd.sap.bw.modeling.hcpr-v1_15_0+xml",
+    versionSuffix: true,
     needsActivate: true,
     versionChar: "m"
   },
@@ -554,7 +567,8 @@ export class BWObject<T extends BWObjectType> {
       this.objectType === BWObjectType.INFO_AREA ||
       this.objectType === BWObjectType.ADSO ||
       this.objectType === BWObjectType.TRANSFORMATION ||
-      this.objectType === BWObjectType.DTP
+      this.objectType === BWObjectType.DTP ||
+      this.objectType === BWObjectType.HCPR
 
     // 类型决定必填项，且拒绝走错分支（比静默拼出错误查询串好）。
     if (useLockHandleMode && !options.lockHandle) {

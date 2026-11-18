@@ -241,6 +241,12 @@
 | `getSystemProperty` | 读 | GET /sap/bw/modeling/repo/is/systeminfo — 读取单个系统属性 | ✅ system.logsys=有值；非法属性=空(不报错) |
 | `hasCapability` | 读 | GET /sap/bw/modeling/repo/is/systeminfo — 能力判定 | ✅ planning=true；非法=false（false 不报错） |
 
+### ABAP Runtime Dumps / ST22（`dumps.ts`）
+
+| 函数 | 类 | 端点/说明 | 验证状态 |
+|---|---|---|---|
+| `dumps` | 读 | GET /sap/bc/adt/runtime/dumps — Atom feed；`query` 透传 `maxNumber`/`from`/… | ✅ parse fixture + live maxNumber=5 |
+
 ### Process Chain（rspc JSON）（`processchain.ts`）
 
 | 函数 | 类 | 端点/说明 | 验证状态 |

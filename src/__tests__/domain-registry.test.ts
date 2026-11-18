@@ -20,6 +20,7 @@ import {
   DataSourceDomain,
   DdicDomain,
   DtpDomain,
+  HcprDomain,
   InfoAreaDomain,
   InfoObjectDomain,
   InfoProviderDomain,
@@ -45,7 +46,8 @@ const FACADE_CLASSES: Record<string, new (h: AdtHTTP) => unknown> = {
   ddic: DdicDomain,
   transport: TransportDomain,
   infoArea: InfoAreaDomain,
-  infoProvider: InfoProviderDomain
+  infoProvider: InfoProviderDomain,
+  hcpr: HcprDomain
 }
 
 /** 未挂载域清单：infoArea（P1 Task 2）、infoProvider（P1 Task 3）均已挂载，当前应为空。 */
@@ -66,17 +68,18 @@ function attachedNames(): string[] {
   return DOMAIN_REGISTRY.filter(e => FACADE_CLASSES[e.name]).map(e => e.name)
 }
 
-describe("域注册表（13 域 = 12 现有 + infoProvider）", () => {
-  test("恰好包含全部 13 域，无重复", () => {
+describe("域注册表（14 域 = 13 现有 + hcpr）", () => {
+  test("恰好包含全部 14 域，无重复", () => {
     const names = DOMAIN_REGISTRY.map(e => e.name)
-    expect(names).toHaveLength(13)
-    expect(new Set(names).size).toBe(13)
+    expect(names).toHaveLength(14)
+    expect(new Set(names).size).toBe(14)
     expect([...names].sort()).toEqual(
       [
         "adso",
         "dataSource",
         "ddic",
         "dtp",
+        "hcpr",
         "infoArea",
         "infoObject",
         "infoProvider",
@@ -208,7 +211,7 @@ describe("注册表 verbs ⇄ 门面实际方法名（一致性）", () => {
   })
 
   test("advanced 子面访问器不进 verbs（子面访问器，非家族动词；内容记 notes）", () => {
-    for (const name of ["adso", "trfn", "dtp", "dataSource"]) {
+    for (const name of ["adso", "trfn", "dtp", "dataSource", "hcpr"]) {
       expect(getDomain(name)?.verbs).not.toContain("advanced")
       expect(getDomain(name)?.notes).toContain("advanced 子面")
     }

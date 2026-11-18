@@ -21,7 +21,8 @@ import {
   SystemDomain,
   DdicDomain,
   TransportDomain,
-  InfoAreaDomain
+  InfoAreaDomain,
+  HcprDomain
 } from "./domains"
 
 export function createSSLConfig(
@@ -86,6 +87,8 @@ export class BWAdtClient {
   readonly ddic: DdicDomain
   readonly transport: TransportDomain
   readonly infoArea: InfoAreaDomain
+  /** CompositeProvider (HCPR) 建模域。 */
+  readonly hcpr: HcprDomain
 
   /**
    * Create a BW ADT client
@@ -133,6 +136,7 @@ export class BWAdtClient {
     this.ddic = new DdicDomain(this.h)
     this.transport = new TransportDomain(this.h)
     this.infoArea = new InfoAreaDomain(this.h)
+    this.hcpr = new HcprDomain(this.h)
   }
 
   private createHttp() {
@@ -306,6 +310,15 @@ export class BWAdtClient {
   public async hasCapability(capabilityName: string) {
     const { hasCapability } = await import("./api/systemInfo")
     return hasCapability(this.h, capabilityName)
+  }
+
+  /**
+   * ABAP runtime dumps (ST22) — GET /sap/bc/adt/runtime/dumps
+   * @param query plain URL query string, e.g. "maxNumber=5" or "from=YYYYMMDDhhmmss"
+   */
+  public async dumps(query?: string) {
+    const { dumps } = await import("./api/dumps")
+    return dumps(this.h, query)
   }
 
   // ========================================
@@ -782,6 +795,27 @@ export class BWAdtClient {
     const { getADSOXml, addADSOFieldToXml } = await import("./api/adso")
     const xml = await getADSOXml(this.h, adsoId, true)
     const nextXml = addADSOFieldToXml(xml, field)
+    return this.saveAndActivateADSO(adsoId, nextXml, options)
+  }
+
+  /**
+   * Remove ADSO Field - 删除 ADSO 字段（本地 / IOBJ 挂载）
+   * 证据：2026-11-17 ZL_FID15 去掉本地 RWCUR
+   * @deprecated 使用 `client.adso.removeField()`
+   */
+  public async removeADSOField(
+    adsoId: string,
+    fieldName: string,
+    options?: {
+      transport?: string
+      createTransport?: boolean
+      transportDescription?: string
+      autoActivate?: boolean
+    }
+  ) {
+    const { getADSOXml, removeADSOFieldFromXml } = await import("./api/adso")
+    const xml = await getADSOXml(this.h, adsoId, true)
+    const nextXml = removeADSOFieldFromXml(xml, fieldName)
     return this.saveAndActivateADSO(adsoId, nextXml, options)
   }
 
@@ -1583,6 +1617,54 @@ export class BWAdtClient {
     return getInfoObjectMetadata(this.h, iobjName)
   }
 
+  /**
+   * Get InfoObject Raw XML - 获取 IOBJ 原始 XML（供 PUT update 使用）
+   * 对应请求: GET /sap/bw/modeling/iobj/{name}/m
+   * @deprecated 使用 `client.infoObject.xml()`
+   */
+  public async getInfoObjectXml(iobjName: string, forceCacheUpdate?: boolean) {
+    const { getInfoObjectXml } = await import("./api/infoobject")
+    return getInfoObjectXml(this.h, iobjName, forceCacheUpdate)
+  }
+
+  /**
+   * Get InfoObject Versions
+   * @deprecated 使用 `client.infoObject.versions()`
+   */
+  public async getInfoObjectVersions(iobjName: string) {
+    const { getInfoObjectVersions } = await import("./api/infoobject")
+    return getInfoObjectVersions(this.h, iobjName)
+  }
+
+  /**
+   * Check InfoObject consistency
+   * @deprecated 使用 `client.infoObject.check()`
+   */
+  public async checkInfoObject(iobjName: string) {
+    const { checkInfoObject } = await import("./api/infoobject")
+    return checkInfoObject(this.h, iobjName)
+  }
+
+  /**
+   * Save and Activate InfoObject — lock → PUT → activate → unlock
+   * 证据：2026-11-17 ZK_WSL（改 unitCurrencyInfoObjectRef）
+   * @deprecated 使用 `client.infoObject.saveAndActivate()`
+   */
+  public async saveAndActivateInfoObject(
+    iobjName: string,
+    xmlContent: string,
+    options?: {
+      transport?: string
+      createTransport?: boolean
+      transportDescription?: string
+      autoActivate?: boolean
+      timestamp?: string
+    }
+  ) {
+    const { saveAndActivateInfoObject } = await import("./api/infoobject")
+    return saveAndActivateInfoObject(this.h, iobjName, xmlContent, options)
+  }
+
   // ========================================
   // Data Transfer Process (DTP) Operations
   // ========================================
@@ -1831,6 +1913,56 @@ export class BWAdtClient {
   ) {
     const { saveAndActivateDTP } = await import("./api/dtp")
     return saveAndActivateDTP(this.h, dtpId, xmlContent, options)
+  }
+
+  // ========================================
+  // HCPR (CompositeProvider) Operations
+  // ========================================
+
+  /** @deprecated 使用 `client.hcpr.details()` */
+  public async getHCPRDetails(hcprId: string, forceCacheUpdate?: boolean) {
+    return this.hcpr.details(hcprId, forceCacheUpdate)
+  }
+
+  /** @deprecated 使用 `client.hcpr.xml()` */
+  public async getHCPRXml(hcprId: string, forceCacheUpdate?: boolean) {
+    return this.hcpr.xml(hcprId, forceCacheUpdate)
+  }
+
+  /** @deprecated 使用 `client.hcpr.versions()` */
+  public async getHCPRVersions(hcprId: string) {
+    return this.hcpr.versions(hcprId)
+  }
+
+  /** @deprecated 使用 `client.hcpr.check()` */
+  public async checkHCPR(hcprId: string) {
+    return this.hcpr.check(hcprId)
+  }
+
+  /** @deprecated 使用 `client.hcpr.activate()` */
+  public async activateHCPRWithLock(
+    hcprId: string,
+    options?: { transport?: string }
+  ) {
+    return this.hcpr.activate(hcprId, options)
+  }
+
+  /**
+   * Save and Activate HCPR — lock → transport → PUT → activate → unlock.
+   * @deprecated 使用 `client.hcpr.saveAndActivate()`
+   */
+  public async saveAndActivateHCPR(
+    hcprId: string,
+    xmlContent: string,
+    options?: {
+      transport?: string
+      createTransport?: boolean
+      transportDescription?: string
+      autoActivate?: boolean
+      timestamp?: string
+    }
+  ) {
+    return this.hcpr.saveAndActivate(hcprId, xmlContent, options)
   }
 
   // ========================================

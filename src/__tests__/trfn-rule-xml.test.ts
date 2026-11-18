@@ -1,4 +1,5 @@
 import {
+  addPairedAmountCurrencyRule,
   addTransformationRule,
   autoMapTransformationFields
 } from "../api/transformation"
@@ -144,5 +145,66 @@ describe("Transformation rule XML helpers (对照 Eclipse PUT body)", () => {
     // source step element 应含过账日期 label + DATS inlineType
     expect(next).toContain('label="过账日期"')
     expect(next).toContain('name="DATS" length="8" semanticType="date"')
+  })
+})
+
+const PAIRED_TRFN_XML = `<?xml version="1.0" encoding="UTF-8"?>
+<trfn:transformation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:BwCore="http://www.sap.com/bw/modeling/BwCore.ecore" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:trfn="http://www.sap.com/bw/modeling/Trfn.ecore" name="0TESTPAIRED">
+  <source id="0" name="ZS_FID01" type="ADSO">
+    <segment id="1">
+      <element name="WSL" aggregationBehavior="SUM" intType="P" key="false" posit="0001">
+        <endUserTexts label="以交易货币计的金额"/>
+        <inlineType name="CURR" precision="23" scale="2" semanticType="amount"/>
+        <unitCurrencyElement>#///source/segment1/RWCUR</unitCurrencyElement>
+        <localProperties xsi:type="BwCore:LocalKeyfigureProperties"/>
+        <semantics>AMO</semantics>
+        <associationType>1</associationType>
+        <associationValid>false</associationValid>
+      </element>
+      <element name="RWCUR" intType="C" key="false" posit="0002">
+        <endUserTexts label="交易货币"/>
+        <inlineType name="CUKY" length="5" semanticType="currencyCode"/>
+        <localProperties xsi:type="BwCore:LocalCharacteristicProperties"/>
+        <associationType>1</associationType>
+        <associationValid>false</associationValid>
+      </element>
+    </segment>
+  </source>
+  <target id="0" name="ZL_FID01" type="ADSO">
+    <segment id="1">
+      <element name="ZK_WSL" aggregationBehavior="SUM" infoObjectName="ZK_WSL" dimension="#///target/segment1/KYF§" intType="P" key="false" posit="0001">
+        <endUserTexts label="以交易货币计金额"/>
+        <inlineType name="CURR" precision="17" scale="2" semanticType="amount"/>
+        <unitCurrencyElement>#///target/segment1/ZC_RWCUR</unitCurrencyElement>
+        <semantics>AMO</semantics>
+        <associationType>1</associationType>
+        <associationValid>true</associationValid>
+      </element>
+      <element name="ZC_RWCUR" infoObjectName="ZC_RWCUR" baseInfoObjectName="0CURRENCY" dimension="#///target/segment1/UNI§" intType="C" key="false" posit="0002">
+        <endUserTexts label="交易币种"/>
+        <inlineType name="CUKY" length="5" semanticType="currencyCode"/>
+        <associationType>1</associationType>
+        <associationValid>true</associationValid>
+      </element>
+    </segment>
+  </target>
+  <group id="2" description="Rules" sourceSegment="#///source/segment1" targetSegment="#///target/segment1" type="S">
+  </group>
+</trfn:transformation>`
+
+describe("addPairedAmountCurrencyRule（Eclipse rule 113）", () => {
+  test("生成 FROM_SOURCE 成对规则：金额 MAIN、币种 MINOR，step 无 unitCurrency", () => {
+    const next = addPairedAmountCurrencyRule(PAIRED_TRFN_XML)
+    expect(next).toContain('conversiontype="FROM_SOURCE"')
+    expect(next).toContain("#///source/segment1/WSL")
+    expect(next).toContain("#///source/segment1/RWCUR")
+    expect(next).toContain("#///target/segment1/ZK_WSL")
+    expect(next).toContain("#///target/segment1/ZC_RWCUR")
+    expect(next).toContain('id="2" rank="MAIN" type="DIRECT"')
+    expect(next).toContain('id="1" rank="MINOR" type="DIRECT"')
+    expect(next).toContain("#///group2/rule1/")
+    // step I/O 不应再带 unitCurrencyElement
+    const ruleBlock = next.match(/<rule id="1"[\s\S]*?<\/rule>/)?.[0] || ""
+    expect(ruleBlock).not.toContain("<unitCurrencyElement>")
   })
 })

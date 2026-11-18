@@ -480,7 +480,9 @@ export {
 // rules: 字段映射与通用规则构造
 export {
   AddRuleOptions,
+  PairedAmountCurrencyRuleOptions,
   TransformationRuleSpec,
+  addPairedAmountCurrencyRule,
   addRule,
   addTransformationRule,
   autoMapTransformationFields

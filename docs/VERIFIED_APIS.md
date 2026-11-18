@@ -30,6 +30,7 @@
 | CTS transport | ⚠️ | `transportCheck` 复测通过（本地对象行为 F8）；`createTransport` 未复测 |
 | BICS reporting preview | ✅（2026-09-19 复测） | `reporting.test.ts` |
 | Process Chain | ✅（读路径，2026-09-20 rspc JSON 化） | `getProcessChainDetails` 端到端；版本/日志/状态后缀本系统不支持，execute/stop 未实测 |
+| HCPR (CompositeProvider) | ⚠️ 契约已对齐 Eclipse（2026-11-17），库侧已落地；真机复测待补 | `hcpr-v1_15_0+xml`；GET/PUT `/hcpr/{id}/m`；PUT 带 `timestamp` + `Transport-Lock-Holder`；写编排 `withWriteSession` |
 
 ---
 
@@ -196,7 +197,12 @@ npm test -- --testPathPattern=adso-write
 - **F8 本地对象写不需要 TR**：$TMP 对象 `transportchecks` 返回 RECORDING 空、无 TRANSPORTS，`resolveTransportForWrite` 全链（lock→PUT→activation→unlock）无需传输号即可完成。`lock` 响应 `IS_LOCAL=X` 可判定本地对象。**已实现（2026-09-20）**：`LockResult.isLocal`（实测 $TMP 对象 lock 返回 true）；顺带修复 `lockHandle` 纯数字被 fullParse 转 number 的类型偏差。
 - **F9 ddicTableLink 是模板**：ADSO 响应头 Link 中 `rel=ddicTableLink` 指向 `…/ddic/tables/{table_name}/source/main`（字面量占位符），`adsoDdicTableName` 因此返回 undefined。真实表名应从 ADSO XML `tables` 取。**已修复（2026-09-20）**：`getADSODDICTableName` 改读 `/m` XML `tables` 段（activeTable 优先），实测返回真实表名。
 - **F10 querySql 语法**：`/sap/bc/adt/datapreview/ddic` 的 SELECT 语句**不带引号、大写表名**（`SELECT * FROM /BIC/AZxxxxxxx` 形式）；带双引号会被拒「仅允许 SELECT 语句」。
-- **F11（已修复 2026-09-20）infoObject 引用字段**：字段级引用 IOBJ 的元素形如 `<element xsi:type="adso:AdsoElement" name="X" infoObjectName="X" …>`；**PUT 只需最小形态（name + infoObjectName，无 inlineType），服务器水合 inlineType/association 等其余属性**（实测水合出 `inlineType globalElementName=…` 等）。库已加 `infoObjectName` 字段与 `buildADSOInfoObjectElementXml`，经 `addADSOField` 端到端复测：PUT 接受 + 服务器水合确认（激活报错均为模板自带标准单位字段的「主数据检查不能为无报表」配置，与引用字段无关）。
+- **F11 infoObject 引用字段**（2026-09-20 CHA 极简；**2026-11-17 Eclipse ZL_FID01 修订 UNI/KYF hang**）：
+  - CHA：PUT 极简 `name + infoObjectName`（无 inlineType），服务器水合。
+  - UNI（如 `ZC_RWCUR`）：Eclipse hang 骨架 — `keep=false` `aggregationBehavior=NONE` `baseInfoObjectName=0CURRENCY` `dim=UNI` `sid=S` + inlineType CUKY + fixedCurrency/fixedUnit + associationType；**不要** atom:link / localProperties / consumptionViewProperties。
+  - KYF（如 `ZK_WSL`）：`keep=false` `SUM` `sid=N` + inlineType CURR + `unitCurrencyElement=#///ZC_RWCUR` + associationType；**不要** atom:link / localProperties。
+  - TRFN 金额+币种成对规则：`conversiontype="FROM_SOURCE"`，金额 step MAIN、币种 MINOR（对照 rule 113）。
+  - `buildADSOInfoObjectElementXml` / `bw_adso_add_field` 的 `infoObjectType`/`baseInfoObjectName`/`unitCurrencyElement` 按上列形态生成。
 
 **TRFN 规则专项证据（2026-09-19/20）**
 
@@ -303,6 +309,104 @@ npm test -- --testPathPattern=adso-write
 - `setEndRoutineFields` 仍仅用于**已有** END 上勾选字段；无 END 时请先 `ensureEndRoutine`。
 
 **范围外登记（⚠️）**：RSDS 写×6、复制×2、PC 写×5、createTransport、EXPERT 例程、业务 TRFN 例程类不在本地靶授权范围。
+
+## 9. InfoObject 创建（KYF 关键指标）—— 2026-11-10 Eclipse BWMT 抓包
+
+证据来源：BWMT InfoObject 向导创建关键指标（KYF/CURR/AMO/SUM）的完整通信抓包。
+原始报文含主机/工号/请求号，按本文件规则不入库，仅以下脱敏结论入账。
+
+已验证流程（与 ADSO 写序列同构：lock stateful，写/激活 stateless）：
+
+1. **创建上下文在 lock 头上**（与 ADSO 的 POST 头不同）：`POST /sap/bw/modeling/iobj/{name}?action=lock`
+   带 `parent_name={InfoArea}`、`parent_type=AREA`、`activity_context=CREA`，无请求体；
+   响应为标准 ADT lock result（本地对象 CORRNR 空、IS_LOCAL=X）。
+2. **初始创建保存**：`POST /sap/bw/modeling/iobj/{name}?lockHandle={h}&corrNr={tr}`（stateless），
+   头 `Development-Class={包}`、Content-Type/Accept `application/vnd.sap-bw-modeling.iobj-v2_1_0+xml`；
+   body 为完整 InfoObject 文档（`xsi:type="InfoObject:Keyfigure"`，`infoObjectType=KYF`，
+   tlogoProperties 含 packageRef + infoArea）。响应空 atom feed（200）。
+3. **属性修改走 PUT /m**：头 `timestamp`（取自 GET /m 响应头）+ `Transport-Lock-Holder={tr}`；
+   随后 `POST /sap/bw/modeling/activation`（atom feed + `bwModel:checkProperties lockHandle`，
+   objectUri=/iobj/{name}/m）激活，再 unlock。激活响应 feed 含检查结果消息。
+4. **激活后 GET /m 归一化**：服务端生成 dataElement `/BIC/OI{name}`（激活后 status=A）与 fieldName，
+   precision/scale 由服务端推导；`unitCurrencyInfoObjectRef` 的 infoObjectType 写入 CHA、回读 UNI。
+5. 同一会话内重复 lock 返回相同 lockHandle（与 §2 会话模型一致）。
+
+⚠️ 未验证假设（实现已兜底）：创建 POST body 直接携带 `unitCurrencyInfoObjectRef name=…`——
+向导本身是创建后经编辑器 PUT 补写单位引用。`createInfoObjectFull` 创建后 GET /m 回读比对
+（persisted/diffs）。KYF+CURR+AMO+SUM 组合有证据；QUA/DEC 等其余枚举值按同形推断。
+
+库实现：`createInfoObjectFull` / `createInfoObject` / `buildInfoObjectXml` / `lockInfoObject` /
+`unlockInfoObject` / `activateInfoObject`（src/api/infoobject.ts），门面 `client.infoObject.create()`。
+特征（CHA）创建见 §10。
+
+## 10. InfoObject 创建真机对照（2026-11-12）—— 骨架模型、stateful 修正与 CHA 创建闭环
+
+在测试靶上对 §9 的实现做端到端复测，A~I 变体对照实验推翻/补全了 §9 的三处解读。
+实验对象：`ZK_PROB1~8`（$TMP，探针脚本 `.local/probe/iobj-create-kyf.cjs`）。
+
+**结论一：创建 POST 必须与 lock 同一 stateful 会话（修正 §9「stateless」记录）。**
+lock（stateful，parent/CREA 头）返回 lockHandle 后，stateless POST 创建一律
+404「Resource IOBJ … does not exist」（POST 带或不带 parent/CREA 头、带
+`Development-Class:$TMP` 均无法豁免）；同会话 stateful POST 即 200。
+ADSO 创建 POST stateless 可用是 adso 处理器宽容，非通用语义。
+→ `createInfoObject` 已加 `sessionType: stateful`。
+
+**结论二：创建 POST 只落「骨架 CHA」，body 除 name 外整体被忽略。**
+无论 body 是完整 Keyfigure 文档（v2_1_0，`xsi:type` 用 `InfoObject:` 或 `iobj:` 前缀）、
+POST 头带 parent/CREA 或 Development-Class，落库一律是骨架特征：
+`CHA/CHAR/5/ALPHA`、描述=技术名、InfoArea=NODESNOTCONNECTED、$TMP。
+（v2_4_0 Content-Type 直接 415，v2_1_0 是唯一可用版本。）
+
+**结论三：类型与 dataType 创建后不可改（PUT /m 全部被拒/回退）。**
+- CHA→KYF：PUT /m 翻 `xsi:type`/`infoObjectType`/`dataType`（保留全部骨架块、去
+  conversionRoutine、剥离 CHA 专属块三变体）一律
+  「Resource IOBJ … could not be successfully saved」；
+- 同文档 PUT 若无类型变更则 200 且落库（长度/描述/InfoArea/texts 实测持久化），
+  说明拒绝点就是类型变更本身；
+- CHAR→NUMC：PUT 200 但 dataType 被静默回退（conversionRoutine 的去除可落库）。
+
+**结论四：KYF 创建在库内不可达，缺向导指定类型的机制证据（登记待补）。**
+POST body 类型被忽略 + PUT 不可改类型 ⇒ 向导必然经由某个未复刻的机制在创建时
+指定类型。
+根因定性（2026-11-16 复核）：该系统 Eclipse 走 **JCo dispatch**（请求栈
+`JCoRequestDispatcher`、destination 为 `jco.client.*`），trace 中的"HTTP 报文"是 JCo
+桥的渲染视图——JCo 每次调用显式携带 ABAP 会话上下文（sap-contextid 随调用传），
+「stateless」只是客户端会话标签，≠ HTTP 不带 sap-contextid；这解释了结论一的
+404 与 ADSO 的宽容差异（ADSO 处理器只查 enqueue 锁表，iobj 创建还依赖会话内
+创建上下文）。「疑似把 PUT /m 文档误读为创建 POST body」的怀疑**不成立**：
+抓包 14:38:30 的 infoproviderstructure 请求已列新对象于 `iobj_kyf` 节点下，
+早于首次 PUT 约 2.5 分钟——类型/属性确实在向导创建调用中生效，只是其参数映射
+经由 JCo 入口，HTTP ICF 路径未复刻。解锁路径：Eclipse 切 HTTP dispatch 重抓
+KYF 向导（拿真实 HTTP wire），或读服务端 `CL_RSO_RES_IOBJ` 创建分支源码。
+`createInfoObjectFull` 保留但诚实标注：回读校验必然 `persisted:false`（diffs 列出
+未落库属性），激活后得到的是激活态骨架 CHA——调用方应在 persisted:false 时不使用。
+待上述任一证据后重开。
+
+**CHA 创建闭环（已入库）**：`createInfoObjectChaFull`（门面 `client.infoObject.createCha()`）：
+validate → lock(parent/CREA) → POST 骨架（stateful）→ PUT /m 补写属性
+（`timestamp` 头取自 GET /m；stateless 可；描述/长度/InfoArea/texts）→ 回读校验 →
+激活 → unlock。真机 ZK_PROB8（$TMP）：persisted=true、激活成功、
+回读 CHA/CHAR/12、描述与 InfoArea 正确、SID 表 `/BIC/S{name}` 生成。
+限制：dataType 恒 CHAR（其余类型与 KYF 同缺机制证据）；InfoObject 无删除能力（探针
+对象留存 $TMP，需 BWMT 手工清理）。
+
+**KYF 创建闭环（2026-11-17 ZK_AMT 重写）**：旧结论「POST 只落 CHA 骨架」仅适用于
+**stateful** POST（createCha 骨架路径）。Eclipse 向导 + 真机 API：
+**stateless** POST `xsi:type=Keyfigure` + `Development-Class`（含 `$TMP`）→ 类型即 KYF；
+随后 PUT `/m` 写 `<unitCurrencyInfoObjectRef infoObjectType="CHA" name="ZC_CUR"/>` +
+`highPrecision` + displayProperties。`createInfoObjectFull` / `client.infoObject.create()`
+已按此重写；createCha 改走 `createInfoObjectChaSkeleton`（stateful）。
+
+**UNI（Unit/币种）创建闭环（2026-11-17）**：`createInfoObjectUnitFull`
+（门面 `client.infoObject.createUnit()`）。Eclipse 抓包：
+- 真实包 ZC_RWCUR：POST `?lockHandle=&corrNr=` + `Development-Class: ZBW`
+- **$TMP ZC_CUR**（InfoArea ZGLD_TEST）：POST `?lockHandle=`（**无 corrNr**），
+  仍落 UNI/CUKY/0CURRENCY
+Body 同形：`xsi:type="InfoObject:Unit" unitType="CUR"` + UNI + CUKY +
+`<referencedInfoObject name="0CURRENCY"/>`；POST **stateless**。
+真机 API：ZADT_UC3（ZBW+TR）persisted=true；`$TMP` 须带 `packageRef/$TMP` +
+`Development-Class:$TMP`（早先裸 $TMP 探针 404 已修正）。路径：validate →
+lock(CREA) → POST Unit(stateless) → 回读 → 激活 → unlock。
 
 ## 安全说明
 

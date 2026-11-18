@@ -50,6 +50,33 @@ describe("ADSO field-type XML helpers", () => {
     expect(xml).toContain("<descriptions/>")
   })
 
+  test("buildADSOFieldElementXml() - CUKY 完整币种形态（对照 RWCUR）", () => {
+    const xml = buildADSOFieldElementXml({
+      name: "RWCUR",
+      dataType: "CUKY"
+    })
+    expect(xml).toContain('name="RWCUR"')
+    expect(xml).toContain('dimension="#///UNI§"')
+    expect(xml).toContain('outputLength="5"')
+    expect(xml).toContain('name="CUKY" length="5" semanticType="currencyCode"')
+    expect(xml).toContain('objectType="UNI"')
+    expect(xml).toContain('fieldName="RWCUR"')
+    expect(xml).toContain("consumptionViewProperties")
+  })
+
+  test("buildADSOFieldElementXml() - CURR + unitCurrencyElement", () => {
+    const xml = buildADSOFieldElementXml({
+      name: "ZK_WSL",
+      dataType: "CURR",
+      unitCurrencyElement: "RWCUR",
+      label: "以交易货币计金额"
+    })
+    expect(xml).toContain('aggregationBehavior="SUM"')
+    expect(xml).toContain('dimension="#///KYF§"')
+    expect(xml).toContain('semanticType="amount"')
+    expect(xml).toContain("<unitCurrencyElement>#///RWCUR</unitCurrencyElement>")
+  })
+
   test("addADSOFieldToXml() - 插在 keyElement 之前", () => {
     const next = addADSOFieldToXml(SAMPLE_ADSO_XML, {
       name: "ZAPI_FLD",

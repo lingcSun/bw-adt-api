@@ -54,6 +54,23 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "P1 Task 3 已落地：details/exists 经 repository.search 判别类型；adso(name) 返回绑定同一 AdtHTTP 的 AdsoDomain（client.adso 是其快捷方式）。hydrate 为 P2 水合编辑模型入口；P2 Task 2 已落真实分发（ADSO → AdsoModel.hydrate，编辑后 saveAndActivate 落盘）。HCPR/MultiProvider/OpenODS 无实测证据，命中即抛 not verified yet"
   },
   {
+    name: "hcpr",
+    kind: "modeling",
+    summary: "InfoProvider · HCPR（CompositeProvider）",
+    verbs: [
+      "details",
+      "xml",
+      "versions",
+      "check",
+      "exists",
+      "activate",
+      "saveAndActivate",
+      "delete"
+    ],
+    notes:
+      "契约来自 2026-11-17 Eclipse Communication Log（ZR_FIC81）：GET/PUT hcpr-v1_15_0+xml，PUT 带 timestamp + Transport-Lock-Holder；写编排 withWriteSession。exists/delete 与 ADSO 同形（delete 走 lockHandle 模式）；delete 真机尚未单独复测。advanced 子面：lock/unlock/activate/update（调用方持锁原语，非家族动词故不入 verbs）"
+  },
+  {
     name: "adso",
     kind: "modeling",
     summary: "InfoProvider · ADSO（当前唯一落地的 infoProvider 类型）",
@@ -66,6 +83,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "activate",
       "saveAndActivate",
       "addField",
+      "removeField",
       "addKey",
       "create",
       "validateInfoArea",
@@ -75,7 +93,7 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
       "delete"
     ],
     notes:
-      "validateTemplate/validateNewName 是寄居的校验动词；validateInfoArea 已归位 client.infoArea.validate（P1 Task 2，旧位置保留 @deprecated）；getRaw 是 Advanced 层原始 XML 访问器。exists 为动词族审计补齐（2026-09-22，归一 validate*Exists 为 boolean）；delete 自管锁（2026-09-22：内部 lockADSO → BWObject.delete，成功不追加门面级 unlock——BWObject.delete 内部自带吞错 unlock（bwObject.ts），lockHandle 不再是调用方输入）；activate 自管锁（2026-09-22 正名：重激活已保存对象，lockADSO → activateADSO → 始终 finally 吞错 unlock——激活不释放锁；可选 transport 作 corrNr，ADSO 侧 corrNr 尚待复核）；advanced 子面：lock/unlock/activate/update/delete（调用方持锁原语，逐参转发 api 层，非家族动词故不入 verbs）"
+      "validateTemplate/validateNewName 是寄居的校验动词；validateInfoArea 已归位 client.infoArea.validate（P1 Task 2，旧位置保留 @deprecated）；getRaw 是 Advanced 层原始 XML 访问器。exists 为动词族审计补齐（2026-09-22，归一 validate*Exists 为 boolean）；delete 自管锁（2026-09-22：内部 lockADSO → BWObject.delete，成功不追加门面级 unlock——BWObject.delete 内部自带吞错 unlock（bwObject.ts），lockHandle 不再是调用方输入）；activate 自管锁（2026-09-22 正名：重激活已保存对象，lockADSO → activateADSO → 始终 finally 吞错 unlock——激活不释放锁；可选 transport 作 corrNr，ADSO 侧 corrNr 尚待复核）；removeField（2026-11-17 ZL_FID15）：本地 RWCUR→IOBJ ZC_RWCUR 迁移时删旧 element，PUT 契约同 saveAndActivate；advanced 子面：lock/unlock/activate/update/delete（调用方持锁原语，逐参转发 api 层，非家族动词故不入 verbs）"
   },
   {
     name: "trfn",
@@ -138,9 +156,21 @@ export const DOMAIN_REGISTRY: DomainEntry[] = [
   {
     name: "infoObject",
     kind: "modeling",
-    summary: "InfoObject 建模域（读 + 校验）",
-    verbs: ["get", "validateExists", "validateNewName"],
-    notes: "创建/编辑尚无账本证据，仅读与校验（分类学备注）"
+    summary: "InfoObject 建模域（读 + 校验 + CHA/KYF/UNI 创建 + XML 读写激活）",
+    verbs: [
+      "get",
+      "validateExists",
+      "validateNewName",
+      "create",
+      "createCha",
+      "createUnit",
+      "xml",
+      "versions",
+      "check",
+      "saveAndActivate"
+    ],
+    notes:
+      "create/KYF（2026-11-17 ZK_AMT）：stateless POST Keyfigure → PUT unit；createCha：stateful 骨架；createUnit：Unit/CUR/CUKY；xml/saveAndActivate（2026-11-17 ZK_WSL）：PUT /m + timestamp + Transport-Lock-Holder；advanced 子面：lock/unlock/activate/update"
   },
   {
     name: "processChain",

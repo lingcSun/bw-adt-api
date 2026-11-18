@@ -93,6 +93,20 @@ export class AdsoDomain {
   }
 
   /**
+   * 删除 ADSO 字段（本地 field / IOBJ 挂载通用）。
+   * 证据：2026-11-17 ZL_FID15 本地 RWCUR → 挂 ZC_RWCUR 时需先/一并去掉旧 element。
+   */
+  async removeField(
+    adsoId: string,
+    fieldName: string,
+    options?: adso.SaveAndActivateADSOOptions
+  ) {
+    const xml = await adso.getADSOXml(this.h, adsoId, true)
+    const nextXml = adso.removeADSOFieldFromXml(xml, fieldName)
+    return adso.saveAndActivateADSO(this.h, adsoId, nextXml, options)
+  }
+
+  /**
    * 给 ADSO 加键定义（2026-09-20 F3 闭环）。默认不激活——
    * 空白 ADSO 建议先 addKey 再 addField（由 addField 激活）。
    */
